@@ -1221,6 +1221,7 @@ done
 )
 
 STARTED_LABELS=()
+BOOTED_OUT_LABELS=()
 normalize_control_identity() {
   sed -E '/^[[:space:]]*(state|pid|runs|last exit code|last terminating signal|successful exits|forks|execs|initialized|trampolined|started|proxy started) = /d' "$1"
 }
@@ -1247,17 +1248,32 @@ rollback_activation() {
     done
     printf ']'
   }
+  was_booted_out_by_transaction() {
+    local CANDIDATE
+    if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" \
+      && -f "${RECOVERY_TRANSACTION_ROOT}/booted-out/$1" ]]; then
+      return 0
+    fi
+    if (( ${#BOOTED_OUT_LABELS[@]} > 0 )); then
+      for CANDIDATE in "${BOOTED_OUT_LABELS[@]}"; do
+        [[ "${CANDIDATE}" == "$1" ]] && return 0
+      done
+    fi
+    return 1
+  }
   trap - ERR
   set +e
   rm -f "${ACTIVATION_BARRIER}" || record_rollback_failure "rollback.barrier.remove"
-  for LABEL in "${STARTED_LABELS[@]}"; do
-    if ! launchctl bootout "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
-      record_rollback_failure "rollback.bootout"
-    fi
-    if launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
-      record_rollback_failure "rollback.bootout.loaded"
-    fi
-  done
+  if (( ${#STARTED_LABELS[@]} > 0 )); then
+    for LABEL in "${STARTED_LABELS[@]}"; do
+      if ! launchctl bootout "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
+        record_rollback_failure "rollback.bootout"
+      fi
+      if launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
+        record_rollback_failure "rollback.bootout.loaded"
+      fi
+    done
+  fi
   for INDEX in 0 1 2 3 4 5 6; do
     LABEL="${LABELS[${INDEX}]}"
     TARGET="${TARGET_PLISTS[${INDEX}]}"
@@ -1272,17 +1288,23 @@ rollback_activation() {
     fi
     if [[ "$(cat "${STAGE_DIR}/${LABEL}.previous_loaded")" == "1" \
       && -f "${TARGET}" ]]; then
-      if ! launchctl bootstrap "gui/${USER_ID}" "${TARGET}" >/dev/null 2>&1 \
-        || ! launchctl print "gui/${USER_ID}/${LABEL}" \
-          > "${STAGE_DIR}/${LABEL}.actual_identity" 2>/dev/null; then
-        record_rollback_failure "rollback.bootstrap"
-      else
-        normalize_control_identity "${STAGE_DIR}/${LABEL}.actual_identity" \
-          > "${STAGE_DIR}/${LABEL}.actual_identity.stable"
-        cmp -s "${STAGE_DIR}/${LABEL}.previous_identity.stable" \
-          "${STAGE_DIR}/${LABEL}.actual_identity.stable" \
-          || record_rollback_failure "rollback.identity"
+      if was_booted_out_by_transaction "${LABEL}"; then
+        if ! launchctl bootstrap "gui/${USER_ID}" "${TARGET}" >/dev/null 2>&1 \
+          || ! launchctl print "gui/${USER_ID}/${LABEL}" \
+            > "${STAGE_DIR}/${LABEL}.actual_identity" 2>/dev/null; then
+          record_rollback_failure "rollback.bootstrap"
+          continue
+        fi
+      elif ! launchctl print "gui/${USER_ID}/${LABEL}" \
+        > "${STAGE_DIR}/${LABEL}.actual_identity" 2>/dev/null; then
+        record_rollback_failure "rollback.identity.loaded_missing"
+        continue
       fi
+      normalize_control_identity "${STAGE_DIR}/${LABEL}.actual_identity" \
+        > "${STAGE_DIR}/${LABEL}.actual_identity.stable"
+      cmp -s "${STAGE_DIR}/${LABEL}.previous_identity.stable" \
+        "${STAGE_DIR}/${LABEL}.actual_identity.stable" \
+        || record_rollback_failure "rollback.identity"
     elif launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
       record_rollback_failure "rollback.identity.unloaded"
     fi
@@ -1758,6 +1780,8 @@ if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
   fi
   RECOVERY_PROBE_OUTPUT="${RECOVERY_FIRST_ADMISSION_OUTPUT}"
   mkdir "${RECOVERY_TRANSACTION_ROOT}"
+  mkdir "${RECOVERY_TRANSACTION_ROOT}/booted-out"
+  chmod 700 "${RECOVERY_TRANSACTION_ROOT}/booted-out"
   printf '%s\n' "${RECOVERY_PROBE_OUTPUT}" \
     > "${RECOVERY_TRANSACTION_ROOT}/admission-receipt.json"
   chmod 600 "${RECOVERY_TRANSACTION_ROOT}/admission-receipt.json"
@@ -1888,7 +1912,13 @@ for INDEX in 0 1 2 3 4 5 6; do
   TARGET="${TARGET_PLISTS[${INDEX}]}"
   if [[ "$(cat "${STAGE_DIR}/${LABEL}.previous_loaded")" == "1" ]]; then
     launchctl bootout "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1
+    BOOTED_OUT_LABELS+=("${LABEL}")
     if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
+      printf '%s\n' "${LABEL}" \
+        > "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}.tmp.$$"
+      chmod 600 "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}.tmp.$$"
+      mv "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}.tmp.$$" \
+        "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}"
       RECOVERY_BOOTOUT_COUNT=$((RECOVERY_BOOTOUT_COUNT + 1))
     fi
     if launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
@@ -1900,8 +1930,8 @@ ACTIVATION_PHASE="bootstrap_staged_services"
 for INDEX in 0 1 2 3 4 5 6; do
   LABEL="${LABELS[${INDEX}]}"
   TARGET="${TARGET_PLISTS[${INDEX}]}"
-  STARTED_LABELS+=("${LABEL}")
   launchctl bootstrap "gui/${USER_ID}" "${TARGET}"
+  STARTED_LABELS+=("${LABEL}")
   if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
     RECOVERY_BOOTSTRAP_COUNT=$((RECOVERY_BOOTSTRAP_COUNT + 1))
   fi

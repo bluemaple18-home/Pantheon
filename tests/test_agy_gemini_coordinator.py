@@ -8370,10 +8370,12 @@ def _write_malformed_cohort_launchctl(
     ready_root: Path,
     readiness_fixture: Path,
     fail_bootstrap_at: int = 0,
+    fail_bootout_at: int = 0,
     tamper_first_rollback_restore: bool = False,
 ) -> None:
     tamper = "1" if tamper_first_rollback_restore else "0"
-    counter = path.parent.parent / "malformed-bootstrap-count"
+    bootstrap_counter = path.parent.parent / "malformed-bootstrap-count"
+    bootout_counter = path.parent.parent / "malformed-bootout-count"
     path.write_text(
         "#!/bin/sh\n"
         "if [ \"$1\" = \"print\" ]; then\n"
@@ -8389,17 +8391,22 @@ def _write_malformed_cohort_launchctl(
         "fi\n"
         f"printf '%s\\n' \"$*\" >> '{mutation_log}'\n"
         "if [ \"$1\" = \"bootout\" ]; then\n"
+        f"  count=$(cat '{bootout_counter}' 2>/dev/null || printf 0)\n"
+        "  count=$((count + 1))\n"
+        f"  printf '%s' \"$count\" > '{bootout_counter}'\n"
+        f"  if [ {fail_bootout_at} -gt 0 ] && [ \"$count\" -eq {fail_bootout_at} ]; then exit 1; fi\n"
         "  label=${2##*/}\n"
         f"  rm -f '{loaded}/'$label\n"
         "  exit 0\n"
         "fi\n"
         "if [ \"$1\" = \"bootstrap\" ]; then\n"
-        f"  count=$(cat '{counter}' 2>/dev/null || printf 0)\n"
-        "  count=$((count + 1))\n"
-        f"  printf '%s' \"$count\" > '{counter}'\n"
-        f"  if [ {fail_bootstrap_at} -gt 0 ] && [ \"$count\" -eq {fail_bootstrap_at} ]; then exit 1; fi\n"
         "  label=${3##*/}\n"
         "  label=${label%.plist}\n"
+        f"  [ ! -f '{loaded}/'$label ] || exit 37\n"
+        f"  count=$(cat '{bootstrap_counter}' 2>/dev/null || printf 0)\n"
+        "  count=$((count + 1))\n"
+        f"  printf '%s' \"$count\" > '{bootstrap_counter}'\n"
+        f"  if [ {fail_bootstrap_at} -gt 0 ] && [ \"$count\" -eq {fail_bootstrap_at} ]; then exit 1; fi\n"
         f"  touch '{loaded}/'$label\n"
         f"  mkdir -p '{ready_root}'\n"
         f"  cp '{readiness_fixture}/'* '{ready_root}/'\n"
@@ -9126,6 +9133,123 @@ def test_malformed_cohort_partial_replacement_restores_exact_seven_service_state
     mutations = mutation_log.read_text(encoding="utf-8")
     assert mutations.count("bootout") >= 7
     assert mutations.count("bootstrap") >= 7
+
+
+def test_malformed_cohort_pre_bootout_failure_restores_without_launchctl_mutation(
+    tmp_path: Path,
+) -> None:
+    env, launch_agents, mutation_log, manifest, loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    before = {
+        label: (launch_agents / f"{label}.plist").read_bytes()
+        for label in runtime_manifest.SERVICE_LABELS
+    }
+    barrier = (
+        Path(str(manifest["publisher_state_root"]))
+        / f"four-lane-activation-{manifest['generation']}.barrier"
+    )
+    barrier_before = barrier.read_bytes()
+    fake_plistbuddy = tmp_path / "bin/failing-live-plistbuddy"
+    fake_plistbuddy.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"-c\" ] && "
+        "[ \"$2\" = \"Add :ProgramArguments:16 string --activation-only\" ] && "
+        f"[ \"$(dirname \"$3\")\" = '{launch_agents}' ]; then\n"
+        "  exit 91\n"
+        "fi\n"
+        "exec /usr/libexec/PlistBuddy \"$@\"\n",
+        encoding="utf-8",
+    )
+    fake_plistbuddy.chmod(0o700)
+    installer = repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"
+    installer.write_text(
+        installer.read_text(encoding="utf-8").replace(
+            "/usr/libexec/PlistBuddy",
+            str(fake_plistbuddy),
+        ),
+        encoding="utf-8",
+    )
+
+    completed = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert completed.returncode != 0
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
+    rollback_receipt = json.loads(
+        _recovery_rollback_receipt(launch_agents).read_text(encoding="utf-8")
+    )
+    _assert_recovery_receipt_sha(rollback_receipt)
+    assert receipt["status"] == "ROLLBACK_COMPLETE"
+    assert receipt["exit_reason"]["phase"] == "replace_live_plists"
+    assert rollback_receipt["status"] == "ROLLBACK_COMPLETE"
+    mutations = mutation_log.read_text(encoding="utf-8") if mutation_log.exists() else ""
+    assert mutations.count("bootout") == 0
+    assert mutations.count("bootstrap") == 0
+    assert sorted(path.name for path in loaded.iterdir()) == sorted(
+        runtime_manifest.SERVICE_LABELS
+    )
+    for label in runtime_manifest.SERVICE_LABELS:
+        assert (launch_agents / f"{label}.plist").read_bytes() == before[label]
+        assert subprocess.run(
+            ["launchctl", "print", f"gui/{os.getuid()}/{label}"],
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        ).returncode == 0
+    assert barrier.read_bytes() == barrier_before
+    assert not _recovery_transaction_root(launch_agents).exists()
+
+
+def test_malformed_cohort_mid_bootout_failure_restarts_only_booted_out_labels(
+    tmp_path: Path,
+) -> None:
+    env, launch_agents, mutation_log, manifest, loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    before = {
+        label: (launch_agents / f"{label}.plist").read_bytes()
+        for label in runtime_manifest.SERVICE_LABELS
+    }
+    barrier = (
+        Path(str(manifest["publisher_state_root"]))
+        / f"four-lane-activation-{manifest['generation']}.barrier"
+    )
+    barrier_before = barrier.read_bytes()
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    readiness_fixture = tmp_path / "malformed-cohort-readiness"
+    _write_malformed_cohort_launchctl(
+        tmp_path / "bin/launchctl",
+        launch_agents=launch_agents,
+        loaded=loaded,
+        mutation_log=mutation_log,
+        ready_root=stage_dir / "readiness" / str(manifest["generation"]),
+        readiness_fixture=readiness_fixture,
+        fail_bootout_at=4,
+    )
+
+    completed = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert completed.returncode != 0
+    receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
+    rollback_receipt = json.loads(
+        _recovery_rollback_receipt(launch_agents).read_text(encoding="utf-8")
+    )
+    _assert_recovery_receipt_sha(rollback_receipt)
+    assert receipt["status"] == "ROLLBACK_COMPLETE"
+    assert receipt["exit_reason"]["phase"] == "bootout_previous_services"
+    assert rollback_receipt["status"] == "ROLLBACK_COMPLETE"
+    mutations = mutation_log.read_text(encoding="utf-8")
+    assert mutations.count("bootout") == 4
+    assert mutations.count("bootstrap") == 3
+    assert sorted(path.name for path in loaded.iterdir()) == sorted(
+        runtime_manifest.SERVICE_LABELS
+    )
+    for label in runtime_manifest.SERVICE_LABELS:
+        assert (launch_agents / f"{label}.plist").read_bytes() == before[label]
+    assert barrier.read_bytes() == barrier_before
+    assert not _recovery_transaction_root(launch_agents).exists()
 
 
 def test_malformed_cohort_revalidates_fingerprints_after_snapshot(
