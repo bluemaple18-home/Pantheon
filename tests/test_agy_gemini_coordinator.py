@@ -8370,7 +8370,9 @@ def _write_malformed_cohort_launchctl(
     ready_root: Path,
     readiness_fixture: Path,
     fail_bootstrap_at: int = 0,
+    fail_bootstrap_after_mutation_at: int = 0,
     fail_bootout_at: int = 0,
+    fail_bootout_after_mutation_at: int = 0,
     tamper_first_rollback_restore: bool = False,
 ) -> None:
     tamper = "1" if tamper_first_rollback_restore else "0"
@@ -8397,6 +8399,7 @@ def _write_malformed_cohort_launchctl(
         f"  if [ {fail_bootout_at} -gt 0 ] && [ \"$count\" -eq {fail_bootout_at} ]; then exit 1; fi\n"
         "  label=${2##*/}\n"
         f"  rm -f '{loaded}/'$label\n"
+        f"  if [ {fail_bootout_after_mutation_at} -gt 0 ] && [ \"$count\" -eq {fail_bootout_after_mutation_at} ]; then exit 91; fi\n"
         "  exit 0\n"
         "fi\n"
         "if [ \"$1\" = \"bootstrap\" ]; then\n"
@@ -8408,6 +8411,7 @@ def _write_malformed_cohort_launchctl(
         f"  printf '%s' \"$count\" > '{bootstrap_counter}'\n"
         f"  if [ {fail_bootstrap_at} -gt 0 ] && [ \"$count\" -eq {fail_bootstrap_at} ]; then exit 1; fi\n"
         f"  touch '{loaded}/'$label\n"
+        f"  if [ {fail_bootstrap_after_mutation_at} -gt 0 ] && [ \"$count\" -eq {fail_bootstrap_after_mutation_at} ]; then exit 92; fi\n"
         f"  mkdir -p '{ready_root}'\n"
         f"  cp '{readiness_fixture}/'* '{ready_root}/'\n"
         f"  if [ '{tamper}' = '1' ] && [ {fail_bootstrap_at} -gt 0 ] && [ \"$count\" -gt {fail_bootstrap_at} ]; then\n"
@@ -9298,6 +9302,118 @@ def test_malformed_cohort_mid_bootout_failure_restarts_only_booted_out_labels(
     for label in runtime_manifest.SERVICE_LABELS:
         assert (launch_agents / f"{label}.plist").read_bytes() == before[label]
     assert barrier.read_bytes() == barrier_before
+    assert not _recovery_transaction_root(launch_agents).exists()
+
+
+def test_malformed_cohort_bootout_mutates_then_fails_restores_actual_topology(
+    tmp_path: Path,
+) -> None:
+    env, launch_agents, mutation_log, manifest, loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    before = {
+        label: (launch_agents / f"{label}.plist").read_bytes()
+        for label in runtime_manifest.SERVICE_LABELS
+    }
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    readiness_fixture = tmp_path / "malformed-cohort-readiness"
+    _write_malformed_cohort_launchctl(
+        tmp_path / "bin/launchctl",
+        launch_agents=launch_agents,
+        loaded=loaded,
+        mutation_log=mutation_log,
+        ready_root=stage_dir / "readiness" / str(manifest["generation"]),
+        readiness_fixture=readiness_fixture,
+        fail_bootout_after_mutation_at=4,
+    )
+
+    failed = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert failed.returncode != 0
+    receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
+    rollback_receipt = json.loads(
+        _recovery_rollback_receipt(launch_agents).read_text(encoding="utf-8")
+    )
+    assert receipt["status"] == "ROLLBACK_COMPLETE"
+    assert receipt["exit_reason"]["phase"] == "bootout_previous_services"
+    assert rollback_receipt["status"] == "ROLLBACK_COMPLETE"
+    mutation_commands = [
+        line.split()[0]
+        for line in mutation_log.read_text(encoding="utf-8").splitlines()
+    ]
+    assert mutation_commands.count("bootout") == 4
+    assert mutation_commands.count("bootstrap") == 4
+    for label in runtime_manifest.SERVICE_LABELS:
+        assert (launch_agents / f"{label}.plist").read_bytes() == before[label]
+        assert subprocess.run(
+            ["launchctl", "print", f"gui/{os.getuid()}/{label}"],
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        ).returncode == 0
+    assert not _recovery_transaction_root(launch_agents).exists()
+
+    retried = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert retried.returncode == 0, f"{retried.stdout}\n{retried.stderr}"
+    assert "RECOVERY_COMMITTED" in retried.stdout
+    assert not _recovery_transaction_root(launch_agents).exists()
+
+
+def test_malformed_cohort_bootstrap_mutates_then_fails_removes_started_service(
+    tmp_path: Path,
+) -> None:
+    env, launch_agents, mutation_log, manifest, loaded, repo_root = (
+        _prepare_malformed_activation_only_cohort_fixture(tmp_path)
+    )
+    before = {
+        label: (launch_agents / f"{label}.plist").read_bytes()
+        for label in runtime_manifest.SERVICE_LABELS
+    }
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    readiness_fixture = tmp_path / "malformed-cohort-readiness"
+    _write_malformed_cohort_launchctl(
+        tmp_path / "bin/launchctl",
+        launch_agents=launch_agents,
+        loaded=loaded,
+        mutation_log=mutation_log,
+        ready_root=stage_dir / "readiness" / str(manifest["generation"]),
+        readiness_fixture=readiness_fixture,
+        fail_bootstrap_after_mutation_at=4,
+    )
+
+    failed = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert failed.returncode != 0
+    receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
+    rollback_receipt = json.loads(
+        _recovery_rollback_receipt(launch_agents).read_text(encoding="utf-8")
+    )
+    assert receipt["status"] == "ROLLBACK_COMPLETE"
+    assert receipt["exit_reason"]["phase"] == "bootstrap_staged_services"
+    assert rollback_receipt["status"] == "ROLLBACK_COMPLETE"
+    mutation_commands = [
+        line.split()[0]
+        for line in mutation_log.read_text(encoding="utf-8").splitlines()
+    ]
+    assert mutation_commands.count("bootout") == 11
+    assert mutation_commands.count("bootstrap") == 11
+    for label in runtime_manifest.SERVICE_LABELS:
+        assert (launch_agents / f"{label}.plist").read_bytes() == before[label]
+        assert subprocess.run(
+            ["launchctl", "print", f"gui/{os.getuid()}/{label}"],
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        ).returncode == 0
+    assert not _recovery_transaction_root(launch_agents).exists()
+
+    retried = _run_malformed_cohort_recovery(repo_root, tmp_path, env)
+
+    assert retried.returncode == 0, f"{retried.stdout}\n{retried.stderr}"
+    assert "RECOVERY_COMMITTED" in retried.stdout
     assert not _recovery_transaction_root(launch_agents).exists()
 
 

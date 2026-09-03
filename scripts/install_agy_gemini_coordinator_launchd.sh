@@ -1222,6 +1222,21 @@ done
 
 STARTED_LABELS=()
 BOOTED_OUT_LABELS=()
+record_confirmed_bootout() {
+  local LABEL="$1"
+  BOOTED_OUT_LABELS+=("${LABEL}")
+  if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
+    printf '%s\n' "${LABEL}" \
+      > "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}.tmp.$$"
+    chmod 600 "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}.tmp.$$"
+    mv "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}.tmp.$$" \
+      "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}"
+    RECOVERY_BOOTOUT_COUNT=$((RECOVERY_BOOTOUT_COUNT + 1))
+  fi
+}
+propagate_failure_status() {
+  return "$1"
+}
 normalize_control_identity() {
   sed -E '/^[[:space:]]*(state|pid|runs|last exit code|last terminating signal|successful exits|forks|execs|initialized|trampolined|started|proxy started) = /d' "$1"
 }
@@ -1912,17 +1927,21 @@ for INDEX in 0 1 2 3 4 5 6; do
   LABEL="${LABELS[${INDEX}]}"
   TARGET="${TARGET_PLISTS[${INDEX}]}"
   if [[ "$(cat "${STAGE_DIR}/${LABEL}.previous_loaded")" == "1" ]]; then
-    launchctl bootout "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1
-    BOOTED_OUT_LABELS+=("${LABEL}")
-    if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
-      printf '%s\n' "${LABEL}" \
-        > "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}.tmp.$$"
-      chmod 600 "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}.tmp.$$"
-      mv "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}.tmp.$$" \
-        "${RECOVERY_TRANSACTION_ROOT}/booted-out/${LABEL}"
-      RECOVERY_BOOTOUT_COUNT=$((RECOVERY_BOOTOUT_COUNT + 1))
+    BOOTOUT_RETURN_CODE=0
+    if launchctl bootout "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
+      :
+    else
+      BOOTOUT_RETURN_CODE="$?"
     fi
     if launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
+      BOOTOUT_CONFIRMED=0
+    else
+      BOOTOUT_CONFIRMED=1
+      record_confirmed_bootout "${LABEL}"
+    fi
+    if [[ "${BOOTOUT_RETURN_CODE}" != "0" ]]; then
+      propagate_failure_status "${BOOTOUT_RETURN_CODE}"
+    elif [[ "${BOOTOUT_CONFIRMED}" != "1" ]]; then
       false
     fi
   fi
@@ -1931,12 +1950,26 @@ ACTIVATION_PHASE="bootstrap_staged_services"
 for INDEX in 0 1 2 3 4 5 6; do
   LABEL="${LABELS[${INDEX}]}"
   TARGET="${TARGET_PLISTS[${INDEX}]}"
-  launchctl bootstrap "gui/${USER_ID}" "${TARGET}"
-  STARTED_LABELS+=("${LABEL}")
-  if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
-    RECOVERY_BOOTSTRAP_COUNT=$((RECOVERY_BOOTSTRAP_COUNT + 1))
+  BOOTSTRAP_RETURN_CODE=0
+  if launchctl bootstrap "gui/${USER_ID}" "${TARGET}"; then
+    :
+  else
+    BOOTSTRAP_RETURN_CODE="$?"
   fi
-  launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null
+  if launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null; then
+    BOOTSTRAP_CONFIRMED=1
+    STARTED_LABELS+=("${LABEL}")
+    if [[ "${MALFORMED_COHORT_RECOVERY}" == "1" ]]; then
+      RECOVERY_BOOTSTRAP_COUNT=$((RECOVERY_BOOTSTRAP_COUNT + 1))
+    fi
+  else
+    BOOTSTRAP_CONFIRMED=0
+  fi
+  if [[ "${BOOTSTRAP_RETURN_CODE}" != "0" ]]; then
+    propagate_failure_status "${BOOTSTRAP_RETURN_CODE}"
+  elif [[ "${BOOTSTRAP_CONFIRMED}" != "1" ]]; then
+    false
+  fi
 done
 ACTIVATION_PHASE="live_aggregate_validation"
 LIVE_AGGREGATE_ARGS=()
