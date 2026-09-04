@@ -503,9 +503,43 @@ def prepare_checkpoint(
 def _validate_frozen_plan(plan: object) -> dict[str, Any]:
     if not isinstance(plan, dict) or not isinstance(plan.get("slots"), list):
         raise BatchPlanError("batch plan artifact must be a JSON object")
-    if len(plan["slots"]) != 10:
+    slots = plan["slots"]
+    if plan.get("schema_version") != 1:
+        raise BatchPlanError("batch plan artifact schema_version must be 1")
+    if len(slots) != 10 or not all(isinstance(slot, dict) for slot in slots):
         raise BatchPlanError("batch plan artifact must contain exactly 10 slots")
+    if [slot.get("slot_id") for slot in slots] != [
+        f"slot-{index:02d}" for index in range(1, 11)
+    ]:
+        raise BatchPlanError("batch plan artifact slot IDs are invalid")
+    identities = {
+        "topic_id": [slot.get("topic_id") for slot in slots],
+        "run_id": [slot.get("run_id") for slot in slots],
+        "lane_id": [slot.get("lane_id") for slot in slots],
+        "semantic_exclusion_key": [
+            slot.get("semantic_exclusion_key") for slot in slots
+        ],
+        "target article_id": [
+            slot.get("target", {}).get("article_id")
+            if isinstance(slot.get("target"), dict)
+            else None
+            for slot in slots
+        ],
+        "target route": [
+            slot.get("target", {}).get("route")
+            if isinstance(slot.get("target"), dict)
+            else None
+            for slot in slots
+        ],
+    }
+    for name, values in identities.items():
+        if any(not isinstance(value, str) or not value for value in values):
+            raise BatchPlanError(f"batch plan artifact contains invalid {name}")
+        if len(set(values)) != len(values):
+            raise BatchPlanError(f"batch plan artifact contains duplicate {name}")
     _validate_plan(plan, 10)
+    for slot in slots:
+        pipeline.validate_new_brief(_brief(plan, slot))
     return plan
 
 
@@ -519,8 +553,10 @@ def _persist_batch_plan(path: Path, content: bytes) -> None:
             raise BatchPlanError("existing batch plan differs; refusing overwrite") from error
 
 
-def _load_frozen_plan(path: Path) -> dict[str, Any]:
+def _load_frozen_plan(path: Path, expected_sha256: str) -> dict[str, Any]:
     raw = path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != expected_sha256:
+        raise BatchPlanError("batch plan artifact SHA-256 mismatch")
     try:
         plan = json.loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
@@ -542,6 +578,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     prepare = subparsers.add_parser("prepare-checkpoint")
     prepare.add_argument("--plan-path", type=Path, required=True)
+    prepare.add_argument("--plan-sha256", required=True)
     prepare.add_argument("--state-root", type=Path, required=True)
     prepare.add_argument("--output-root", type=Path, required=True)
     prepare.add_argument("--count", type=int, choices=sorted(CHECKPOINT_COUNTS), required=True)
@@ -559,10 +596,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 topic_ids=args.topic_id or None,
             )
             _validate_frozen_plan(plan)
-            _persist_batch_plan(args.plan_path, batch_plan_bytes(plan))
+            content = batch_plan_bytes(plan)
+            _persist_batch_plan(args.plan_path, content)
+            print(hashlib.sha256(content).hexdigest())
             return 0
 
-        plan = _load_frozen_plan(args.plan_path)
+        plan = _load_frozen_plan(args.plan_path, args.plan_sha256)
         receipt = prepare_checkpoint(
             plan,
             args.state_root,

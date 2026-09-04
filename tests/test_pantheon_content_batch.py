@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -64,6 +65,31 @@ def _records(root: Path) -> dict[str, dict[str, Any]]:
 
 def _run_bytes(root: Path, run_id: str) -> bytes:
     return (root / run_id / "brief.json").read_bytes()
+
+
+def _recompute_plan_integrity(plan: dict[str, Any]) -> None:
+    digest_slots = []
+    for slot in plan["slots"]:
+        value = deepcopy(slot)
+        value.pop("lineage", None)
+        digest_slots.append(value)
+    plan["batch_digest"] = batch._digest(
+        {
+            "schema_version": plan["schema_version"],
+            "snapshot_digest": plan["snapshot_digest"],
+            "slots": digest_slots,
+        }
+    )
+    for slot in plan["slots"]:
+        slot["lineage"] = {
+            "snapshot_digest": plan["snapshot_digest"],
+            "batch_digest": plan["batch_digest"],
+            "topic_id": slot["topic_id"],
+            "run_id": slot["run_id"],
+            "slot_id": slot["slot_id"],
+            "target_article_id": slot["target"]["article_id"],
+            "target_route": slot["target"]["route"],
+        }
 
 
 @pytest.mark.parametrize("count", [4, 10])
@@ -479,6 +505,8 @@ def test_cli_replays_one_frozen_plan_after_corpus_changes(
             "prepare-checkpoint",
             "--plan-path",
             str(plan_path),
+            "--plan-sha256",
+            hashlib.sha256(frozen_bytes).hexdigest(),
             "--state-root",
             str(state_root),
             "--output-root",
@@ -513,6 +541,8 @@ def test_cli_replays_one_frozen_plan_after_corpus_changes(
             "prepare-checkpoint",
             "--plan-path",
             str(plan_path),
+            "--plan-sha256",
+            hashlib.sha256(frozen_bytes).hexdigest(),
             "--state-root",
             str(state_root),
             "--output-root",
@@ -571,6 +601,8 @@ def test_cli_prepare_returns_nonzero_for_partial_receipt(
             "prepare-checkpoint",
             "--plan-path",
             str(plan_path),
+            "--plan-sha256",
+            hashlib.sha256(plan_path.read_bytes()).hexdigest(),
             "--state-root",
             str(tmp_path / "state"),
             "--output-root",
@@ -610,6 +642,8 @@ def test_cli_rejects_invalid_plan_artifacts_before_prepare(
                 "prepare-checkpoint",
                 "--plan-path",
                 str(plan_path),
+                "--plan-sha256",
+                hashlib.sha256(content).hexdigest(),
                 "--state-root",
                 str(state_root),
                 "--output-root",
@@ -620,3 +654,142 @@ def test_cli_rejects_invalid_plan_artifacts_before_prepare(
         ) != 0
         assert not state_root.exists()
         assert not output_root.exists()
+
+
+def test_cli_sha_pin_rejects_self_consistent_plan_replacement_before_b(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        batch, "load_canonical_topics", lambda repo_root: [_topic(index) for index in range(1, 11)]
+    )
+    monkeypatch.setattr(identity, "load_existing_corpus", lambda repo_root: [])
+    plan_path = tmp_path / "batch-plan.json"
+    state_root, output_root = tmp_path / "state", tmp_path / "runs"
+
+    assert batch.main(
+        [
+            "create-plan",
+            "--repo-root",
+            str(tmp_path),
+            "--plan-path",
+            str(plan_path),
+            "--publication-date",
+            "2026-09-04",
+        ]
+    ) == 0
+    original_sha = hashlib.sha256(plan_path.read_bytes()).hexdigest()
+    assert capsys.readouterr().out.strip() == original_sha
+    common = [
+        "prepare-checkpoint",
+        "--plan-path",
+        str(plan_path),
+        "--plan-sha256",
+        original_sha,
+        "--state-root",
+        str(state_root),
+        "--output-root",
+        str(output_root),
+    ]
+    assert batch.main([*common, "--count", "4"]) == 0
+    records_before = _records(state_root)
+    outputs_before = {
+        slot["run_id"]: _run_bytes(output_root, slot["run_id"])
+        for slot in json.loads(plan_path.read_bytes())["slots"][:4]
+    }
+
+    replacement = batch.build_checkpoint_plan(
+        tmp_path,
+        publication_date="2026-09-05",
+    )
+    replacement_bytes = batch.batch_plan_bytes(replacement)
+    assert hashlib.sha256(replacement_bytes).hexdigest() != original_sha
+    plan_path.write_bytes(replacement_bytes)
+
+    assert batch.main([*common, "--count", "10"]) != 0
+    assert _records(state_root) == records_before
+    assert {path.name for path in output_root.iterdir()} == set(outputs_before)
+    assert all(
+        _run_bytes(output_root, run_id) == content
+        for run_id, content in outputs_before.items()
+    )
+
+
+@pytest.mark.parametrize(
+    "duplicate_identity",
+    [
+        "schema_version",
+        "slot_id",
+        "topic_id",
+        "run_id",
+        "lane_id",
+        "semantic_exclusion_key",
+        "target_article_id",
+        "target_route",
+    ],
+)
+def test_cli_rejects_self_consistent_invalid_or_duplicate_identity_before_mutation(
+    tmp_path: Path,
+    duplicate_identity: str,
+) -> None:
+    plan = _plan(tmp_path)
+    first, second = plan["slots"][:2]
+    if duplicate_identity == "schema_version":
+        plan["schema_version"] = 2
+    elif duplicate_identity.startswith("target_"):
+        field = duplicate_identity.removeprefix("target_")
+        second["target"][field] = first["target"][field]
+    else:
+        second[duplicate_identity] = first[duplicate_identity]
+    _recompute_plan_integrity(plan)
+    plan_path = tmp_path / f"{duplicate_identity}.json"
+    plan_path.write_bytes(batch.batch_plan_bytes(plan))
+
+    assert batch.main(
+        [
+            "prepare-checkpoint",
+            "--plan-path",
+            str(plan_path),
+            "--plan-sha256",
+            hashlib.sha256(plan_path.read_bytes()).hexdigest(),
+            "--state-root",
+            str(tmp_path / "state"),
+            "--output-root",
+            str(tmp_path / "runs"),
+            "--count",
+            "4",
+        ]
+    ) != 0
+    assert not (tmp_path / "state").exists()
+    assert not (tmp_path / "runs").exists()
+
+
+@pytest.mark.parametrize("slot_index", range(4, 10))
+def test_cli_checkpoint_four_rejects_malformed_tail_before_mutation(
+    tmp_path: Path,
+    slot_index: int,
+) -> None:
+    plan = _plan(tmp_path)
+    plan["slots"][slot_index]["topic"]["title"] = "過長" * 5000
+    _recompute_plan_integrity(plan)
+    plan_path = tmp_path / f"malformed-slot-{slot_index + 1:02d}.json"
+    plan_path.write_bytes(batch.batch_plan_bytes(plan))
+
+    assert batch.main(
+        [
+            "prepare-checkpoint",
+            "--plan-path",
+            str(plan_path),
+            "--plan-sha256",
+            hashlib.sha256(plan_path.read_bytes()).hexdigest(),
+            "--state-root",
+            str(tmp_path / "state"),
+            "--output-root",
+            str(tmp_path / "runs"),
+            "--count",
+            "4",
+        ]
+    ) != 0
+    assert not (tmp_path / "state").exists()
+    assert not (tmp_path / "runs").exists()
