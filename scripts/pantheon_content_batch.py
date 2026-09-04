@@ -453,14 +453,21 @@ def prepare_checkpoint(
     output_root: Path,
     *,
     count: int,
+    completed_count: int = 0,
     ttl_seconds: float = 3600,
     claim_topic: Callable[..., dict[str, object]] = reservation.claim_topic_reservation,
     write_json: Callable[[Path, object], None] = pipeline.write_json,
 ) -> dict[str, Any]:
     """逐槽準備 checkpoint；單槽失敗不回滾其他槽。"""
     slots = _validate_plan(plan, count)
+    if completed_count not in {0, 4} or completed_count >= count:
+        raise BatchPlanError("completed_count must be 0, or 4 before checkpoint 10")
     for slot in slots:
         pipeline.validate_new_brief(_brief(plan, slot))
+    for slot in slots[:completed_count]:
+        if not _output_matches(Path(output_root) / slot["run_id"], _brief(plan, slot)):
+            raise BatchPlanError("completed checkpoint output mismatch")
+    pending_slots = slots[completed_count:]
     results = [
         _prepare_slot(
             plan,
@@ -471,10 +478,10 @@ def prepare_checkpoint(
             claim_topic,
             write_json,
         )
-        for slot in slots
+        for slot in pending_slots
     ]
     metrics = {bucket: 0 for bucket in METRIC_BUCKETS}
-    metrics["attempted"] = count
+    metrics["attempted"] = len(pending_slots)
     for result in results:
         if result["status"] == "PREPARED":
             continue
@@ -582,6 +589,7 @@ def _build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--state-root", type=Path, required=True)
     prepare.add_argument("--output-root", type=Path, required=True)
     prepare.add_argument("--count", type=int, choices=sorted(CHECKPOINT_COUNTS), required=True)
+    prepare.add_argument("--completed-count", type=int, choices=(0, 4), default=0)
     prepare.add_argument("--receipt-path", type=Path)
     return parser
 
@@ -607,6 +615,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.state_root,
             args.output_root,
             count=args.count,
+            completed_count=args.completed_count,
         )
         if args.receipt_path is not None:
             pipeline.write_json(args.receipt_path, receipt)

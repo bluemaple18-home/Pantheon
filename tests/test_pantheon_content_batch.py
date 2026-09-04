@@ -227,6 +227,90 @@ def test_four_then_ten_reuses_identity_and_only_adds_six(tmp_path: Path) -> None
         assert brief["source"]["topic_id"] == slot["topic_id"]
 
 
+def test_checkpoint_ten_skips_published_first_four_and_only_prepares_six(
+    tmp_path: Path,
+) -> None:
+    plan = _plan(tmp_path)
+    state_root, output_root = tmp_path / "state", tmp_path / "runs"
+    first = batch.prepare_checkpoint(plan, state_root, output_root, count=4)
+    first_bytes = {
+        slot["run_id"]: _run_bytes(output_root, slot["run_id"])
+        for slot in first["slots"]
+    }
+    for slot in first["slots"]:
+        owner = {
+            key: slot[key]
+            for key in (
+                "topic_id",
+                "reservation_token",
+                "lane_id",
+                "run_id",
+                "owner_generation",
+            )
+        }
+        assert reservation.activate_topic_reservation(state_root, **owner)["ok"] is True
+        assert reservation.schedule_topic_reservation(state_root, **owner)["ok"] is True
+        assert reservation.publish_topic_reservation(state_root, **owner)["ok"] is True
+
+    published_topic_ids = {slot["topic_id"] for slot in first["slots"]}
+
+    def reject_published_reclaim(*args: Any, **kwargs: Any) -> dict[str, object]:
+        assert kwargs["topic_id"] not in published_topic_ids
+        return reservation.claim_topic_reservation(*args, **kwargs)
+
+    second = batch.prepare_checkpoint(
+        plan,
+        state_root,
+        output_root,
+        count=10,
+        completed_count=4,
+        claim_topic=reject_published_reclaim,
+    )
+
+    assert second["status"] == "READY"
+    assert second["checkpoint_count"] == 10
+    assert second["metrics"]["attempted"] == 6
+    assert [slot["slot_id"] for slot in second["slots"]] == [
+        f"slot-{index:02d}" for index in range(5, 11)
+    ]
+    assert len(_records(state_root)) == 10
+    assert {
+        record["status"] for record in _records(state_root).values()
+    } == {"PUBLISHED", "RESERVED"}
+    assert all(
+        _run_bytes(output_root, run_id) == content
+        for run_id, content in first_bytes.items()
+    )
+
+
+def test_checkpoint_ten_rejects_completed_prefix_drift_before_new_claim(
+    tmp_path: Path,
+) -> None:
+    plan = _plan(tmp_path)
+    state_root, output_root = tmp_path / "state", tmp_path / "runs"
+    first = batch.prepare_checkpoint(plan, state_root, output_root, count=4)
+    records_before = _records(state_root)
+    (output_root / first["slots"][0]["run_id"] / "brief.json").write_text(
+        "{}\n", encoding="utf-8"
+    )
+
+    def unexpected_claim(*args: Any, **kwargs: Any) -> dict[str, object]:
+        raise AssertionError("completed-prefix validation must precede new claims")
+
+    with pytest.raises(batch.BatchPlanError, match="completed checkpoint output mismatch"):
+        batch.prepare_checkpoint(
+            plan,
+            state_root,
+            output_root,
+            count=10,
+            completed_count=4,
+            claim_topic=unexpected_claim,
+        )
+
+    assert _records(state_root) == records_before
+    assert len(list(output_root.glob("*/brief.json"))) == 4
+
+
 def test_claim_failure_isolated_to_one_slot(tmp_path: Path) -> None:
     plan = _plan(tmp_path)
     calls = 0
@@ -522,6 +606,20 @@ def test_cli_replays_one_frozen_plan_after_corpus_changes(
         slot["run_id"]: _run_bytes(output_root, slot["run_id"])
         for slot in first["slots"]
     }
+    for slot in first["slots"]:
+        owner = {
+            key: slot[key]
+            for key in (
+                "topic_id",
+                "reservation_token",
+                "lane_id",
+                "run_id",
+                "owner_generation",
+            )
+        }
+        assert reservation.activate_topic_reservation(state_root, **owner)["ok"] is True
+        assert reservation.schedule_topic_reservation(state_root, **owner)["ok"] is True
+        assert reservation.publish_topic_reservation(state_root, **owner)["ok"] is True
     corpus.append(
         {
             "id": "OLD",
@@ -549,6 +647,8 @@ def test_cli_replays_one_frozen_plan_after_corpus_changes(
             str(output_root),
             "--count",
             "10",
+            "--completed-count",
+            "4",
             "--receipt-path",
             str(second_receipt),
         ]
@@ -558,8 +658,14 @@ def test_cli_replays_one_frozen_plan_after_corpus_changes(
     assert plan_path.read_bytes() == frozen_bytes
     assert first["status"] == second["status"] == "READY"
     assert first["batch_digest"] == second["batch_digest"] == frozen_plan["batch_digest"]
-    assert second["slots"][:4] == first["slots"]
+    assert second["metrics"]["attempted"] == 6
+    assert [slot["run_id"] for slot in second["slots"]] == [
+        slot["run_id"] for slot in frozen_plan["slots"][4:]
+    ]
     assert len(_records(state_root)) == 10
+    assert {
+        record["status"] for record in _records(state_root).values()
+    } == {"PUBLISHED", "RESERVED"}
     assert all(
         _run_bytes(output_root, run_id) == content
         for run_id, content in first_bytes.items()
