@@ -358,7 +358,7 @@ def _claim(
     ttl_seconds: float,
     claim_topic: Callable[..., dict[str, object]],
 ) -> tuple[dict[str, object], str]:
-    token = f"batch-{plan['batch_digest'][:20]}-{slot['slot_id']}"
+    token = _reservation_token(plan, slot)
     arguments = {
         "topic_id": slot["topic_id"],
         "reservation_token": token,
@@ -372,6 +372,10 @@ def _claim(
     except OSError:
         result = claim_topic(state_root, **arguments)
     return result, token
+
+
+def _reservation_token(plan: dict[str, Any], slot: dict[str, Any]) -> str:
+    return f"batch-{plan['batch_digest'][:20]}-{slot['slot_id']}"
 
 
 def _output_matches(run_dir: Path, brief: dict[str, Any]) -> bool:
@@ -467,6 +471,17 @@ def prepare_checkpoint(
     for slot in slots[:completed_count]:
         if not _output_matches(Path(output_root) / slot["run_id"], _brief(plan, slot)):
             raise BatchPlanError("completed checkpoint output mismatch")
+        if not reservation.topic_is_published_by_owner(
+            state_root,
+            topic_id=slot["topic_id"],
+            reservation_token=_reservation_token(plan, slot),
+            lane_id=slot["lane_id"],
+            run_id=slot["run_id"],
+            semantic_exclusion_key=slot["semantic_exclusion_key"],
+        ):
+            raise BatchPlanError(
+                f"completed slot {slot['slot_id']} not published by frozen-plan owner"
+            )
     pending_slots = slots[completed_count:]
     results = [
         _prepare_slot(

@@ -243,6 +243,45 @@ def test_publish_replay_is_idempotent_but_remains_terminal(
     assert path.read_bytes() == published_bytes
 
 
+def test_published_owner_verifier_is_exact_and_read_only(tmp_path: Path) -> None:
+    claimed = _claim(tmp_path, semantic_exclusion_key="cluster-a")
+    owner = _owner(claimed)
+    record = claimed["reservation"]
+    assert isinstance(record, dict)
+    check = {
+        key: record[key]
+        for key in (
+            "topic_id",
+            "reservation_token",
+            "lane_id",
+            "run_id",
+            "semantic_exclusion_key",
+        )
+    }
+    path = _record_path(tmp_path, "topic-a")
+
+    assert reservation.topic_is_published_by_owner(tmp_path, **check) is False
+    assert reservation.activate_topic_reservation(tmp_path, **owner)["ok"] is True
+    assert reservation.schedule_topic_reservation(tmp_path, **owner)["ok"] is True
+    assert reservation.publish_topic_reservation(tmp_path, **owner)["ok"] is True
+
+    published_bytes = path.read_bytes()
+    assert reservation.topic_is_published_by_owner(tmp_path, **check) is True
+    assert reservation.topic_is_published_by_owner(
+        tmp_path, **{**check, "reservation_token": "foreign"}
+    ) is False
+    assert path.read_bytes() == published_bytes
+
+    path.write_text("{}\n", encoding="utf-8")
+    malformed_bytes = path.read_bytes()
+    assert reservation.topic_is_published_by_owner(tmp_path, **check) is False
+    assert path.read_bytes() == malformed_bytes
+
+    missing_root = tmp_path / "missing"
+    assert reservation.topic_is_published_by_owner(missing_root, **check) is False
+    assert not missing_root.exists()
+
+
 def test_pre_replace_failure_leaves_no_reservation_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

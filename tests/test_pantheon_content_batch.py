@@ -283,6 +283,31 @@ def test_checkpoint_ten_skips_published_first_four_and_only_prepares_six(
     )
 
 
+def test_checkpoint_ten_rejects_unpublished_completed_prefix_before_new_claim(
+    tmp_path: Path,
+) -> None:
+    plan = _plan(tmp_path)
+    state_root, output_root = tmp_path / "state", tmp_path / "runs"
+    batch.prepare_checkpoint(plan, state_root, output_root, count=4)
+    records_before = _records(state_root)
+
+    def unexpected_claim(*args: Any, **kwargs: Any) -> dict[str, object]:
+        raise AssertionError("completed-prefix authority check must precede new claims")
+
+    with pytest.raises(batch.BatchPlanError, match="not published by frozen-plan owner"):
+        batch.prepare_checkpoint(
+            plan,
+            state_root,
+            output_root,
+            count=10,
+            completed_count=4,
+            claim_topic=unexpected_claim,
+        )
+
+    assert _records(state_root) == records_before
+    assert len(list(output_root.glob("*/brief.json"))) == 4
+
+
 def test_checkpoint_ten_rejects_completed_prefix_drift_before_new_claim(
     tmp_path: Path,
 ) -> None:

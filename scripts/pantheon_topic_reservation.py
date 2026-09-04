@@ -276,6 +276,49 @@ def claim_topic_reservation(
         return _result(True, "claimed", record)
 
 
+def topic_is_published_by_owner(
+    state_root: str | os.PathLike[str],
+    *,
+    topic_id: str,
+    reservation_token: str,
+    lane_id: str,
+    run_id: str,
+    semantic_exclusion_key: str | None = None,
+) -> bool:
+    """唯讀確認 topic 已由指定 owner 永久發佈。"""
+    if not (
+        _valid_root(state_root)
+        and _valid_text(topic_id)
+        and _valid_text(reservation_token)
+        and _valid_text(lane_id)
+        and _valid_text(run_id)
+        and (
+            semantic_exclusion_key is None
+            or _valid_text(semantic_exclusion_key)
+        )
+    ):
+        return False
+    root = _resolved_root(state_root)
+    if not root.is_dir():
+        return False
+    with _state_lock(root):
+        records = _load_records(root)
+        if records is None:
+            return False
+        record = next(
+            (candidate for candidate in records if candidate["topic_id"] == topic_id),
+            None,
+        )
+        return bool(
+            record is not None
+            and record["status"] == "PUBLISHED"
+            and record["reservation_token"] == reservation_token
+            and record["lane_id"] == lane_id
+            and record["run_id"] == run_id
+            and record["semantic_exclusion_key"] == semantic_exclusion_key
+        )
+
+
 def _is_owner(
     record: dict[str, Any],
     *,
@@ -455,4 +498,5 @@ __all__ = [
     "publish_topic_reservation",
     "release_topic_reservation",
     "schedule_topic_reservation",
+    "topic_is_published_by_owner",
 ]
