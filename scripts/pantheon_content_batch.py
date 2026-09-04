@@ -83,7 +83,7 @@ def _serial_maxima(existing_articles: Iterable[dict[str, Any]]) -> dict[str, int
     maxima: dict[str, int] = {}
     for record in existing_articles:
         path = str(record.get("path") or record.get("route") or "")
-        match = re.search(r"/articles/([^/]+)/\1-(\d{4})$", path)
+        match = re.search(r"/articles/([^/]+)/\1-(\d{4,})$", path)
         if match:
             category, serial = match.groups()
             maxima[category] = max(maxima.get(category, 0), int(serial))
@@ -367,7 +367,7 @@ def _claim(
     }
     try:
         result = claim_topic(state_root, **arguments)
-    except Exception:
+    except OSError:
         result = claim_topic(state_root, **arguments)
     return result, token
 
@@ -471,18 +471,29 @@ def prepare_checkpoint(
         )
         for slot in slots
     ]
-    failed = sum(result["status"] != "PREPARED" for result in results)
+    metrics = {bucket: 0 for bucket in METRIC_BUCKETS}
+    metrics["attempted"] = count
+    for result in results:
+        if result["status"] == "PREPARED":
+            continue
+        bucket = (
+            "duplicate_rejection"
+            if result["status"] == "RESERVATION_REJECTED"
+            and result.get("error") == "already_reserved"
+            else "runtime_failure"
+        )
+        result["metric_bucket"] = bucket
+        metrics[bucket] += 1
+    failed = sum(
+        metrics[bucket] for bucket in METRIC_BUCKETS if bucket != "attempted"
+    )
     return {
         "schema_version": 1,
         "status": "READY" if failed == 0 else "PARTIAL",
         "snapshot_digest": plan["snapshot_digest"],
         "batch_digest": plan["batch_digest"],
         "checkpoint_count": count,
-        "metrics": {
-            **{bucket: 0 for bucket in METRIC_BUCKETS},
-            "attempted": count,
-            "runtime_failure": failed,
-        },
+        "metrics": metrics,
         "slots": results,
     }
 

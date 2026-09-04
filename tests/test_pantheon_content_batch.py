@@ -153,6 +153,27 @@ def test_non_available_and_target_collision_fail_closed(tmp_path: Path) -> None:
         )
 
 
+def test_serial_maxima_accepts_more_than_four_digits(tmp_path: Path) -> None:
+    topic = _topic(1)
+    plan = batch.build_batch_plan(
+        tmp_path,
+        topics=[topic],
+        existing_articles=[
+            {
+                "id": "OLD",
+                "path": "/articles/tarot/tarot-10000",
+                "title": "其他",
+                "primaryKeyword": "其他",
+            }
+        ],
+        slot_ids=["slot-01"],
+        topic_ids=[topic["topic_id"]],
+        publication_date="2026-09-04",
+    )
+
+    assert plan["slots"][0]["target"]["route"] == "/articles/tarot/tarot-10001"
+
+
 def test_four_then_ten_reuses_identity_and_only_adds_six(tmp_path: Path) -> None:
     plan = _plan(tmp_path)
     state_root, output_root = tmp_path / "state", tmp_path / "runs"
@@ -201,6 +222,7 @@ def test_claim_failure_isolated_to_one_slot(tmp_path: Path) -> None:
 
     assert receipt["status"] == "PARTIAL"
     assert receipt["metrics"]["runtime_failure"] == 1
+    assert receipt["metrics"]["duplicate_rejection"] == 0
     assert [slot["status"] for slot in receipt["slots"]] == [
         "PREPARED",
         "PREPARED",
@@ -263,6 +285,9 @@ def test_foreign_reservation_is_preserved_without_blocking_other_slots(
 
     assert receipt["status"] == "PARTIAL"
     assert receipt["slots"][1]["status"] == "RESERVATION_REJECTED"
+    assert receipt["slots"][1]["metric_bucket"] == "duplicate_rejection"
+    assert receipt["metrics"]["duplicate_rejection"] == 1
+    assert receipt["metrics"]["runtime_failure"] == 0
     assert records[blocked["topic_id"]]["reservation_token"] == "foreign-token"
     assert sum(slot["status"] == "PREPARED" for slot in receipt["slots"]) == 3
 
@@ -324,6 +349,51 @@ def test_post_commit_claim_exception_is_reconciled(tmp_path: Path) -> None:
 
     assert receipt["status"] == "READY"
     assert len(raised) == 4
+
+
+def test_non_io_claim_error_is_not_retried(tmp_path: Path) -> None:
+    plan = _plan(tmp_path)
+    calls = 0
+
+    def programming_error(*args: Any, **kwargs: Any) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        raise TypeError("programming error")
+
+    receipt = batch.prepare_checkpoint(
+        plan,
+        tmp_path / "state",
+        tmp_path / "runs",
+        count=4,
+        claim_topic=programming_error,
+    )
+
+    assert calls == 4
+    assert {slot["status"] for slot in receipt["slots"]} == {
+        "RESERVATION_UNCERTAIN"
+    }
+    assert receipt["metrics"]["runtime_failure"] == 4
+
+
+def test_unavailable_reservation_fails_closed_as_runtime(tmp_path: Path) -> None:
+    plan = _plan(tmp_path)
+
+    def unavailable(*args: Any, **kwargs: Any) -> dict[str, object]:
+        return {"ok": False, "result": "unavailable", "reservation": None}
+
+    receipt = batch.prepare_checkpoint(
+        plan,
+        tmp_path / "state",
+        tmp_path / "runs",
+        count=4,
+        claim_topic=unavailable,
+    )
+
+    assert receipt["metrics"]["duplicate_rejection"] == 0
+    assert receipt["metrics"]["runtime_failure"] == 4
+    assert {slot["metric_bucket"] for slot in receipt["slots"]} == {
+        "runtime_failure"
+    }
 
 
 def test_invalid_run_id_and_tampered_output_fail_closed(tmp_path: Path) -> None:
