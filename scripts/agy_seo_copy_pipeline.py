@@ -1987,9 +1987,18 @@ const origin = 'https://www.mysticpantheon.com';
 console.log(JSON.stringify(listArticleRecords().map((article) => {
   const path = getArticlePath(article);
   const content = buildArticleContent(path, origin, {author: 'Pantheon 編輯部', updated: article.updated || ''});
+  const legacyPaths = [...new Set([
+    ...(article.legacyPaths || []),
+    article.slug && article.slug !== article.urlSlug
+      ? `/articles/${article.articleCategory || article.product}/${article.slug}`
+      : '',
+  ].filter(Boolean))];
   return {
     id: article.id || '',
     path,
+    slug: article.slug || '',
+    urlSlug: article.urlSlug || '',
+    legacyPaths,
     title: article.title || '',
     description: article.description || '',
     answer: content.answer || article.answer || '',
