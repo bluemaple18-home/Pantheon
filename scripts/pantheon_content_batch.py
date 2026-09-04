@@ -3,15 +3,17 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import re
 import shutil
+import sys
 import tempfile
 from copy import deepcopy
 from datetime import date
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Sequence
 
 import scripts.agy_seo_copy_pipeline as pipeline
 import scripts.pantheon_topic_identity as identity
@@ -498,6 +500,83 @@ def prepare_checkpoint(
     }
 
 
+def _validate_frozen_plan(plan: object) -> dict[str, Any]:
+    if not isinstance(plan, dict) or not isinstance(plan.get("slots"), list):
+        raise BatchPlanError("batch plan artifact must be a JSON object")
+    if len(plan["slots"]) != 10:
+        raise BatchPlanError("batch plan artifact must contain exactly 10 slots")
+    _validate_plan(plan, 10)
+    return plan
+
+
+def _persist_batch_plan(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("xb") as stream:
+            stream.write(content)
+    except FileExistsError as error:
+        if path.read_bytes() != content:
+            raise BatchPlanError("existing batch plan differs; refusing overwrite") from error
+
+
+def _load_frozen_plan(path: Path) -> dict[str, Any]:
+    raw = path.read_bytes()
+    try:
+        plan = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise BatchPlanError("batch plan artifact is not valid JSON") from error
+    if not isinstance(plan, dict) or raw != batch_plan_bytes(plan):
+        raise BatchPlanError("batch plan artifact is not canonical")
+    return _validate_frozen_plan(plan)
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="mode", required=True)
+
+    create = subparsers.add_parser("create-plan")
+    create.add_argument("--repo-root", type=Path, required=True)
+    create.add_argument("--plan-path", type=Path, required=True)
+    create.add_argument("--publication-date", required=True)
+    create.add_argument("--topic-id", action="append", default=[])
+
+    prepare = subparsers.add_parser("prepare-checkpoint")
+    prepare.add_argument("--plan-path", type=Path, required=True)
+    prepare.add_argument("--state-root", type=Path, required=True)
+    prepare.add_argument("--output-root", type=Path, required=True)
+    prepare.add_argument("--count", type=int, choices=sorted(CHECKPOINT_COUNTS), required=True)
+    prepare.add_argument("--receipt-path", type=Path)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _build_parser().parse_args(argv)
+    try:
+        if args.mode == "create-plan":
+            plan = build_checkpoint_plan(
+                args.repo_root,
+                publication_date=args.publication_date,
+                topic_ids=args.topic_id or None,
+            )
+            _validate_frozen_plan(plan)
+            _persist_batch_plan(args.plan_path, batch_plan_bytes(plan))
+            return 0
+
+        plan = _load_frozen_plan(args.plan_path)
+        receipt = prepare_checkpoint(
+            plan,
+            args.state_root,
+            args.output_root,
+            count=args.count,
+        )
+        if args.receipt_path is not None:
+            pipeline.write_json(args.receipt_path, receipt)
+        return 0 if receipt["status"] == "READY" else 2
+    except (BatchPlanError, KeyError, OSError, TypeError, ValueError) as error:
+        print(f"{type(error).__name__}: {error}", file=sys.stderr)
+        return 2
+
+
 __all__ = [
     "BatchPlanError",
     "CHECKPOINT_COUNTS",
@@ -507,5 +586,10 @@ __all__ = [
     "build_checkpoint_plan",
     "checkpoint_slots",
     "load_canonical_topics",
+    "main",
     "prepare_checkpoint",
 ]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

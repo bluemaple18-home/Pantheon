@@ -443,3 +443,180 @@ def test_invalid_brief_shape_fails_before_any_reservation(tmp_path: Path) -> Non
 
     assert _records(tmp_path / "state") == {}
     assert not (tmp_path / "runs").exists()
+
+
+def test_cli_replays_one_frozen_plan_after_corpus_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    corpus: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        batch, "load_canonical_topics", lambda repo_root: [_topic(index) for index in range(1, 11)]
+    )
+    monkeypatch.setattr(
+        identity, "load_existing_corpus", lambda repo_root: deepcopy(corpus)
+    )
+    plan_path = tmp_path / "artifacts" / "batch-plan.json"
+    state_root, output_root = tmp_path / "state", tmp_path / "runs"
+    first_receipt, second_receipt = tmp_path / "a.json", tmp_path / "b.json"
+
+    assert batch.main(
+        [
+            "create-plan",
+            "--repo-root",
+            str(tmp_path),
+            "--plan-path",
+            str(plan_path),
+            "--publication-date",
+            "2026-09-04",
+        ]
+    ) == 0
+    frozen_bytes = plan_path.read_bytes()
+    frozen_plan = json.loads(frozen_bytes)
+    assert frozen_bytes == batch.batch_plan_bytes(frozen_plan)
+
+    assert batch.main(
+        [
+            "prepare-checkpoint",
+            "--plan-path",
+            str(plan_path),
+            "--state-root",
+            str(state_root),
+            "--output-root",
+            str(output_root),
+            "--count",
+            "4",
+            "--receipt-path",
+            str(first_receipt),
+        ]
+    ) == 0
+    first = json.loads(first_receipt.read_bytes())
+    first_bytes = {
+        slot["run_id"]: _run_bytes(output_root, slot["run_id"])
+        for slot in first["slots"]
+    }
+    corpus.append(
+        {
+            "id": "OLD",
+            "path": "/articles/tarot/tarot-0099",
+            "title": "其他",
+            "primaryKeyword": "其他",
+        }
+    )
+
+    def unexpected_rebuild(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("prepare mode must not rebuild the plan")
+
+    monkeypatch.setattr(batch, "build_checkpoint_plan", unexpected_rebuild)
+
+    assert batch.main(
+        [
+            "prepare-checkpoint",
+            "--plan-path",
+            str(plan_path),
+            "--state-root",
+            str(state_root),
+            "--output-root",
+            str(output_root),
+            "--count",
+            "10",
+            "--receipt-path",
+            str(second_receipt),
+        ]
+    ) == 0
+    second = json.loads(second_receipt.read_bytes())
+
+    assert plan_path.read_bytes() == frozen_bytes
+    assert first["status"] == second["status"] == "READY"
+    assert first["batch_digest"] == second["batch_digest"] == frozen_plan["batch_digest"]
+    assert second["slots"][:4] == first["slots"]
+    assert len(_records(state_root)) == 10
+    assert all(
+        _run_bytes(output_root, run_id) == content
+        for run_id, content in first_bytes.items()
+    )
+
+
+def test_cli_create_plan_is_exactly_idempotent_and_refuses_conflict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        batch, "load_canonical_topics", lambda repo_root: [_topic(index) for index in range(1, 11)]
+    )
+    monkeypatch.setattr(identity, "load_existing_corpus", lambda repo_root: [])
+    plan_path = tmp_path / "batch-plan.json"
+
+    common = ["create-plan", "--repo-root", str(tmp_path), "--plan-path", str(plan_path)]
+    assert batch.main([*common, "--publication-date", "2026-09-04"]) == 0
+    original = plan_path.read_bytes()
+    assert batch.main([*common, "--publication-date", "2026-09-04"]) == 0
+    assert plan_path.read_bytes() == original
+
+    assert batch.main([*common, "--publication-date", "2026-09-05"]) != 0
+    assert plan_path.read_bytes() == original
+
+
+def test_cli_prepare_returns_nonzero_for_partial_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan_path = tmp_path / "batch-plan.json"
+    plan_path.write_bytes(batch.batch_plan_bytes(_plan(tmp_path)))
+    monkeypatch.setattr(
+        batch,
+        "prepare_checkpoint",
+        lambda *args, **kwargs: {"schema_version": 1, "status": "PARTIAL"},
+    )
+
+    assert batch.main(
+        [
+            "prepare-checkpoint",
+            "--plan-path",
+            str(plan_path),
+            "--state-root",
+            str(tmp_path / "state"),
+            "--output-root",
+            str(tmp_path / "runs"),
+            "--count",
+            "4",
+        ]
+    ) != 0
+
+
+def test_cli_rejects_invalid_plan_artifacts_before_prepare(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _plan(tmp_path)
+    invalid_digest = deepcopy(plan)
+    invalid_digest["batch_digest"] = "0" * 64
+    for slot in invalid_digest["slots"]:
+        slot["lineage"]["batch_digest"] = invalid_digest["batch_digest"]
+    invalid_lineage = deepcopy(plan)
+    invalid_lineage["slots"][-1]["lineage"]["run_id"] = "different-run"
+    artifacts = {
+        "noncanonical": json.dumps(plan, ensure_ascii=False, indent=2).encode("utf-8"),
+        "digest": batch.batch_plan_bytes(invalid_digest),
+        "lineage": batch.batch_plan_bytes(invalid_lineage),
+    }
+
+    def unexpected_prepare(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("prepare_checkpoint must not run")
+
+    monkeypatch.setattr(batch, "prepare_checkpoint", unexpected_prepare)
+    for name, content in artifacts.items():
+        plan_path = tmp_path / f"{name}.json"
+        plan_path.write_bytes(content)
+        state_root, output_root = tmp_path / f"state-{name}", tmp_path / f"runs-{name}"
+        assert batch.main(
+            [
+                "prepare-checkpoint",
+                "--plan-path",
+                str(plan_path),
+                "--state-root",
+                str(state_root),
+                "--output-root",
+                str(output_root),
+                "--count",
+                "4",
+            ]
+        ) != 0
+        assert not state_root.exists()
+        assert not output_root.exists()
