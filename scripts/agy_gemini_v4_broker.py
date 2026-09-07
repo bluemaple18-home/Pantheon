@@ -308,6 +308,9 @@ class ExecutionReceipt:
 class SchemaDiagnostic:
     keyword: str
     path: tuple[str | int, ...]
+    value_type: str | None = None
+    char_count: int | None = None
+    value_sha256: str | None = None
 
 
 def _diagnose_json_invalid(
@@ -827,6 +830,17 @@ def _diagnose_json_schema(
         if len(diagnostic_path) > MAX_SCHEMA_DIAGNOSTIC_DEPTH:
             keyword = "schema"
             diagnostic_path = diagnostic_path[:MAX_SCHEMA_DIAGNOSTIC_DEPTH]
+        if keyword == "minLength" and type(value) is str:
+            diagnostics.append(
+                SchemaDiagnostic(
+                    keyword,
+                    diagnostic_path,
+                    value_type="string",
+                    char_count=len(value),
+                    value_sha256=_sha256(value.encode("utf-8")),
+                )
+            )
+            return
         diagnostics.append(SchemaDiagnostic(keyword, diagnostic_path))
 
     if not isinstance(schema, dict) or type(schema.get("type")) is not str:

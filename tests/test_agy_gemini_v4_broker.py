@@ -53,6 +53,12 @@ def _write_target(path: Path, mode: str) -> Path:
         "{'ok':True,'must-not-persist':'secret-value'},sort_keys=True))\n"
         "elif mode=='many-schema-mismatches': print(json.dumps("
         "{'a':'x','b':'x','c':'x','d':'x'},sort_keys=True))\n"
+        "elif mode=='length-boundary-short': print(json.dumps("
+        "{'articles':[{'title':'標'*19,'description':'描'*69}]},"
+        "ensure_ascii=False,sort_keys=True))\n"
+        "elif mode=='length-boundary-valid': print(json.dumps("
+        "{'articles':[{'title':'標'*20,'description':'描'*70}]},"
+        "ensure_ascii=False,sort_keys=True))\n"
         "elif mode=='normalizable-schema-mismatch': print(json.dumps("
         "{'description':'短','paragraph':'完整句子。RAW_PROVIDER_TAIL'},"
         "ensure_ascii=False,sort_keys=True))\n"
@@ -397,6 +403,80 @@ def test_single_shot_reports_bounded_schema_keyword_and_defined_path_without_val
     serialized = json.dumps(result.normalized_trace(), ensure_ascii=False)
     assert "secret-value" not in serialized
     assert "must-not-persist" not in serialized
+
+
+def test_single_shot_records_safe_length_observability_at_exact_boundary(
+    tmp_path: Path,
+) -> None:
+    response_schema: dict[str, object] = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "articles": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "title": {"type": "string", "minLength": 20},
+                        "description": {"type": "string", "minLength": 70},
+                    },
+                    "required": ["title", "description"],
+                },
+            },
+        },
+        "required": ["articles"],
+    }
+    short_title = "標" * 19
+    short_description = "描" * 69
+    short_root = tmp_path / "short"
+    short_result = _run(
+        short_root,
+        _write_target(short_root / "fake-target", "length-boundary-short"),
+        response_schema=response_schema,
+    )
+
+    assert short_result.result_validation == "SCHEMA_MISMATCH"
+    diagnostics = {
+        diagnostic.path[-1]: diagnostic
+        for diagnostic in short_result.schema_diagnostics
+    }
+    assert {
+        field: {
+            "keyword": diagnostic.keyword,
+            "type": diagnostic.value_type,
+            "char_count": diagnostic.char_count,
+            "value_sha256": diagnostic.value_sha256,
+        }
+        for field, diagnostic in diagnostics.items()
+    } == {
+        "title": {
+            "keyword": "minLength",
+            "type": "string",
+            "char_count": 19,
+            "value_sha256": hashlib.sha256(short_title.encode("utf-8")).hexdigest(),
+        },
+        "description": {
+            "keyword": "minLength",
+            "type": "string",
+            "char_count": 69,
+            "value_sha256": hashlib.sha256(short_description.encode("utf-8")).hexdigest(),
+        },
+    }
+    serialized_failure = json.dumps(short_result.normalized_trace(), ensure_ascii=False)
+    assert short_title not in serialized_failure
+    assert short_description not in serialized_failure
+
+    valid_root = tmp_path / "valid"
+    valid_result = _run(
+        valid_root,
+        _write_target(valid_root / "fake-target", "length-boundary-valid"),
+        response_schema=response_schema,
+    )
+    assert valid_result.result_validation == "VALID"
+    assert valid_result.schema_diagnostics == ()
 
 
 def test_single_shot_delivers_only_revalidated_normalized_result(

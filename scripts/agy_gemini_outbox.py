@@ -107,6 +107,7 @@ SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 MAX_PROMPT_BYTES = 256 * 1024
 MAX_SCHEMA_BYTES = 64 * 1024
 MAX_FAILURE_RECEIPT_BYTES = 64 * 1024
+MAX_SCHEMA_OBSERVATION_CHAR_COUNT = 2 * 1024 * 1024
 MAX_EXTERNAL_REQUEST_ARTIFACT_BYTES = MAX_PROMPT_BYTES + MAX_SCHEMA_BYTES + 16 * 1024
 NAMESPACE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 FAILED_REPLACEMENT_LINEAGE_KIND = "failed_external_job_replacement"
@@ -612,7 +613,12 @@ def _broker_diagnostic_is_closed(value: object) -> bool:
     if type(diagnostics) is not list or len(diagnostics) > 3:
         return False
     for diagnostic in diagnostics:
-        if type(diagnostic) is not dict or set(diagnostic) != {"keyword", "path"}:
+        if type(diagnostic) is not dict:
+            return False
+        base_fields = {"keyword", "path"}
+        observation_fields = {"type", "char_count", "value_sha256"}
+        diagnostic_fields = set(diagnostic)
+        if diagnostic_fields not in (base_fields, base_fields | observation_fields):
             return False
         keyword = diagnostic.get("keyword")
         if type(keyword) is not str or keyword not in BROKER_SCHEMA_KEYWORDS:
@@ -628,6 +634,18 @@ def _broker_diagnostic_is_closed(value: object) -> bool:
                 if token < 0 or token > 1_048_576:
                     return False
             else:
+                return False
+        if observation_fields <= diagnostic_fields:
+            char_count = diagnostic.get("char_count")
+            value_sha256 = diagnostic.get("value_sha256")
+            if (
+                keyword != "minLength"
+                or diagnostic.get("type") != "string"
+                or type(char_count) is not int
+                or not 0 <= char_count <= MAX_SCHEMA_OBSERVATION_CHAR_COUNT
+                or type(value_sha256) is not str
+                or SHA256_PATTERN.fullmatch(value_sha256) is None
+            ):
                 return False
     return True
 

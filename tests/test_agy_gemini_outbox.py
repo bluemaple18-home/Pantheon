@@ -3869,6 +3869,18 @@ def test_runner_persists_only_closed_schema_diagnostics(
         "properties": {
             "ok": {"type": "boolean"},
             "items": {"type": "array", "items": {"type": "boolean"}},
+            "articles": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "title": {"type": "string", "minLength": 20},
+                        "description": {"type": "string", "minLength": 70},
+                    },
+                    "required": ["title", "description"],
+                },
+            },
             "a" * 65: {"type": "boolean"},
         },
         "required": ["ok"],
@@ -3876,7 +3888,7 @@ def test_runner_persists_only_closed_schema_diagnostics(
     request = create_external_request(
         tmp_path,
         namespace="opaque-run-schema-diagnostic",
-        role="reviewer",
+        role="writer",
         model="gemini-3.5-flash",
         prompt="公開 schema diagnostic synthetic request",
         response_schema=diagnostic_schema,
@@ -3905,6 +3917,8 @@ def test_runner_persists_only_closed_schema_diagnostics(
         errors=(),
         result_validation="SCHEMA_MISMATCH",
     )
+    short_title = "標" * 19
+    short_description = "描" * 69
     object.__setattr__(
         malformed,
         "schema_diagnostics",
@@ -3917,6 +3931,20 @@ def test_runner_persists_only_closed_schema_diagnostics(
             broker.SchemaDiagnostic("type", ("items", 10**1000)),
             broker.SchemaDiagnostic("type", ("ok",) * 9),
             broker.SchemaDiagnostic("type", ("a" * 65,)),
+            broker.SchemaDiagnostic(
+                "minLength",
+                ("articles", 0, "title"),
+                value_type="string",
+                char_count=19,
+                value_sha256=hashlib.sha256(short_title.encode("utf-8")).hexdigest(),
+            ),
+            broker.SchemaDiagnostic(
+                "minLength",
+                ("articles", 0, "description"),
+                value_type="string",
+                char_count=69,
+                value_sha256=hashlib.sha256(short_description.encode("utf-8")).hexdigest(),
+            ),
         ),
     )
     monkeypatch.setattr(runner, "run_single_shot", lambda **_kwargs: malformed)
@@ -3928,10 +3956,34 @@ def test_runner_persists_only_closed_schema_diagnostics(
     failed = json.loads(failed_path.read_text())
     assert failed["broker_diagnostic"]["schema_diagnostics"] == [
         {"keyword": "type", "path": ["ok"]},
+        {
+            "keyword": "minLength",
+            "path": ["articles", 0, "title"],
+            "type": "string",
+            "char_count": 19,
+            "value_sha256": hashlib.sha256(short_title.encode("utf-8")).hexdigest(),
+        },
+        {
+            "keyword": "minLength",
+            "path": ["articles", 0, "description"],
+            "type": "string",
+            "char_count": 69,
+            "value_sha256": hashlib.sha256(short_description.encode("utf-8")).hexdigest(),
+        },
     ]
-    assert "must-not-persist" not in failed_path.read_text()
-    assert "unknown-property" not in failed_path.read_text()
-    assert "message" not in failed_path.read_text()
+    serialized = failed_path.read_text()
+    assert "must-not-persist" not in serialized
+    assert "unknown-property" not in serialized
+    assert "message" not in serialized
+    assert short_title not in serialized
+    assert short_description not in serialized
+    with pytest.raises(outbox.ExternalWriterSchemaInvalid) as raised:
+        consume_external_response(tmp_path, request)
+    assert raised.value.schema_diagnostics == (
+        ("type", ("ok",)),
+        ("minLength", ("articles", 0, "title")),
+        ("minLength", ("articles", 0, "description")),
+    )
 
 
 @pytest.mark.parametrize(

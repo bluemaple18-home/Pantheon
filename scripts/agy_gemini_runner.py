@@ -95,6 +95,7 @@ SAFE_SCHEMA_PATH_TOKEN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 MAX_SCHEMA_DIAGNOSTICS = 3
 MAX_SCHEMA_DIAGNOSTIC_DEPTH = 8
 MAX_SCHEMA_ARRAY_INDEX = 1_048_576
+MAX_SCHEMA_OBSERVATION_CHAR_COUNT = 2 * 1024 * 1024
 STALE_PROCESSING_SECONDS = 10 * 60
 MAX_CREDENTIAL_POOL_BYTES = 16 * 1024
 MAX_PRODUCTION_ATTEMPT_BYTES = 4 * 1024
@@ -1303,7 +1304,26 @@ def _closed_schema_diagnostics(
             or not _schema_path_is_closed(response_schema, path)
         ):
             continue
-        closed.append({"keyword": keyword, "path": list(path)})
+        item: dict[str, object] = {"keyword": keyword, "path": list(path)}
+        value_type = diagnostic.value_type
+        char_count = diagnostic.char_count
+        value_sha256 = diagnostic.value_sha256
+        if (
+            keyword == "minLength"
+            and value_type == "string"
+            and type(char_count) is int
+            and 0 <= char_count <= MAX_SCHEMA_OBSERVATION_CHAR_COUNT
+            and type(value_sha256) is str
+            and SAFE_SHA256.fullmatch(value_sha256) is not None
+        ):
+            item.update(
+                {
+                    "type": value_type,
+                    "char_count": char_count,
+                    "value_sha256": value_sha256,
+                }
+            )
+        closed.append(item)
     return closed
 
 
