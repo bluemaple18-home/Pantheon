@@ -1,6 +1,6 @@
 {
-  "policy_version": "pantheon-article-publication-v2.0.0",
-  "effective_date": "2026-07-25",
+  "policy_version": "pantheon-article-publication-v2.1.0",
+  "effective_date": "2026-09-07",
   "site_origin": "https://www.mysticpantheon.com",
   "identity": {
     "author_name": "Pantheon 編輯部",
@@ -28,6 +28,12 @@
       "description_context_and_limit",
       "standalone_answer",
       "explicit_limit_or_counterexample",
+      "article_specific_opening",
+      "scenario_density",
+      "concrete_verbs",
+      "observable_action_density",
+      "batch_opening_originality",
+      "no_standalone_cta",
       "no_outcome_guarantee",
       "no_professional_advice_substitution"
     ],
@@ -54,6 +60,27 @@
       "failure_codes",
       "input_hash"
     ]
+  },
+  "writing_contract": {
+    "problem_before_tool": true,
+    "second_sentence_must_be_article_specific": true,
+    "forbidden_opening_patterns": [
+      "^查.{1,40}的人通常不是想背"
+    ],
+    "minimum_distinct_action_verbs": 3,
+    "minimum_scene_sentences": 2,
+    "minimum_observable_action_sentences": 2,
+    "minimum_counterexamples": 1,
+    "section_flow": [
+      "這個問題通常在問什麼",
+      "這個工具可以看什麼",
+      "放到五大情境裡怎麼理解",
+      "常見誤解與不能代表什麼",
+      "如果想看自己的狀況，先把問題縮小"
+    ],
+    "standalone_cta": "forbidden",
+    "batch_opening_keyword_swap": "forbidden",
+    "batch_shared_sentence_maximum": 3
   },
   "recommended": [
     "representative_image",

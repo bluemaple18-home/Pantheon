@@ -332,15 +332,22 @@ def make_deterministic_green_create_article(
         "測試關鍵字適合整理具體情境與可觀察行動；本文只提供通用理解，不能替個人下結論。",
         84,
     )
+    scene_seeds = [
+        "收到伴侶訊息時，先記錄回覆與承諾，再確認彼此是否願意談分工。",
+        "在工作會議收到臨時要求時，先列出期限與責任，再核對仍缺少的資料。",
+        "下班回家看到帳單與課程通知時，先比較支出，再安排可調整的順序。",
+        "如果現實資料仍不足，這個工具就不適用；先暫停推測並詢問當事人。",
+    ]
     article["bodySections"] = [
         {
             "heading": f"測試關鍵字的具體觀察 {section + 1}",
             "paragraphs": [
                 sized_text(
                     (
-                        "測試關鍵字先核對情境與限制，再決定下一步。"
+                        "測試關鍵字先回答眼前問題。" + scene_seeds[0]
                         if section == 0 and paragraph == 0
-                        else f"第{section + 1}節第{paragraph + 1}段先核對情境與限制。"
+                        else f"第{section + 1}節第{paragraph + 1}段："
+                        + scene_seeds[(section * 3 + paragraph) % len(scene_seeds)]
                     ),
                     100,
                 )
@@ -1545,6 +1552,172 @@ def test_create_writer_prompt_requires_description_local_boundary() -> None:
     assert "即使是否定句也改用其他說法" in prompt
 
 
+def test_create_writing_contract_is_projected_and_generic_copy_fails_closed() -> None:
+    article = make_deterministic_green_create_article("WRITING-CONTRACT")
+    brief = {
+        "schema_version": 1,
+        "run_id": "writing-contract",
+        "mode": "create",
+        "articles": [
+            {
+                "matrix": {
+                    "id": article["id"],
+                    "primaryKeyword": article["primaryKeyword"],
+                    "title": article["title"],
+                    "intent": "讀者想處理一個具體困擾",
+                },
+                "target": {
+                    field: article[field]
+                    for field in [
+                        "id",
+                        "section",
+                        "product",
+                        "slug",
+                        "serial",
+                        "urlSlug",
+                        "primaryKeyword",
+                        "published",
+                        "updated",
+                    ]
+                },
+                "policy": pipeline.compact_publication_policy(),
+            }
+        ],
+    }
+
+    public = pipeline.public_model_brief(brief)
+    writing_contract = public["writingPolicy"]["writingContract"]
+    assert writing_contract["problemBeforeTool"] is True
+    assert writing_contract["secondSentenceMustBeArticleSpecific"] is True
+    assert writing_contract["forbiddenOpeningPatterns"] == [
+        "^查.{1,40}的人通常不是想背"
+    ]
+    assert writing_contract["minimumDistinctActionVerbs"] == 3
+    assert writing_contract["minimumSceneSentences"] == 2
+    assert writing_contract["minimumObservableActionSentences"] == 2
+    assert writing_contract["minimumCounterexamples"] == 1
+    assert len(writing_contract["sectionFlow"]) == 5
+    assert writing_contract["standaloneCta"] == "forbidden"
+
+    writer_prompt = pipeline._writer_prompt(brief)
+    reviewer_prompt = pipeline._reviewer_prompt(
+        brief,
+        {"schema_version": 1, "run_id": brief["run_id"], "mode": "create", "articles": [article]},
+        [],
+    )
+    for expected in [
+        "開頭第二句",
+        "查 X 的人通常不是想背",
+        "3 個不同的具體動詞",
+        "記錄、確認、核對",
+        "2 個專屬生活場景",
+        "不得放獨立 CTA",
+    ]:
+        assert expected in writer_prompt
+        assert expected in reviewer_prompt
+
+    generic = (
+        "查測試關鍵字的人通常不是想背定義，而是希望快速理解抽象概念。"
+        "這段內容只提供一般描述，沒有放入專屬困擾、生活畫面或能實際辨認的行為差異。"
+    )
+    article["bodySections"] = [
+        {
+            "heading": f"測試關鍵字的一般說明 {section + 1}",
+            "paragraphs": [
+                (generic + f"這是第{section + 1}節第{paragraph + 1}段的補充說明。")[:110]
+                for paragraph in range(3)
+            ],
+        }
+        for section in range(5)
+    ]
+    codes = {finding["code"] for finding in pipeline.quality_findings([article])}
+    assert {
+        "templated_opening",
+        "scenario_density",
+        "concrete_verbs",
+        "observable_action_density",
+        "missing_counterexample_or_limit",
+    } <= codes
+
+
+def test_create_batch_rejects_openings_that_only_swap_primary_keyword() -> None:
+    first = make_deterministic_green_create_article("OPENING-ONE")
+    second = make_deterministic_green_create_article("OPENING-TWO")
+    second["primaryKeyword"] = "第二關鍵字"
+    second["title"] = str(second["title"]).replace("測試關鍵字", "第二關鍵字")
+    second["description"] = str(second["description"]).replace(
+        "測試關鍵字",
+        "第二關鍵字",
+    )
+    second["answer"] = str(second["answer"]).replace("測試關鍵字", "第二關鍵字")
+    for paragraph in second["bodySections"][0]["paragraphs"][:2]:
+        index = second["bodySections"][0]["paragraphs"].index(paragraph)
+        second["bodySections"][0]["paragraphs"][index] = str(paragraph).replace(
+            "測試關鍵字",
+            "第二關鍵字",
+        )
+
+    findings = pipeline.quality_findings([first, second])
+    templated = {
+        finding["article_id"]
+        for finding in findings
+        if finding["code"] == "templated_opening_pair"
+    }
+
+    assert templated == {"OPENING-ONE", "OPENING-TWO"}
+
+
+def test_existing_create_brief_reuses_identity_with_current_writing_contract() -> None:
+    article = make_deterministic_green_create_article("REUSED-BRIEF")
+    target_fields = {
+        field: article[field]
+        for field in [
+            "id",
+            "section",
+            "product",
+            "slug",
+            "serial",
+            "urlSlug",
+            "primaryKeyword",
+            "published",
+            "updated",
+        ]
+    }
+    brief = {
+        "schema_version": 1,
+        "run_id": "reused-brief",
+        "mode": "create",
+        "articles": [
+            {
+                "matrix": {
+                    "id": article["id"],
+                    "title": article["title"],
+                    "intent": "沿用選題並採用最新寫作契約",
+                },
+                "target": target_fields,
+                "policy": {"policyVersion": "pantheon-article-publication-v2.0.0"},
+            }
+        ],
+    }
+
+    public = pipeline.public_model_brief(brief)
+    candidate = pipeline.hydrate_candidate(
+        brief,
+        {"articles": [make_external_create_article(article)]},
+    )
+
+    assert public["writingPolicy"]["policyVersion"] == "pantheon-article-publication-v2.1.0"
+    assert public["writingPolicy"]["writingContract"]["problemBeforeTool"] is True
+    assert {
+        field: candidate["articles"][0][field]
+        for field in target_fields
+    } == target_fields
+    assert (
+        candidate["articles"][0]["publicationPolicy"]["policyVersion"]
+        == "pantheon-article-publication-v2.1.0"
+    )
+
+
 def test_create_repair_prompt_includes_measured_targets_for_lite_writer() -> None:
     article = make_article("PROMPT-REPAIR")
     article["description"] = "這段描述太短，不能替個人下結論。"
@@ -2146,7 +2319,10 @@ def test_create_machine_length_repair_is_field_bounded_and_reviews_only_after_gr
     tmp_path: Path,
 ) -> None:
     def sized_paragraph(label: str, size: int) -> str:
-        seed = f"{label}先核對具體情境、已知資料與可調整限制，再決定下一步。"
+        seed = (
+            f"{label}在工作會議收到訊息時，先記錄具體情境、核對已知資料並確認限制；"
+            "這不能替個人下結論。"
+        )
         return (seed + "逐項記錄觀察與行動。" * size)[:size]
 
     def sized_description(size: int) -> str:

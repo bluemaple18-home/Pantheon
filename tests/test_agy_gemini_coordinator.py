@@ -60,7 +60,13 @@ def _valid_campaign_candidate(brief: dict[str, object]) -> dict[str, object]:
     article_id = str(brief["article_identity"]["id"])
     run_id = str(brief["run_id"])
     keyword = "測試關鍵字" if article_id.startswith("NEW") else "舊文測試"
-    paragraphs = [_long_paragraph(f"{keyword}在第{index + 1}個工作場景中，不能代替個人判斷，先整理事實、限制與可行選項。") for index in range(15)]
+    paragraphs = [
+        _long_paragraph(
+            f"{keyword}在第{index + 1}個工作場景中，不能代替個人判斷；"
+            "先記錄事實、列出限制並確認可行選項。"
+        )
+        for index in range(15)
+    ]
     if article_id.startswith("NEW"):
         article = {
             "id": article_id, "section": "mbti", "product": "personality", "slug": article_id.lower(),

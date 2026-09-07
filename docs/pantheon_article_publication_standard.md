@@ -34,7 +34,7 @@ Pantheon 的公開文章不是傳統運勢新聞，也不是完整個人命書�
 
 本文件是 human-readable standard；machine-readable source of truth 是
 `app/core/article_publication_policy_v2.json`，目前版本固定為
-`pantheon-article-publication-v2.0.0`。新文、舊文實質重寫、publisher apply 與
+`pantheon-article-publication-v2.1.0`。新文、舊文實質重寫、publisher apply 與
 prerender acceptance 必須呼叫同一版 validator。任何 `required` finding 都阻擋
 approve、apply 與 publish；一般 override 不得放行。
 

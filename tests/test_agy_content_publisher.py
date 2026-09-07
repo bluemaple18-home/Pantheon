@@ -141,7 +141,19 @@ def _long(text: str) -> str:
 
 def make_publishable_article(article_id: str = "AUTO-001") -> dict[str, object]:
     keyword = "測試關鍵字"
-    paragraphs = [_long(f"{keyword}在第{index + 1}個場景中，先整理事實、限制與可行選項。") for index in range(15)]
+    scene_seeds = [
+        "在工作會議收到臨時訊息時，先記錄期限、核對責任並確認仍缺少的資料。",
+        "下班看到帳單與課程通知時，先列出支出、比較選項並安排可調整的順序。",
+        "收到伴侶回覆時，先等待情緒緩和、詢問彼此期待，再談清楚分工。",
+        "若現實資料不足，這個工具就不適用；先暫停推測並回到可查證的事實。",
+    ]
+    paragraphs = [
+        _long(
+            f"{keyword}在 {article_id} 測試案例中，"
+            f"{scene_seeds[index % len(scene_seeds)]}"
+        )
+        for index in range(15)
+    ]
     article = {
         "id": article_id,
         "section": "mbti",
@@ -174,6 +186,37 @@ def make_publishable_article(article_id: str = "AUTO-001") -> dict[str, object]:
         change_type="created",
     )
     return article
+
+
+def test_assert_batch_unique_blocks_keyword_swap_openings() -> None:
+    first = make_publishable_article("BATCH-OPENING-ONE")
+    second = make_publishable_article("BATCH-OPENING-TWO")
+    second["serial"] = "personality-9998"
+    second["urlSlug"] = "batch-opening-two-9998"
+    second["primaryKeyword"] = "第二關鍵字"
+    for field in ["title", "description", "answer"]:
+        second[field] = str(second[field]).replace("測試關鍵字", "第二關鍵字")
+    for section in second["bodySections"]:
+        section["heading"] = str(section["heading"]).replace(
+            "測試關鍵字",
+            "第二關鍵字",
+        )
+        section["paragraphs"] = [
+            str(paragraph).replace("測試關鍵字", "第二關鍵字")
+            for paragraph in section["paragraphs"]
+        ]
+    for index in range(2):
+        second["bodySections"][0]["paragraphs"][index] = str(
+            first["bodySections"][0]["paragraphs"][index]
+        ).replace("測試關鍵字", "第二關鍵字")
+
+    with pytest.raises(publisher.PublishBlocked, match="templated_opening_pair"):
+        publisher._assert_batch_unique(
+            [
+                {"articles": [first]},
+                {"articles": [second]},
+            ]
+        )
 
 
 def _write_json(path: Path, payload: object) -> None:

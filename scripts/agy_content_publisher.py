@@ -2872,8 +2872,10 @@ def _assert_batch_unique(candidates: list[dict[str, Any]]) -> None:
     ids: set[str] = set()
     paths: set[str] = set()
     paragraph_owners: dict[str, str] = {}
+    articles: list[dict[str, Any]] = []
     for candidate in candidates:
         for article in candidate["articles"]:
+            articles.append(article)
             article_id = str(article["id"])
             path = _article_path(article)
             if article_id in ids:
@@ -2891,6 +2893,15 @@ def _assert_batch_unique(candidates: list[dict[str, Any]]) -> None:
                     if owner and owner != article_id:
                         raise PublishBlocked(f"duplicate paragraph across batch: {owner} and {article_id}")
                     paragraph_owners[normalized] = article_id
+    batch_codes = {"repeated_sentence", "templated_opening_pair"}
+    findings = [
+        finding
+        for finding in pipeline.quality_findings(articles)
+        if finding["code"] in batch_codes
+    ]
+    if findings:
+        codes = ", ".join(sorted({finding["code"] for finding in findings}))
+        raise PublishBlocked(f"batch writing policy findings: {codes}")
 
 
 def collect_ready_runs(

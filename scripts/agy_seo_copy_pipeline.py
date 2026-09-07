@@ -292,7 +292,7 @@ REWRITE_IMMUTABLE_FIELDS = {
 }
 REWRITE_ARTICLE_FIELDS = {"article_id", "identity", "current_body_sha256", "bodySections", "publicationPolicy"}
 REWRITE_IDENTITY_FIELDS = {"id", "product", "category", "serial", "slug", "primaryKeyword", "title"}
-REWRITE_ACTION_VERBS = {
+ARTICLE_ACTION_VERBS = {
     "安排",
     "列出",
     "寫下",
@@ -311,8 +311,18 @@ REWRITE_ACTION_VERBS = {
     "計算",
     "暫停",
     "標記",
+    "等待",
+    "守住",
+    "補作品集",
+    "談分工",
+    "收尾",
+    "試探",
+    "拒絕",
+    "停下來",
+    "回覆",
+    "見面",
 }
-REWRITE_SCENE_MARKERS = {
+ARTICLE_SCENE_MARKERS = {
     "會議",
     "聚會",
     "伴侶",
@@ -336,6 +346,22 @@ REWRITE_SCENE_MARKERS = {
     "期限",
     "合約",
     "課程",
+    "已讀",
+    "回覆",
+    "約會",
+    "見面",
+    "爭執",
+    "冷戰",
+    "曖昧",
+    "分手",
+    "復合",
+    "承諾",
+    "分工",
+    "租屋",
+    "銀行",
+    "履歷",
+    "作品集",
+    "專案",
 }
 REWRITE_TEMPLATE_HEADINGS = {
     "真正要整理的是什麼",
@@ -472,16 +498,22 @@ MACHINE_OWNED_REVIEW_CODES = {
     "banned_phrase_usage",
     "body_length",
     "body_length_insufficient",
+    "concrete_verbs",
     "description_boundary",
     "description_length",
     "generic_ai_phrase",
+    "missing_counterexample_or_limit",
+    "observable_action_density",
     "opening_keyword",
     "paragraph_count",
     "paragraph_length",
     "paragraph_length_violation",
     "repeated_sentence",
     "required_tags",
+    "scenario_density",
     "section_count",
+    "templated_opening",
+    "templated_opening_pair",
     "title_keyword",
     "title_length",
 }
@@ -549,6 +581,7 @@ def load_article_publication_policy(path: Path | None = None) -> dict[str, Any]:
         "identity",
         "levels",
         "required",
+        "writing_contract",
         "recommended",
         "measured",
         "migration_only",
@@ -559,10 +592,60 @@ def load_article_publication_policy(path: Path | None = None) -> dict[str, Any]:
     }
     if set(payload) != required_top:
         raise CandidateValidationError("article publication policy v2 top-level fields are strict")
-    if payload.get("policy_version") != "pantheon-article-publication-v2.0.0":
+    if payload.get("policy_version") != "pantheon-article-publication-v2.1.0":
         raise CandidateValidationError("unsupported article publication policy version")
     if set(payload["levels"]) != {"required", "recommended", "measured", "migration_only"}:
         raise CandidateValidationError("article publication policy levels are incomplete")
+    writing_contract = payload.get("writing_contract")
+    required_writing_fields = {
+        "problem_before_tool",
+        "second_sentence_must_be_article_specific",
+        "forbidden_opening_patterns",
+        "minimum_distinct_action_verbs",
+        "minimum_scene_sentences",
+        "minimum_observable_action_sentences",
+        "minimum_counterexamples",
+        "section_flow",
+        "standalone_cta",
+        "batch_opening_keyword_swap",
+        "batch_shared_sentence_maximum",
+    }
+    if (
+        not isinstance(writing_contract, dict)
+        or set(writing_contract) != required_writing_fields
+        or writing_contract.get("problem_before_tool") is not True
+        or writing_contract.get("second_sentence_must_be_article_specific") is not True
+        or writing_contract.get("standalone_cta") != "forbidden"
+        or writing_contract.get("batch_opening_keyword_swap") != "forbidden"
+        or not isinstance(writing_contract.get("section_flow"), list)
+        or len(writing_contract["section_flow"]) != 5
+        or not all(
+            isinstance(value, str) and value
+            for value in writing_contract["section_flow"]
+        )
+    ):
+        raise CandidateValidationError("article publication writing contract is invalid")
+    for field in [
+        "minimum_distinct_action_verbs",
+        "minimum_scene_sentences",
+        "minimum_observable_action_sentences",
+        "minimum_counterexamples",
+        "batch_shared_sentence_maximum",
+    ]:
+        if type(writing_contract.get(field)) is not int or writing_contract[field] < 1:
+            raise CandidateValidationError(
+                "article publication writing thresholds are invalid"
+            )
+    opening_patterns = writing_contract.get("forbidden_opening_patterns")
+    if not isinstance(opening_patterns, list) or not opening_patterns:
+        raise CandidateValidationError("article publication opening patterns are invalid")
+    try:
+        for pattern in opening_patterns:
+            re.compile(str(pattern))
+    except re.error as error:
+        raise CandidateValidationError(
+            "article publication opening pattern is invalid"
+        ) from error
     presentation = payload.get("presentation_constraints")
     if (
         not isinstance(presentation, dict)
@@ -1304,6 +1387,114 @@ def _has_false_social_origin(text: str) -> bool:
     )
 
 
+def _create_writing_findings(
+    article_id: str,
+    paragraphs: list[str],
+) -> list[dict[str, str]]:
+    """以 policy v2.1 的可觀察訊號檢查新文，語意細節仍交 Reviewer。"""
+    contract = load_article_publication_policy()["writing_contract"]
+    text = "".join(paragraphs)
+    sentences = {
+        sentence.strip()
+        for sentence in re.split(r"[。！？]", text)
+        if sentence.strip()
+    }
+    findings: list[dict[str, str]] = []
+    opening = paragraphs[0].strip() if paragraphs else ""
+    if any(
+        re.search(str(pattern), opening)
+        for pattern in contract["forbidden_opening_patterns"]
+    ):
+        findings.append(
+            _policy_finding(
+                article_id,
+                "templated_opening",
+                "開頭不得沿用只替換關鍵字的查詢模板",
+            )
+        )
+    scene_sentences = {
+        sentence
+        for sentence in sentences
+        if any(marker in sentence for marker in ARTICLE_SCENE_MARKERS)
+    }
+    if len(scene_sentences) < contract["minimum_scene_sentences"]:
+        findings.append(
+            _policy_finding(
+                article_id,
+                "scenario_density",
+                f"至少需要 {contract['minimum_scene_sentences']} 個可辨識的專屬生活場景",
+            )
+        )
+    verbs = {verb for verb in ARTICLE_ACTION_VERBS if verb in text}
+    if len(verbs) < contract["minimum_distinct_action_verbs"]:
+        findings.append(
+            _policy_finding(
+                article_id,
+                "concrete_verbs",
+                f"至少需要 {contract['minimum_distinct_action_verbs']} 個不同的具體行動動詞",
+            )
+        )
+    action_sentences = {
+        sentence
+        for sentence in sentences
+        if any(verb in sentence for verb in ARTICLE_ACTION_VERBS)
+    }
+    if len(action_sentences) < contract["minimum_observable_action_sentences"]:
+        findings.append(
+            _policy_finding(
+                article_id,
+                "observable_action_density",
+                f"至少需要 {contract['minimum_observable_action_sentences']} 句可觀察行動",
+            )
+        )
+    counterexamples = {
+        sentence
+        for sentence in sentences
+        if re.search(r"反例|例外|不適用|不代表|不能|未必|然而|但", sentence)
+    }
+    if len(counterexamples) < contract["minimum_counterexamples"]:
+        findings.append(
+            _policy_finding(
+                article_id,
+                "missing_counterexample_or_limit",
+                "正文缺少工具不適用的反例或明確限制",
+            )
+        )
+    return findings
+
+
+def _opening_keyword_swap_findings(
+    articles: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+    """攔截同批前兩段只替換 primary keyword 的模板文。"""
+    signatures: dict[str, list[str]] = {}
+    for article in articles:
+        paragraphs = [
+            str(paragraph)
+            for section in article.get("bodySections") or []
+            if isinstance(section, dict)
+            for paragraph in section.get("paragraphs") or []
+        ]
+        opening = _normalize_keyword("".join(paragraphs[:2]))
+        keyword = _normalize_keyword(str(article.get("primaryKeyword") or ""))
+        signature = opening.replace(keyword, "") if keyword else opening
+        if signature:
+            signatures.setdefault(signature, []).append(_candidate_id(article))
+    findings: list[dict[str, str]] = []
+    for owners in signatures.values():
+        if len(owners) < 2:
+            continue
+        for article_id in owners:
+            findings.append(
+                _policy_finding(
+                    article_id,
+                    "templated_opening_pair",
+                    "同批文章前兩段不得只替換 primary keyword",
+                )
+            )
+    return findings
+
+
 def quality_findings(
     articles: list[dict[str, Any]],
     *,
@@ -1311,6 +1502,9 @@ def quality_findings(
 ) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
     sentence_owners: dict[str, set[str]] = {}
+    shared_sentence_maximum = load_article_publication_policy()[
+        "writing_contract"
+    ]["batch_shared_sentence_maximum"]
     profile = publication_presentation_profile("create")
     description_minimum, description_maximum = _range_bounds(
         profile,
@@ -1344,6 +1538,7 @@ def quality_findings(
         else:
             paragraphs = [str(item) for section in article["bodySections"] for item in section["paragraphs"]]
             text = f"{article['title']}{article['description']}{article['answer']}{''.join(paragraphs)}"
+            findings.extend(_create_writing_findings(article_id, paragraphs))
             if not description_minimum <= len(str(article["description"])) <= description_maximum:
                 findings.append({"article_id": article_id, "code": "description_length", "message": f"meta description 必須為 {description_minimum} 到 {description_maximum} 字"})
             if not _has_boundary_statement(str(article["description"])):
@@ -1400,9 +1595,10 @@ def quality_findings(
                 if len(sentence) >= 18:
                     sentence_owners.setdefault(sentence, set()).add(article_id)
     for sentence, owners in sentence_owners.items():
-        if len(owners) > 3:
+        if len(owners) > shared_sentence_maximum:
             for article_id in owners:
                 findings.append({"article_id": article_id, "code": "repeated_sentence", "message": f"同批完整句重複超過三篇：{sentence}"})
+    findings.extend(_opening_keyword_swap_findings(articles))
     return [
         {
             **finding,
@@ -1498,11 +1694,11 @@ def rewrite_quality_findings(
         scene_sentences = {
             sentence.strip()
             for sentence in re.split(r"[。！？]", text)
-            if any(marker in sentence for marker in REWRITE_SCENE_MARKERS)
+            if any(marker in sentence for marker in ARTICLE_SCENE_MARKERS)
         }
         if len(scene_sentences) < 2:
             findings.append({"article_id": article_id, "code": "scenario_density", "message": "至少需要兩個可辨識的專屬生活場景"})
-        verbs = sorted(verb for verb in REWRITE_ACTION_VERBS if verb in text)
+        verbs = sorted(verb for verb in ARTICLE_ACTION_VERBS if verb in text)
         if len(verbs) < 3:
             findings.append({"article_id": article_id, "code": "concrete_verbs", "message": "至少需要 3 個不同的具體行動動詞"})
         if not re.search(r"反例|例外|不適用|不代表|不能|未必|然而|但", text):
@@ -1548,11 +1744,11 @@ REWRITE_ABSTRACT_PATTERNS = {
 def _paragraph_role_skeleton(paragraph: str) -> str:
     roles: list[str] = []
     for sentence in (item.strip() for item in re.split(r"[。！？]", paragraph) if item.strip()):
-        if any(marker in sentence for marker in REWRITE_SCENE_MARKERS):
+        if any(marker in sentence for marker in ARTICLE_SCENE_MARKERS):
             role = "scene"
         elif re.search(r"反例|例外|然而|未必|不代表|不能|不適用", sentence):
             role = "limit"
-        elif any(verb in sentence for verb in REWRITE_ACTION_VERBS):
+        elif any(verb in sentence for verb in ARTICLE_ACTION_VERBS):
             role = "action"
         elif re.search(r"為什麼|是否|哪一|什麼|如何|怎麼", sentence):
             role = "question"
@@ -2042,6 +2238,19 @@ def compact_publication_policy() -> dict[str, Any]:
         "language": "繁體中文",
         "voice": "白話、具體、先回答讀者問題；冷靜但不替讀者下判決",
         "required": policy["required"],
+        "writingContract": {
+            "problemBeforeTool": policy["writing_contract"]["problem_before_tool"],
+            "secondSentenceMustBeArticleSpecific": policy["writing_contract"]["second_sentence_must_be_article_specific"],
+            "forbiddenOpeningPatterns": policy["writing_contract"]["forbidden_opening_patterns"],
+            "minimumDistinctActionVerbs": policy["writing_contract"]["minimum_distinct_action_verbs"],
+            "minimumSceneSentences": policy["writing_contract"]["minimum_scene_sentences"],
+            "minimumObservableActionSentences": policy["writing_contract"]["minimum_observable_action_sentences"],
+            "minimumCounterexamples": policy["writing_contract"]["minimum_counterexamples"],
+            "sectionFlow": policy["writing_contract"]["section_flow"],
+            "standaloneCta": policy["writing_contract"]["standalone_cta"],
+            "batchOpeningKeywordSwap": policy["writing_contract"]["batch_opening_keyword_swap"],
+            "batchSharedSentenceMaximum": policy["writing_contract"]["batch_shared_sentence_maximum"],
+        },
         "presentationConstraints": policy["presentation_constraints"],
         "generation_profile": publication_presentation_instruction("create"),
         "tags": f"必含 {', '.join(sorted(REQUIRED_PUBLIC_TAGS))}，並加入產品線與情境 tags",
@@ -3462,6 +3671,17 @@ def _create_repair_directives(findings: list[dict[str, Any]]) -> str:
         directives.append(
             "逐一移除 findings 指出的禁詞與模板詞，包含標題、description、answer、FAQ 與正文，不得只改其中一處"
         )
+    if codes & {
+        "concrete_verbs",
+        "missing_counterexample_or_limit",
+        "observable_action_density",
+        "scenario_density",
+        "templated_opening",
+        "templated_opening_pair",
+    }:
+        directives.append(
+            "正文必須改成該篇專屬寫法：開頭第二句落到具體困擾，至少 2 個生活場景、3 個不同動詞、2 句可觀察行動與 1 個不適用反例；不得只替換關鍵字"
+        )
     return "；".join(directives) if directives else "只修正 findings 指出的項目，不改動已通過欄位"
 
 
@@ -3476,21 +3696,27 @@ def _create_repair_fields(
         "answer_length": {"answer"},
         "body_length": {"bodySections"},
         "body_length_insufficient": {"bodySections"},
+        "concrete_verbs": {"bodySections"},
         "cross_corpus_originality": {"bodySections"},
         "description_boundary": {"description"},
         "description_context_and_limit": {"description"},
         "description_length": {"description"},
         "explicit_limit_or_counterexample": {"bodySections"},
+        "missing_counterexample_or_limit": {"bodySections"},
         "missing_boundary": {"description"},
         "missing_pantheon_context": {"bodySections"},
         "opening_keyword": {"bodySections"},
         "opening_primary_intent": {"bodySections"},
+        "observable_action_density": {"bodySections"},
         "paragraph_count": {"bodySections"},
         "paragraph_length": {"bodySections"},
         "paragraph_length_violation": {"bodySections"},
         "repeated_sentence": {"bodySections"},
         "required_tags": {"tags"},
+        "scenario_density": {"bodySections"},
         "section_count": {"bodySections"},
+        "templated_opening": {"bodySections"},
+        "templated_opening_pair": {"bodySections"},
         "standalone_answer": {"answer"},
         "title_keyword": {"title"},
         "title_length": {"title"},
@@ -3827,6 +4053,23 @@ def _rewrite_generation_instruction() -> str:
     )
 
 
+def _create_writing_instruction() -> str:
+    contract = compact_publication_policy()["writingContract"]
+    return (
+        "create 新文還必須確認：問題先於工具；開頭第二句必須出現該篇專屬困擾或情境；"
+        "不得使用「查 X 的人通常不是想背……」開場；"
+        f"至少寫入 {contract['minimumDistinctActionVerbs']} 個不同的具體動詞，"
+        "例如記錄、確認、核對、比較、詢問、等待、試探、拒絕或停下來；"
+        f"至少放入 {contract['minimumSceneSentences']} 個專屬生活場景與 "
+        f"{contract['minimumObservableActionSentences']} 句可觀察行動，"
+        f"並提供 {contract['minimumCounterexamples']} 個工具不適用的反例；"
+        f"{len(contract['sectionFlow'])} 個核心段落依 writingContract.sectionFlow 組織；"
+        "結尾自然收束，不得放獨立 CTA；"
+        f"同批固定完整句最多出現 {contract['batchSharedSentenceMaximum']} 次，"
+        "任兩篇前兩段不得只替換 primary keyword。"
+    )
+
+
 def _writer_prompt(
     brief: dict[str, Any],
     prior: dict[str, Any] | None = None,
@@ -3851,6 +4094,7 @@ def _writer_prompt(
             "不能替個人下結論等限制；不得只把限制放在正文。"
             " publicationPolicy 由本機可信資料補齊；內容只採文化／反思定位，"
             "不得寫入研究、統計、百分比或方法型主張。"
+            f" {_create_writing_instruction()}"
         )
     if brief.get("mode") == "optimize":
         instruction = "只輸出各 slot 的 proposed title、description、answer。"
@@ -3963,6 +4207,7 @@ def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], determini
     return "\n".join([
         "獨立審查候選稿是否符合 public brief 與發布規範；slot 必須逐字複製。",
         "檢查：搜尋意圖、具體生活場景、可觀察動詞、反例、限制、繁體中文、英文殘字與錯別字、禁詞、模板句、醫療/法律/財務邊界。",
+        *([_create_writing_instruction()] if brief.get("mode") == "create" else []),
         f"{title_minimum} 到 {title_maximum} 字才是標題硬性安全邊界；"
         f"{title_preferred_minimum} 到 {title_preferred_maximum} 字只是偏好，"
         "不得只因未落在偏好區間而退件。",
