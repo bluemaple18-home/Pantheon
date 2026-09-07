@@ -5896,6 +5896,40 @@ def test_terminalize_pending_execute_preserves_request_and_marks_run_terminal(
     assert not (queue_root / "inbox" / f"{request['job_id']}.json").exists()
 
 
+def test_terminalize_pending_accepts_superseded_request_schema_reason(
+    tmp_path: Path,
+) -> None:
+    run_dir, queue_root, request = _operator_pending_fixture(
+        tmp_path,
+        "synthetic-superseded-request-schema",
+    )
+    before = _file_snapshot(queue_root)
+
+    completed = _operator_cli(
+        run_dir,
+        queue_root,
+        request,
+        reason="SUPERSEDED_REQUEST_SCHEMA_ABORT",
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout)["reason"] == "SUPERSEDED_REQUEST_SCHEMA_ABORT"
+    assert _file_snapshot(queue_root) == before
+
+    result = _operator_terminalize(
+        run_dir,
+        queue_root,
+        request,
+        reason="SUPERSEDED_REQUEST_SCHEMA_ABORT",
+    )
+
+    assert result["status"] == "terminalized"
+    decision = json.loads(
+        (queue_root / "operator-terminalizations" / f"{request['job_id']}.json").read_text()
+    )
+    assert decision["reason"] == "SUPERSEDED_REQUEST_SCHEMA_ABORT"
+
+
 def test_terminalize_pending_cli_execute_wires_public_command(tmp_path: Path) -> None:
     run_dir, queue_root, request = _operator_pending_fixture(
         tmp_path,
@@ -5971,6 +6005,7 @@ def _operator_cli(
     request: dict[str, object],
     *,
     execute: bool = False,
+    reason: str = "UNSUPPORTED_MODEL_CANARY_ABORT",
 ) -> subprocess.CompletedProcess[str]:
     command = [
         sys.executable,
@@ -5997,7 +6032,7 @@ def _operator_cli(
         "--transport-attempt",
         str(request.get("transport_attempt", 0)),
         "--reason",
-        "UNSUPPORTED_MODEL_CANARY_ABORT",
+        reason,
     ]
     if execute:
         command.append("--execute")
@@ -6123,8 +6158,13 @@ def test_terminalize_pending_recovers_after_state_write_interruption(
     assert json.loads(decision_path.read_text())["status"] == "terminalized"
 
 
+@pytest.mark.parametrize(
+    "reason",
+    ["UNSUPPORTED_MODEL_CANARY_ABORT", "SUPERSEDED_REQUEST_SCHEMA_ABORT"],
+)
 def test_terminalize_pending_rejects_existing_production_attempt_evidence(
     tmp_path: Path,
+    reason: str,
 ) -> None:
     run_dir, queue_root, request = _operator_pending_fixture(
         tmp_path,
@@ -6136,7 +6176,7 @@ def test_terminalize_pending_rejects_existing_production_attempt_evidence(
     before = _file_snapshot(queue_root)
 
     with pytest.raises(ValueError, match="production attempt evidence"):
-        _operator_terminalize(run_dir, queue_root, request)
+        _operator_terminalize(run_dir, queue_root, request, reason=reason)
 
     assert _file_snapshot(queue_root) == before
 

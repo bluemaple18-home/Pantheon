@@ -1660,6 +1660,46 @@ def test_standalone_answer_repair_fields_only_authorize_answer() -> None:
     assert set(properties) == {"slot", "answer"}
 
 
+def test_single_slot_create_repair_schema_requires_contract_fields_and_hydrates() -> None:
+    article = make_deterministic_green_create_article("SINGLE-SLOT-SCHEMA-CONTRACT")
+    candidate = {
+        "schema_version": 1,
+        "run_id": "single-slot-schema-contract",
+        "mode": "create",
+        "articles": [article],
+    }
+    contract = {"article-01": ("bodySections",)}
+    article_schema = pipeline.external_create_repair_schema(contract)["properties"][
+        "articles"
+    ]["items"]
+
+    assert article_schema["required"] == ["slot", "bodySections"]
+    assert not set(article_schema["required"]) <= {"slot"}
+    complete = {
+        "slot": "article-01",
+        "bodySections": article["bodySections"],
+    }
+    assert set(article_schema["required"]) <= set(complete)
+    assert pipeline.hydrate_create_repair(
+        candidate,
+        {"articles": [complete]},
+        contract,
+    ) == candidate
+
+
+def test_multi_slot_create_repair_schema_preserves_slot_only_required() -> None:
+    contract = {
+        "article-01": ("title",),
+        "article-02": ("bodySections",),
+    }
+
+    article_schema = pipeline.external_create_repair_schema(contract)["properties"][
+        "articles"
+    ]["items"]
+
+    assert article_schema["required"] == ["slot"]
+
+
 def test_repair_fields_cover_all_repairable_deterministic_create_codes() -> None:
     article = make_article("DETERMINISTIC-REPAIR-FIELDS")
     expected = {

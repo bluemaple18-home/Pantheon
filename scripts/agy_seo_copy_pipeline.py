@@ -3592,7 +3592,7 @@ def external_create_repair_schema(
             "slot": {"type": "string"},
             **{field: full["properties"][field] for field in fields},
         },
-        "required": ["slot"],
+        "required": ["slot", *fields] if len(contract) == 1 else ["slot"],
     }
     return {
         "type": "object",
