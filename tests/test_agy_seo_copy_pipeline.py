@@ -1552,6 +1552,9 @@ def test_create_writer_prompt_requires_description_local_boundary() -> None:
     assert "description 以 80 到 90 個中文字為初稿目標" in prompt
     assert "初稿每段以 95 到 110 字為生成目標" in prompt
     assert "即使是否定句也改用其他說法" in prompt
+    context_tail = prompt.rfind("bounded repair contract:")
+    assert prompt.rfind("title 硬範圍為 20 到 45 字") > context_tail
+    assert prompt.rfind("description 硬範圍為 70 到 95 字") > context_tail
 
 
 def test_create_writing_contract_is_projected_and_generic_copy_fails_closed() -> None:
@@ -5241,6 +5244,9 @@ def test_writer_schema_retry_does_not_consume_content_repair_budget(tmp_path: Pa
     assert evidence["attempts"] == 3
     assert "closed schema diagnostics" in client.writer_prompts[2]
     assert '"path": ["articles", 0, "proposed"]' in client.writer_prompts[2]
+    assert client.writer_prompts[2].rfind(
+        "closed schema diagnostics"
+    ) > client.writer_prompts[2].rfind("bounded repair contract:")
 
 
 def test_rewrite_050_summary_requires_50_unique_candidates(tmp_path: Path) -> None:

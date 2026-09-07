@@ -4117,16 +4117,17 @@ def _writer_prompt(
                 if brief.get("mode") == "rewrite_existing_body"
                 else repair_instruction
             )
-    return "\n".join([
-        instruction,
-        "不得共用跨篇完整句型。",
+    context = [
         "public brief:", json.dumps(public_model_brief(brief), ensure_ascii=False),
         "prior public candidate:", json.dumps(public_model_candidate(brief, prior), ensure_ascii=False) if prior else "null",
         "public findings:", json.dumps(public_model_findings(brief, findings or []), ensure_ascii=False),
         "trusted local measurements:", repair_measurements,
         "repair directives:", repair_directives,
         "bounded repair contract:", json.dumps(repair_contract, ensure_ascii=False) if repair_contract else "null",
-    ])
+    ]
+    if brief.get("mode") == "create":
+        return "\n".join([*context, instruction, "不得共用跨篇完整句型。"])
+    return "\n".join([instruction, "不得共用跨篇完整句型。", *context])
 
 
 def _rewrite_reviewer_semantic_contract() -> str:
@@ -4399,6 +4400,7 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
         if current_schema_repair:
             writer_prompt = "\n".join(
                 [
+                    writer_prompt,
                     f"schema repair {current_schema_repair}: 前次 Writer JSON 格式無效。",
                     "closed schema diagnostics: "
                     + json.dumps(
@@ -4409,7 +4411,6 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
                         ensure_ascii=False,
                     ),
                     "必須輸出完整 schema，且每篇都不得漏掉任何 required field。",
-                    writer_prompt,
                 ]
             )
         writer_schema = (
