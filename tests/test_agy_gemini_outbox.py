@@ -1175,7 +1175,7 @@ def test_production_pool_uses_only_selected_slot_and_one_provider_request(
     assert "last_ordinal" not in persisted
 
 
-def test_production_normalizes_new_output_with_one_credential_slot(
+def test_production_rejects_short_new_description_with_one_credential_slot(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1225,15 +1225,17 @@ def test_production_normalizes_new_output_with_one_credential_slot(
 
     result = process_once(queue_root, clock=lambda: 8_001.0, lane="new")
 
-    response = json.loads(
-        (queue_root / "inbox" / f"{request['job_id']}.json").read_text()
+    failed = json.loads(
+        (queue_root / "failed" / f"{request['job_id']}.json").read_text()
     )
-    assert result["status"] == "processed"
+    assert result["status"] == "failed"
+    assert result["error_type"] == "V4BrokerFailure"
     assert result["credential_pool"]["slot_id"] == "account-2"
-    assert response["credential_pool"] == result["credential_pool"]
+    assert failed["credential_pool"] == result["credential_pool"]
+    assert failed["failure_category"] == "SCHEMA_INVALID_PAYLOAD"
+    assert not (queue_root / "inbox" / f"{request['job_id']}.json").exists()
     assert provider_constructions == 1
     assert provider_calls == 1
-    assert not list((queue_root / "failed").glob("*.json"))
 
 
 def test_production_pool_commit_failure_precedes_credential_and_provider(
@@ -4098,7 +4100,7 @@ def test_rewrite_provider_length_mismatch_reaches_local_quality_gate(
     ]
 
 
-def test_runner_normalizes_new_description_and_paragraph_bounds_without_retry(
+def test_runner_rejects_short_new_description_without_local_padding(
     tmp_path: Path,
 ) -> None:
     response_schema = pipeline.external_candidate_schema("create")
@@ -4113,10 +4115,6 @@ def test_runner_normalizes_new_description_and_paragraph_bounds_without_retry(
     provider_calls = 0
 
     provider_payload = _new_output_contract_fixture()
-    original_paragraph_text = "".join(
-        provider_payload["articles"][0]["bodySections"][0]["paragraphs"]
-    )
-
     def successful_provider(
         _role: str,
         _model: str,
@@ -4129,47 +4127,21 @@ def test_runner_normalizes_new_description_and_paragraph_bounds_without_retry(
 
     result = process_once(tmp_path, generate_json=successful_provider, lane="new")
 
-    assert result == {"status": "processed", "job_id": request["job_id"]}
-    assert provider_calls == 1
-    assert not list((tmp_path / "failed").glob("*.json"))
-    external = consume_external_response(tmp_path, request)
-    article = external["articles"][0]
-    assert 70 <= len(article["description"]) <= 95
-    normalized_paragraphs = article["bodySections"][0]["paragraphs"]
-    assert 2 <= len(normalized_paragraphs) <= 4
-    assert all(80 <= len(paragraph) <= 160 for paragraph in normalized_paragraphs)
-    assert "".join(normalized_paragraphs) == original_paragraph_text
-    assert broker._diagnose_json_schema(external, response_schema) == ()
-
-    target = {
-        "id": "NEW-OUTPUT-01",
-        "section": "astrology",
-        "product": "astrology",
-        "slug": "new-output-01",
-        "serial": "astrology-0001",
-        "urlSlug": "new-output-01",
-        "primaryKeyword": "測試關鍵字",
-        "published": "2026-07-31",
-        "updated": "2026-07-31",
+    assert result == {
+        "status": "failed",
+        "job_id": request["job_id"],
+        "error_type": "V4BrokerFailure",
     }
-    candidate = pipeline.hydrate_candidate(
-        {
-            "schema_version": 1,
-            "run_id": "new-output-contract-normalization",
-            "mode": "create",
-            "articles": [{"target": target}],
-        },
-        external,
-        enforce_policy=False,
-    )
-    pipeline.validate_candidate(candidate, enforce_policy=False)
-    assert candidate["articles"][0]["description"] == article["description"]
-    assert process_once(
-        tmp_path,
-        generate_json=lambda *_args: pytest.fail("archived job must not replay"),
-        lane="new",
-    ) == {"status": "idle"}
     assert provider_calls == 1
+    assert not (tmp_path / "inbox" / f"{request['job_id']}.json").exists()
+    failed = json.loads(
+        (tmp_path / "failed" / f"{request['job_id']}.json").read_text()
+    )
+    assert failed["failure_category"] == "SCHEMA_INVALID_PAYLOAD"
+    assert failed["broker_diagnostic"]["schema_diagnostics"] == [
+        {"keyword": "minLength", "path": ["articles", 0, "description"]}
+    ]
+    assert len(provider_payload["articles"][0]["description"]) == 69
 
 
 def test_runner_returns_idle_for_empty_outbox(tmp_path: Path) -> None:
@@ -4473,18 +4445,6 @@ def test_outbox_client_stops_after_two_json_decode_retries(tmp_path: Path) -> No
     [
         ("GeminiApiFailure", "API_TRANSPORT_ERROR", None, "NETWORK"),
         ("JSONDecodeError", None, None, "MALFORMED_PAYLOAD"),
-        (
-            "V4BrokerFailure",
-            None,
-            {
-                "replay_status": "COMPLETE",
-                "process_count": 1,
-                "outcome": "SUCCESS",
-                "result_validation": "SCHEMA_MISMATCH",
-                "schema_diagnostics": [{"keyword": "required", "path": []}],
-            },
-            "SCHEMA_INVALID_PAYLOAD",
-        ),
         ("GeminiApiFailure", "API_HTTP_ERROR", None, "PROVIDER_UNAVAILABLE"),
         ("GeminiApiFailure", "API_RATE_LIMITED", None, "QUOTA"),
     ],
@@ -5228,24 +5188,37 @@ def test_pipeline_advances_writer_then_fresh_reviewer_across_ticks(tmp_path: Pat
     assert review["articles"][0]["verdict"] == "APPROVE"
 
 
-def test_invalid_writer_schema_uses_transport_budget_without_semantic_repair(
+def test_invalid_writer_schema_enters_semantic_repair_without_transport_retry(
     tmp_path: Path,
 ) -> None:
-    run_dir = tmp_path / "runs" / "optimize-writer-schema-retry"
+    run_dir = tmp_path / "runs" / "create-writer-schema-repair"
     queue_root = tmp_path / "queue"
     run_dir.mkdir(parents=True)
+    target = {
+        "id": "PUBLIC-RETRY-001",
+        "section": "astrology",
+        "product": "astrology",
+        "slug": "writer-schema-retry",
+        "serial": "astrology-0001",
+        "urlSlug": "writer-schema-retry",
+        "primaryKeyword": "公開搜尋詞",
+        "published": "2026-09-07",
+        "updated": "2026-09-07",
+    }
     brief = {
         "schema_version": 1,
         "run_id": "private-writer-schema-retry",
-        "mode": "optimize",
-        "allowed_fields": ["title", "description", "answer"],
+        "mode": "create",
         "articles": [
             {
-                "article_id": "PUBLIC-RETRY-001",
-                "canonical_path": "/articles/astrology/astrology-0001",
-                "source_file": "app/web/static/article-registry.js",
-                "current": {"title": "舊標題", "description": "舊描述", "answer": "舊答案"},
-                "queries": [{"query": "公開搜尋詞"}],
+                "matrix": {
+                    "id": target["id"],
+                    "primaryKeyword": target["primaryKeyword"],
+                    "title": "公開搜尋詞的使用情境",
+                    "intent": "理解公開搜尋詞",
+                },
+                "target": target,
+                "policy": pipeline.compact_publication_policy(),
             }
         ],
     }
@@ -5256,10 +5229,10 @@ def test_invalid_writer_schema_uses_transport_budget_without_semantic_repair(
     first_request = json.loads(
         (queue_root / "outbox" / f"{first_pending.value.job_id}.json").read_text()
     )
-    process_once(
-        queue_root,
-        generate_json=lambda *_args: {"articles": [{"slot": "article-01"}]},
-    )
+    invalid_writer_payload = _new_output_contract_fixture()
+    invalid_writer_payload["articles"][0]["title"] = "太短"
+    invalid_writer_payload["articles"][0]["description"] = "太短"
+    process_once(queue_root, generate_json=lambda *_args: invalid_writer_payload)
     failed = json.loads(
         (
             queue_root
@@ -5275,10 +5248,42 @@ def test_invalid_writer_schema_uses_transport_budget_without_semantic_repair(
     assert retry_pending.value.job_id != first_pending.value.job_id
     retry = json.loads((queue_root / "outbox" / f"{retry_pending.value.job_id}.json").read_text())
     assert retry["namespace"] == first_request["namespace"]
-    assert retry["request_sha256"] == first_request["request_sha256"]
-    assert retry["prompt"] == first_request["prompt"]
-    assert retry["transport_attempt"] == 1
-    assert not (run_dir / "attempts" / "02").exists()
+    assert retry["request_sha256"] != first_request["request_sha256"]
+    assert retry["prompt"] != first_request["prompt"]
+    assert retry.get("transport_attempt", 0) == 0
+    assert "schema repair 1" in retry["prompt"]
+    assert '"keyword": "minLength", "path": ["articles", 0, "title"]' in retry["prompt"]
+    assert '"keyword": "minLength", "path": ["articles", 0, "description"]' in retry["prompt"]
+    assert "title 硬範圍為 20 到 45 字" in retry["prompt"]
+    assert "description 硬範圍為 70 到 95 字" in retry["prompt"]
+    assert (run_dir / "attempts" / "02").is_dir()
+
+    process_once(queue_root, generate_json=lambda *_args: invalid_writer_payload)
+    with pytest.raises(ExternalJobPending) as final_repair_pending:
+        run_pipeline_tick(run_dir, queue_root)
+    final_repair = json.loads(
+        (
+            queue_root
+            / "outbox"
+            / f"{final_repair_pending.value.job_id}.json"
+        ).read_text()
+    )
+    assert final_repair.get("transport_attempt", 0) == 0
+    assert "schema repair 2" in final_repair["prompt"]
+
+    process_once(queue_root, generate_json=lambda *_args: invalid_writer_payload)
+    with pytest.raises(
+        pipeline.CandidateValidationError,
+        match="writer schema remained invalid after bounded schema repairs",
+    ):
+        run_pipeline_tick(run_dir, queue_root)
+
+    assert not (run_dir / "attempts" / "04").exists()
+    assert not [
+        path
+        for path in queue_root.glob("**/*.json")
+        if json.loads(path.read_text()).get("role") == "reviewer"
+    ]
     for forbidden in ("candidate.json", "review.json", "approval.json", "run-evidence.json"):
         assert not (run_dir / forbidden).exists()
 

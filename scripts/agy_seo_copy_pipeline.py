@@ -112,14 +112,6 @@ def model_route_config_from_environment() -> ModelRouteConfig:
             raise ValueError("model route environment drift")
     return route_config
 MAX_WRITER_SCHEMA_REPAIRS = 2
-NEW_DESCRIPTION_BOUNDARY_SENTENCES = (
-    "本文只提供通用理解，不能替個人下結論。",
-    "內容不承諾特定結果，仍須依實際情境與資料判斷。",
-    "請核對當下狀況與可用資訊後再決定。",
-    "這些線索僅供整理問題與下一步。",
-)
-
-
 ANTIGRAVITY_MODEL_LABELS = {
     "gemini-3.5-flash": "Gemini 3.5 Flash (Low)",
     "gemini-3.1-pro": "Gemini 3.1 Pro (Low)",
@@ -3318,24 +3310,19 @@ def normalize_new_output_contract(
     payload: dict[str, Any],
     response_schema: dict[str, Any],
 ) -> dict[str, Any] | None:
-    """只修正 new/create 已知的字數邊界，其他 schema mismatch 保持封閉失敗。"""
+    """只做不改內容的段落重排；其他 schema mismatch 保持封閉失敗。"""
     expected_schema = external_candidate_schema("create")
     if response_schema != expected_schema:
         return None
     try:
         normalized = json.loads(json.dumps(payload, ensure_ascii=False))
-        article_schema = response_schema["properties"]["articles"]["items"]
         canonical_article_schema = candidate_schema("create")["properties"][
             "articles"
         ]["items"]
-        properties = article_schema["properties"]
         canonical_properties = canonical_article_schema["properties"]
-        description_schema = properties["description"]
         paragraph_schema = canonical_properties["bodySections"]["items"][
             "properties"
         ]["paragraphs"]
-        description_minimum = int(description_schema["minLength"])
-        description_maximum = int(description_schema["maxLength"])
         paragraph_count_minimum = int(paragraph_schema["minItems"])
         paragraph_count_maximum = int(paragraph_schema["maxItems"])
         paragraph_minimum = int(paragraph_schema["items"]["minLength"])
@@ -3349,24 +3336,6 @@ def normalize_new_output_contract(
     for article in articles:
         if not isinstance(article, dict):
             return None
-        description = article.get("description")
-        if isinstance(description, str) and len(description) < description_minimum:
-            repaired_description = description.strip()
-            if not repaired_description:
-                return None
-            for sentence in NEW_DESCRIPTION_BOUNDARY_SENTENCES:
-                if len(repaired_description) >= description_minimum:
-                    break
-                if sentence not in repaired_description:
-                    repaired_description += sentence
-            if not (
-                description_minimum
-                <= len(repaired_description)
-                <= description_maximum
-            ):
-                return None
-            article["description"] = repaired_description
-            changed = True
         sections = article.get("bodySections")
         if not isinstance(sections, list):
             continue
@@ -4079,11 +4048,26 @@ def _writer_prompt(
     instruction = "請依 public brief 產生完整文章內容。slot 必須逐字複製。"
     if brief.get("mode") == "create":
         create_profile = publication_presentation_profile("create")
+        title_minimum, title_maximum = _range_bounds(
+            create_profile,
+            "title_characters",
+        )
+        title_preferred_minimum, title_preferred_maximum = _preferred_bounds(
+            create_profile,
+            "title_characters",
+        )
+        description_minimum, description_maximum = _range_bounds(
+            create_profile,
+            "description_characters",
+        )
         paragraph_preferred_minimum, paragraph_preferred_maximum = (
             _preferred_bounds(create_profile, "paragraph_characters")
         )
         instruction += (
             f" 每篇必須符合：{publication_presentation_instruction('create')}；"
+            f"title 硬範圍為 {title_minimum} 到 {title_maximum} 字，"
+            f"初稿以 {title_preferred_minimum} 到 {title_preferred_maximum} 字為目標；"
+            f"description 硬範圍為 {description_minimum} 到 {description_maximum} 字，"
             "為避免中文計數超標，初稿每段以 "
             f"{paragraph_preferred_minimum} 到 {paragraph_preferred_maximum} 字為生成目標，"
             f"{_maximum_bound(create_profile, 'paragraph_characters')} 字是硬上限；"
@@ -4381,6 +4365,9 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
     content_repairs_used = 0
     schema_repairs_used = 0
     current_schema_repair = 0
+    schema_repair_diagnostics: tuple[
+        tuple[str, tuple[str | int, ...]], ...
+    ] = ()
     repair_findings_are_deterministic = False
     attempt = 0
     while True:
@@ -4413,6 +4400,14 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
             writer_prompt = "\n".join(
                 [
                     f"schema repair {current_schema_repair}: 前次 Writer JSON 格式無效。",
+                    "closed schema diagnostics: "
+                    + json.dumps(
+                        [
+                            {"keyword": keyword, "path": list(path)}
+                            for keyword, path in schema_repair_diagnostics
+                        ],
+                        ensure_ascii=False,
+                    ),
                     "必須輸出完整 schema，且每篇都不得漏掉任何 required field。",
                     writer_prompt,
                 ]
@@ -4449,9 +4444,19 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
         except (CandidateValidationError, json.JSONDecodeError, TypeError, ValueError) as error:
             schema_repairs_used += 1
             current_schema_repair += 1
+            schema_repair_diagnostics = getattr(error, "schema_diagnostics", ())
             write_json(
                 attempt_dir / "writer-schema-rejection.json",
-                {"verdict": "REJECT", "hard_failure": True, "code": "invalid_writer_schema", "error_type": type(error).__name__},
+                {
+                    "verdict": "REJECT",
+                    "hard_failure": True,
+                    "code": "invalid_writer_schema",
+                    "error_type": type(error).__name__,
+                    "schema_diagnostics": [
+                        {"keyword": keyword, "path": list(path)}
+                        for keyword, path in schema_repair_diagnostics
+                    ],
+                },
             )
             if schema_repairs_used <= MAX_WRITER_SCHEMA_REPAIRS:
                 attempt += 1

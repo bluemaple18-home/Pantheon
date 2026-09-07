@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 import scripts.agy_seo_copy_pipeline as pipeline
 
-from scripts.agy_gemini_outbox import build_external_request
+from scripts.agy_gemini_outbox import ExternalWriterSchemaInvalid, build_external_request
 from scripts.agy_seo_copy_pipeline import (
     CandidateValidationError,
     GeminiClient,
@@ -1547,6 +1547,8 @@ def test_create_writer_prompt_requires_description_local_boundary() -> None:
     assert "不得寫入研究、統計、百分比或方法型主張" in prompt
     assert "每節2 到 4段" in prompt
     assert "每節以 3 段為初稿目標" in prompt
+    assert "title 硬範圍為 20 到 45 字，初稿以 28 到 36 字為目標" in prompt
+    assert "description 硬範圍為 70 到 95 字" in prompt
     assert "description 以 80 到 90 個中文字為初稿目標" in prompt
     assert "初稿每段以 95 到 110 字為生成目標" in prompt
     assert "即使是否定句也改用其他說法" in prompt
@@ -5193,9 +5195,18 @@ def test_writer_schema_retry_does_not_consume_content_repair_budget(tmp_path: Pa
         "description": "公開搜尋詞適合用來整理讀者真正想確認的情境、可觀察資訊與下一步選擇；本文只提供一般說明，不能替個人判斷，也不承諾任何特定結果，仍須回到實際資料與互動再決定。",
         "answer": "先確認具體情境與資料；這項說明不能替個人下結論。",
     }
-    writer_results = [
+    schema_failure = ExternalWriterSchemaInvalid(
+        "a" * 40,
+        "V4BrokerFailure",
+        failure_category="SCHEMA_INVALID_PAYLOAD",
+        request_sha256="b" * 64,
+    )
+    schema_failure.schema_diagnostics = (
+        ("required", ("articles", 0, "proposed")),
+    )
+    writer_results: list[dict[str, object] | Exception] = [
         {"articles": [{"slot": "article-01", "proposed": proposed}]},
-        {"articles": [{"slot": "article-01"}]},
+        schema_failure,
         {"articles": [{"slot": "article-01", "proposed": proposed}]},
     ]
     reviewer_results = [
@@ -5207,10 +5218,20 @@ def test_writer_schema_retry_does_not_consume_content_repair_budget(tmp_path: Pa
         writer_model = "writer-test"
         reviewer_model = "reviewer-test"
 
-        def generate_json(self, role: str, _prompt: str, _schema: dict[str, object]) -> dict[str, object]:
-            return (writer_results if role == "writer" else reviewer_results).pop(0)
+        def __init__(self) -> None:
+            self.writer_prompts: list[str] = []
 
-    candidate, review = pipeline.run_writer_reviewer(run_dir, SequenceClient(), max_repairs=1)
+        def generate_json(self, role: str, prompt: str, _schema: dict[str, object]) -> dict[str, object]:
+            if role == "writer":
+                self.writer_prompts.append(prompt)
+                result = writer_results.pop(0)
+                if isinstance(result, Exception):
+                    raise result
+                return result
+            return reviewer_results.pop(0)
+
+    client = SequenceClient()
+    candidate, review = pipeline.run_writer_reviewer(run_dir, client, max_repairs=1)
     evidence = json.loads((run_dir / "run-evidence.json").read_text())
 
     assert candidate["articles"][0]["proposed"] == proposed
@@ -5218,6 +5239,8 @@ def test_writer_schema_retry_does_not_consume_content_repair_budget(tmp_path: Pa
     assert evidence["content_repairs_used"] == 1
     assert evidence["schema_repairs_used"] == 1
     assert evidence["attempts"] == 3
+    assert "closed schema diagnostics" in client.writer_prompts[2]
+    assert '"path": ["articles", 0, "proposed"]' in client.writer_prompts[2]
 
 
 def test_rewrite_050_summary_requires_50_unique_candidates(tmp_path: Path) -> None:

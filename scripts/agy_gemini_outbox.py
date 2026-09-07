@@ -212,7 +212,17 @@ class ExternalJobFailed(RuntimeError):
             if credential_slot_id in PRODUCTION_SLOT_IDS
             else None
         )
+        self.schema_diagnostics: tuple[
+            tuple[str, tuple[str | int, ...]], ...
+        ] = ()
         super().__init__(f"external job failed: {job_id} ({self.error_type})")
+
+
+class ExternalWriterSchemaInvalid(
+    ExternalJobFailed,
+    pipeline.CandidateValidationError,
+):
+    """Writer 回傳內容未通過 response schema。"""
 
 
 def _json_bytes(payload: object) -> bytes:
@@ -788,11 +798,27 @@ def consume_external_response(queue_root: Path, request: dict[str, Any]) -> dict
                 request_sha256=str(request["request_sha256"]),
                 transport_attempt=request.get("transport_attempt", 0),
             )
-        raise ExternalJobFailed(
+        failure_category = classify_external_failure(failure)
+        failure_type = (
+            ExternalWriterSchemaInvalid
+            if request["role"] == "writer"
+            and failure_category == "SCHEMA_INVALID_PAYLOAD"
+            else ExternalJobFailed
+        )
+        closed_schema_diagnostics: tuple[
+            tuple[str, tuple[str | int, ...]], ...
+        ] = ()
+        broker_diagnostic = failure.get("broker_diagnostic")
+        if isinstance(broker_diagnostic, dict):
+            closed_schema_diagnostics = tuple(
+                (diagnostic["keyword"], tuple(diagnostic["path"]))
+                for diagnostic in broker_diagnostic.get("schema_diagnostics", [])
+            )
+        closed_failure = failure_type(
             job_id,
             failure["error_type"],
             failure.get("error_code") if type(failure.get("error_code")) is str else None,
-            failure_category=classify_external_failure(failure),
+            failure_category=failure_category,
             http_status=(
                 failure.get("http_status")
                 if type(failure.get("http_status")) is int
@@ -811,6 +837,8 @@ def consume_external_response(queue_root: Path, request: dict[str, Any]) -> dict
                 else None
             ),
         )
+        closed_failure.schema_diagnostics = closed_schema_diagnostics
+        raise closed_failure
     response_path = queue_root / "inbox" / f"{job_id}.json"
     if not response_path.exists():
         raise ExternalJobPending(job_id)
@@ -1012,6 +1040,8 @@ class OutboxGeminiClient:
                     result = consume_external_response(request_root, request)
                 except ExternalJobFailed as failed:
                     last_failure = failed
+                    if isinstance(failed, ExternalWriterSchemaInvalid):
+                        raise
                     if (
                         failed.error_code == "API_QUOTA"
                         and failed.credential_slot_id is not None
