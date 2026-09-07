@@ -3986,6 +3986,71 @@ def test_runner_persists_only_closed_schema_diagnostics(
     )
 
 
+def test_runner_direct_api_persists_safe_schema_observations(
+    tmp_path: Path,
+) -> None:
+    response_schema = pipeline.external_candidate_schema("create")
+    request = create_external_request(
+        tmp_path,
+        namespace="direct-api-schema-observation",
+        role="writer",
+        model="gemini-test-writer",
+        prompt="公開 direct API schema observation synthetic request",
+        response_schema=response_schema,
+    )
+    provider_payload = _new_output_contract_fixture()
+    short_title = "標" * 19
+    provider_payload["articles"][0]["title"] = short_title
+    short_description = provider_payload["articles"][0]["description"]
+
+    result = process_once(
+        tmp_path,
+        generate_json=lambda *_args: provider_payload,
+        lane="new",
+    )
+
+    assert result == {
+        "status": "failed",
+        "job_id": request["job_id"],
+        "error_type": "V4BrokerFailure",
+    }
+    failed_path = tmp_path / "failed" / f"{request['job_id']}.json"
+    failed = json.loads(failed_path.read_text())
+    assert failed["failure_category"] == "SCHEMA_INVALID_PAYLOAD"
+    observations = {
+        tuple(item["path"]): (
+            item["keyword"],
+            item["type"],
+            item["char_count"],
+            item["value_sha256"],
+        )
+        for item in failed["broker_diagnostic"]["schema_diagnostics"]
+    }
+    assert observations == {
+        ("articles", 0, "title"): (
+            "minLength",
+            "string",
+            19,
+            hashlib.sha256(short_title.encode("utf-8")).hexdigest(),
+        ),
+        ("articles", 0, "description"): (
+            "minLength",
+            "string",
+            69,
+            hashlib.sha256(short_description.encode("utf-8")).hexdigest(),
+        ),
+    }
+    serialized = failed_path.read_text()
+    assert short_title not in serialized
+    assert short_description not in serialized
+    with pytest.raises(outbox.ExternalWriterSchemaInvalid) as raised:
+        consume_external_response(tmp_path, request)
+    assert set(raised.value.schema_diagnostics) == {
+        ("minLength", ("articles", 0, "title")),
+        ("minLength", ("articles", 0, "description")),
+    }
+
+
 @pytest.mark.parametrize(
     ("replay_status", "process_count", "outcome", "result_validation"),
     (
@@ -4191,7 +4256,15 @@ def test_runner_rejects_short_new_description_without_local_padding(
     )
     assert failed["failure_category"] == "SCHEMA_INVALID_PAYLOAD"
     assert failed["broker_diagnostic"]["schema_diagnostics"] == [
-        {"keyword": "minLength", "path": ["articles", 0, "description"]}
+        {
+            "keyword": "minLength",
+            "path": ["articles", 0, "description"],
+            "type": "string",
+            "char_count": 69,
+            "value_sha256": hashlib.sha256(
+                provider_payload["articles"][0]["description"].encode("utf-8")
+            ).hexdigest(),
+        }
     ]
     assert len(provider_payload["articles"][0]["description"]) == 69
 

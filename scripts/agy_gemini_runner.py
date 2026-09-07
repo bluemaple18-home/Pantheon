@@ -1282,12 +1282,15 @@ def _schema_path_is_closed(
 
 
 def _closed_schema_diagnostics(
-    broker_result: object,
+    source: object,
     response_schema: object,
 ) -> list[dict[str, object]]:
-    if getattr(broker_result, "result_validation", None) != "SCHEMA_MISMATCH":
-        return []
-    diagnostics = getattr(broker_result, "schema_diagnostics", None)
+    if type(source) is tuple:
+        diagnostics = source
+    else:
+        if getattr(source, "result_validation", None) != "SCHEMA_MISMATCH":
+            return []
+        diagnostics = getattr(source, "schema_diagnostics", None)
     if type(diagnostics) is not tuple:
         return []
     closed: list[dict[str, object]] = []
@@ -1635,13 +1638,10 @@ def process_once(
                 "process_count": 1,
                 "outcome": "SUCCESS",
                 "result_validation": "SCHEMA_MISMATCH",
-                "schema_diagnostics": [
-                    {
-                        "keyword": diagnostic.keyword,
-                        "path": list(diagnostic.path),
-                    }
-                    for diagnostic in schema_diagnostics
-                ],
+                "schema_diagnostics": _closed_schema_diagnostics(
+                    schema_diagnostics,
+                    request["response_schema"],
+                ),
             }
             raise V4BrokerFailure("provider payload failed response schema")
         response_record = {
