@@ -4078,7 +4078,7 @@ def _writer_prompt(
             "不能替個人下結論等限制；不得只把限制放在正文。"
             " publicationPolicy 由本機可信資料補齊；內容只採文化／反思定位，"
             "不得寫入研究、統計、百分比或方法型主張。"
-            f" {_create_writing_instruction()}"
+            " 逐項遵守 public brief 的 writingPolicy.writingContract。"
         )
     if brief.get("mode") == "optimize":
         instruction = "只輸出各 slot 的 proposed title、description、answer。"

@@ -1610,6 +1610,15 @@ def test_create_writing_contract_is_projected_and_generic_copy_fails_closed() ->
         {"schema_version": 1, "run_id": brief["run_id"], "mode": "create", "articles": [article]},
         [],
     )
+    assert "逐項遵守 public brief 的 writingPolicy.writingContract。" in writer_prompt
+    for field, value in writing_contract.items():
+        encoded_field_value = json.dumps(
+            {field: value},
+            ensure_ascii=False,
+        )[1:-1]
+        assert encoded_field_value in writer_prompt
+    assert pipeline._create_writing_instruction() not in writer_prompt
+    assert pipeline._create_writing_instruction() in reviewer_prompt
     for expected in [
         "開頭第二句",
         "查 X 的人通常不是想背",
@@ -1618,7 +1627,7 @@ def test_create_writing_contract_is_projected_and_generic_copy_fails_closed() ->
         "2 個專屬生活場景",
         "不得放獨立 CTA",
     ]:
-        assert expected in writer_prompt
+        assert expected not in writer_prompt
         assert expected in reviewer_prompt
 
     generic = (
@@ -1670,6 +1679,118 @@ def test_create_batch_rejects_openings_that_only_swap_primary_keyword() -> None:
     }
 
     assert templated == {"OPENING-ONE", "OPENING-TWO"}
+
+
+def test_create_schema_repair_preserves_structured_contract_and_tail_priority(
+    tmp_path: Path,
+) -> None:
+    article = make_deterministic_green_create_article("CREATE-SCHEMA-REPAIR")
+    brief = {
+        "schema_version": 1,
+        "run_id": "create-schema-repair",
+        "mode": "create",
+        "articles": [
+            {
+                "matrix": {
+                    "id": article["id"],
+                    "primaryKeyword": article["primaryKeyword"],
+                    "title": article["title"],
+                    "intent": "公開搜尋意圖",
+                },
+                "target": {
+                    field: article[field]
+                    for field in [
+                        "id",
+                        "section",
+                        "product",
+                        "slug",
+                        "serial",
+                        "urlSlug",
+                        "primaryKeyword",
+                        "published",
+                        "updated",
+                    ]
+                },
+                "policy": pipeline.compact_publication_policy(),
+            }
+        ],
+    }
+    (tmp_path / "brief.json").write_text(
+        json.dumps(brief, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    schema_failure = ExternalWriterSchemaInvalid(
+        "a" * 40,
+        "V4BrokerFailure",
+        failure_category="SCHEMA_INVALID_PAYLOAD",
+        request_sha256="b" * 64,
+    )
+    schema_failure.schema_diagnostics = (
+        ("minLength", ("articles", 0, "title")),
+        ("minLength", ("articles", 0, "description")),
+    )
+
+    class SequenceClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def __init__(self) -> None:
+            self.writer_prompts: list[str] = []
+            self.reviewer_prompts: list[str] = []
+
+        def generate_json(
+            self,
+            role: str,
+            prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            if role == "writer":
+                self.writer_prompts.append(prompt)
+                if len(self.writer_prompts) == 1:
+                    raise schema_failure
+                return {"articles": [make_external_create_article(article)]}
+            self.reviewer_prompts.append(prompt)
+            return {
+                "articles": [
+                    {"slot": "article-01", "verdict": "APPROVE", "findings": []}
+                ]
+            }
+
+    client = SequenceClient()
+    candidate, review = pipeline.run_writer_reviewer(
+        tmp_path,
+        client,
+        max_repairs=0,
+    )
+    evidence = json.loads((tmp_path / "run-evidence.json").read_text())
+    repair_prompt = client.writer_prompts[1]
+    writing_contract = pipeline.public_model_brief(brief)["writingPolicy"][
+        "writingContract"
+    ]
+
+    assert candidate["articles"][0]["id"] == article["id"]
+    assert review["articles"][0]["verdict"] == "APPROVE"
+    assert evidence["schema_repairs_used"] == 1
+    assert len(client.writer_prompts) == 2
+    assert len(client.reviewer_prompts) == 1
+    assert "逐項遵守 public brief 的 writingPolicy.writingContract。" in repair_prompt
+    for field, value in writing_contract.items():
+        encoded_field_value = json.dumps(
+            {field: value},
+            ensure_ascii=False,
+        )[1:-1]
+        assert encoded_field_value in repair_prompt
+    assert pipeline._create_writing_instruction() not in repair_prompt
+    assert pipeline._create_writing_instruction() in client.reviewer_prompts[0]
+    context_tail = repair_prompt.rfind("bounded repair contract:")
+    title_boundary = repair_prompt.rfind("title 硬範圍為 20 到 45 字")
+    description_boundary = repair_prompt.rfind(
+        "description 硬範圍為 70 到 95 字"
+    )
+    diagnostics = repair_prompt.rfind("closed schema diagnostics")
+    assert context_tail < title_boundary < description_boundary < diagnostics
+    assert '"path": ["articles", 0, "title"]' in repair_prompt
+    assert '"path": ["articles", 0, "description"]' in repair_prompt
 
 
 def test_existing_create_brief_reuses_identity_with_current_writing_contract() -> None:
@@ -1771,6 +1892,20 @@ def test_create_repair_prompt_includes_measured_targets_for_lite_writer() -> Non
     assert "逐一移除 findings 指出的禁詞" in prompt
     assert pipeline.publication_presentation_instruction("create") in prompt
     assert "description 以 80 到 90 個中文字為初稿目標" in prompt
+    writing_contract = pipeline.public_model_brief(brief)["writingPolicy"][
+        "writingContract"
+    ]
+    assert "逐項遵守 public brief 的 writingPolicy.writingContract。" in prompt
+    for field, value in writing_contract.items():
+        encoded_field_value = json.dumps(
+            {field: value},
+            ensure_ascii=False,
+        )[1:-1]
+        assert encoded_field_value in prompt
+    assert pipeline._create_writing_instruction() not in prompt
+    context_tail = prompt.rfind("bounded repair contract:")
+    assert prompt.rfind("title 硬範圍為 20 到 45 字") > context_tail
+    assert prompt.rfind("description 硬範圍為 70 到 95 字") > context_tail
 
 
 def test_rewrite_initial_and_repair_prompts_include_generation_contract() -> None:
