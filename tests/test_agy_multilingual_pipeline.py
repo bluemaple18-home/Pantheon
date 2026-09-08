@@ -2598,6 +2598,164 @@ def test_ja_boundary_repetition_detects_exact_normalized_paraphrase_span() -> No
     )
 
 
+def test_ja_real_source_classification_retains_all_twelve_spans() -> None:
+    brief = load_ja_boundary_fixture("astro_base_03_brief.json")
+    original = json.dumps(brief, ensure_ascii=False, sort_keys=True)
+    package = multilingual._source_fact_package(brief)["articles"][0]
+    dispositions = package["protected_source"]["boundary_candidate_dispositions"]
+    assert not [d for d in dispositions if d["disposition"] == "UNRESOLVED"]
+    outcome = {"outcome_not_determined"}
+    context = {"contextual_or_general_interpretation"}
+    expected = {
+        ("description", 2): outcome,
+        ("answer", 3): context,
+        ("faq[0].answer", 3): context,
+        ("faq[1].answer", 2): context,
+        ("faq[2].answer", 3): context,
+        ("faq[3].answer", 2): context | {"professional_advice_non_substitution"},
+        ("faq[4].answer", 2): set(),
+        ("bodySections[0].paragraphs[2]", 2): context,
+        ("bodySections[0].paragraphs[2]", 3): context,
+        ("bodySections[2].paragraphs[0]", 3): context,
+        ("bodySections[2].paragraphs[0]", 4): outcome,
+        ("bodySections[3].paragraphs[2]", 3): context,
+    }
+    constraints = {c["constraint_id"]: c for c in package["protected_constraints"]}
+    fields = dict(multilingual._source_text_fields(brief["articles"][0]["source"]))
+    checked = set()
+    for disposition in dispositions:
+        key = (disposition["field_path"], disposition["ordinal"])
+        if key not in expected:
+            continue
+        checked.add(key)
+        assert set(disposition.get("categories", [])) == expected[key]
+        assert disposition["provenance"] == "source"
+        assert disposition["source_text"] in fields[key[0]]
+        assert disposition["source_digest"] == hashlib.sha256(
+            disposition["source_text"].encode("utf-8")
+        ).hexdigest()
+        assert disposition["source_span_id"] == multilingual._ja_source_span_id(
+            brief["articles"][0]["source_sha256"], *key
+        )
+        if not expected[key]:
+            assert disposition["disposition"] == "NOT_A_BOUNDARY"
+            assert disposition["constraint_ids"] == []
+            continue
+        assert disposition["disposition"] in {"PRESERVED", "MERGED_DUPLICATE"}
+        assert {constraints[c]["category"] for c in disposition["constraint_ids"]} == expected[key]
+        for constraint_id in disposition["constraint_ids"]:
+            constraint = constraints[constraint_id]
+            assert constraint["provenance"] == "source"
+            assert disposition["source_span_id"] in constraint["source_span_ids"]
+            assert disposition["source_text"] in constraint["source_texts"]
+    assert checked == set(expected)
+    assert json.dumps(brief, ensure_ascii=False, sort_keys=True) == original
+
+
+@pytest.mark.parametrize(("text", "category"), [
+    ("不能判定關係結果。", "outcome_not_determined"),
+    ("無法取代完整星盤。", "contextual_or_general_interpretation"),
+    ("不能替代實際的相處。", "contextual_or_general_interpretation"),
+    ("避免把單一指標當成完整人格。", "contextual_or_general_interpretation"),
+    ("不能替他人做決定。", "contextual_or_general_interpretation"),
+    ("不該成為限制個人發展的框架。", "contextual_or_general_interpretation"),
+    ("無法取代專業判斷。", "professional_advice_non_substitution"),
+    ("你不能單憑落點，就斷定一個人的想法。", "outcome_not_determined"),
+])
+def test_ja_source_classification_variants(text: str, category: str) -> None:
+    brief = translation_brief("ja")
+    brief["articles"][0]["source"]["description"] = text
+    brief["articles"][0]["source_sha256"] = multilingual.source_sha256(brief["articles"][0]["source"])
+    article = multilingual._source_fact_package(brief)["articles"][0]
+    disposition = next(d for d in article["protected_source"]["boundary_candidate_dispositions"]
+                       if d["field_path"] == "description")
+    assert disposition["disposition"] == "PRESERVED"
+    assert category in disposition["categories"]
+
+
+@pytest.mark.parametrize("objects", [
+    "個人資料與專業判斷和實際相處",
+    "個人資料與實際相處和專業判斷",
+    "專業判斷與個人資料和實際相處",
+    "專業判斷與實際相處和個人資料",
+    "實際相處與專業判斷和個人資料",
+    "實際相處與個人資料和專業判斷",
+    "完整星盤或專業判斷與具體問題",
+])
+def test_ja_known_coordination_preserves_categories_in_any_order(objects: str) -> None:
+    brief = translation_brief("ja")
+    item = brief["articles"][0]
+    item["source"]["description"] = f"不能替代{objects}。"
+    item["source_sha256"] = multilingual.source_sha256(item["source"])
+    article = multilingual._source_fact_package(brief)["articles"][0]
+    disposition = next(d for d in article["protected_source"]["boundary_candidate_dispositions"]
+                       if d["field_path"] == "description")
+    assert disposition["disposition"] == "PRESERVED"
+    assert set(disposition["categories"]) == {
+        "contextual_or_general_interpretation", "professional_advice_non_substitution",
+    }
+    findings = multilingual._ja_boundary_findings(
+        brief, translation_candidate("ja")["articles"][0], item["source"],
+    )
+    assert any(
+        f["code"] == "BOUNDARY_MEANING_MISSING"
+        and "meta_description" in f["missing_fields"]
+        for f in findings
+    )
+
+
+@pytest.mark.parametrize("text", [
+    "我們不能因為對方的星座特質。",
+    "我們不能因為對方的星座特質，忽略相處。",
+    "我們不能因為對方的星座特質。就直接認定他此時在想什麼。",
+    "我們不能因為對方的星座特質；就直接認定他此時在想什麼。",
+    "我們不能因為對方的星座特質，就直接認定醫療診斷。",
+    "不能取代醫療診斷與專業判斷。",
+    "不能替代完整星盤或自行停藥。",
+    "再看醫療文章能不能幫你分清定義、限制和確認條件。",
+    "不能替代未知的保護措施。",
+    "不能替代個人資料保護所需的加密措施。",
+    "不能替代個人資料與用藥評估。",
+    "不能替代專業判斷與個人資料及用藥評估。",
+    "不能替代個人資料與專業判斷和加密措施。",
+    "不能替代完整星盤或專業判斷與未知的保護措施。",
+    "不能替代個人資料與未知的保護措施。",
+    "不能替代專業判斷與未知的保護措施。",
+    "不能替代未知的保護措施與專業判斷。",
+    "不能替代個人資料、具體問題與專業判斷及加密措施。",
+    "不能替代完整星盤或加密措施。",
+    "不能替代實際相處與授權程序。",
+    "不能判定關係結果與存取權限。",
+    "避免把單一指標當成完整人格與安全驗證。",
+    "不能替他人做決定及安全驗證。",
+    "不該成為限制個人發展的框架與加密措施。",
+])
+def test_ja_source_classification_missing_context_and_high_risk_stay_closed(text: str) -> None:
+    brief = translation_brief("ja")
+    brief["articles"][0]["source"]["description"] = text
+    brief["articles"][0]["source_sha256"] = multilingual.source_sha256(brief["articles"][0]["source"])
+    article = multilingual._source_fact_package(brief)["articles"][0]
+    disposition = next(d for d in article["protected_source"]["boundary_candidate_dispositions"]
+                       if d["field_path"] == "description")
+    assert disposition["disposition"] == "UNRESOLVED"
+    assert disposition["constraint_ids"] == []
+    findings = multilingual.translation_findings(brief, translation_candidate("ja")["articles"])
+    assert any(f["code"] == "UNRESOLVED_BOUNDARY_CANDIDATE" for f in findings)
+
+
+def test_ja_reading_check_is_ordinary_content() -> None:
+    brief = translation_brief("ja")
+    text = "確認文章能不能幫你釐清概念、限制與後續步驟。"
+    brief["articles"][0]["source"]["description"] = text
+    brief["articles"][0]["source_sha256"] = multilingual.source_sha256(brief["articles"][0]["source"])
+    article = multilingual._source_fact_package(brief)["articles"][0]
+    disposition = next(d for d in article["protected_source"]["boundary_candidate_dispositions"]
+                       if d["field_path"] == "description")
+    assert disposition["disposition"] == "NOT_A_BOUNDARY"
+    assert disposition["constraint_ids"] == []
+    assert any(text in fact["text"] for fact in article["facts"])
+
+
 def test_ja_unknown_boundary_candidate_fails_closed() -> None:
     brief = translation_brief("ja")
     source = brief["articles"][0]["source"]

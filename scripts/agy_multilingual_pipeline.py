@@ -96,19 +96,29 @@ JA_BOUNDARY_SOURCE_CATEGORY_PATTERNS = {
         r"請勿將其視為明牌|未來的走向仍取決於個人的具體行動|"
         r"不能承諾復合、成功或最終結果|不用來替你拿確定答案|"
         r"不能替你拿確定答案|不能替你預測必然結果|不能保證結果|"
-        r"不能預先承諾結果|^不能$)"
+        r"不能預先承諾結果|^(?:但|更|也)?不能(?:直接)?判定(?:感情|關係|個人)?結果$|^不能$)"
     ),
     "contextual_or_general_interpretation": re.compile(
         r"(通用理解|一般理解|文化(?:與|和)?符號|文化反思|"
         r"文化性反思|不能替個人下結論|自行衡量適用性|"
         r"只用來輔助整理|文化與符號層面的反思|文化反思範疇|"
         r"不能取代完整情境|不能替任何人做重大決定|通用觀察|"
-        r"通用描述.*個人|不能代替個人判斷)"
+        r"通用描述.*個人|不能代替個人判斷|"
+        r"^(?:但|更|也)?(?:它)?(?:並)?(?:不能|無法)(?:替代|取代)"
+        r"(?:專業判斷(?:、|或|和|與))*"
+        r"(?:完整的?星盤(?:分析)?|實際的?相處|個人資料|具體問題)"
+        r"(?:(?:、|或|和|與)(?:完整的?星盤(?:分析)?|實際的?相處|個人資料|具體問題|專業判斷))*$|"
+        r"^避免把單一(?:落點|星座|指標)(?:寫成|當成|視為)完整人格$|"
+        r"^(?:更|也)?不能(?:用來)?替(?:對方|他人|個人)(?:的想法)?做決定$|"
+        r"^不該(?:變成|成為)限制(?:彼此|個人|對方)發展的框架$)"
     ),
     "professional_advice_non_substitution": re.compile(
         r"(不構成.*(?:投資|法律).*建議|不作.*財務建議|"
         r"專業(?:財務)?(?:指導|建議)|投資或法律建議|"
-        r"經濟決策仍須依賴個人審慎評估)"
+        r"經濟決策仍須依賴個人審慎評估|"
+        r"^(?:但|更|也)?(?:它)?(?:並)?(?:不能|無法)(?:替代|取代)"
+        r"(?:(?:完整的?星盤(?:分析)?|實際的?相處|個人資料|具體問題)(?:、|或|和|與))*專業判斷"
+        r"(?:(?:、|或|和|與)(?:完整的?星盤(?:分析)?|實際的?相處|個人資料|具體問題|專業判斷))*$)"
     ),
 }
 JA_BOUNDARY_SOURCE_HEURISTIC_RE = re.compile(
@@ -118,9 +128,10 @@ JA_BOUNDARY_SOURCE_HEURISTIC_RE = re.compile(
     r"停藥|停薬|醫療|医療)"
 )
 JA_BOUNDARY_NOT_A_BOUNDARY_REASONS = (
-    ("ordinary_content_contrast", re.compile(r"(不能只|不只是|不是.*而是|不是固定|而非|不該成為|不再)")),
+    ("ordinary_content_contrast", re.compile(r"(不能只|不只是|不是.*而是|不是固定|而非|不該成為(?!限制(?:彼此|個人|對方)發展的框架)|不再)")),
     ("ordinary_uncertainty_context", re.compile(r"不確定性")),
     ("ordinary_process_limit", re.compile(r"(先整理事實.*限制與可行選項|避免只憑一時感受做決定|使用限制)")),
+    ("ordinary_reading_check", re.compile(r"^(?:再看|確認)[^。！？!?]*能不能幫你(?:分清|釐清)(?:定義|概念)、限制[^。！？!?]*(?:條件|步驟)$")),
 )
 JA_BOUNDARY_HIGH_RISK_UNRESOLVED_RE = re.compile(
     r"(醫療|医療|診斷|診断|停藥|停薬|專業(?:醫療|法律|投資|財務)?建議|"
@@ -468,6 +479,7 @@ def _ja_source_candidate_clauses(text: str) -> list[str]:
 
 
 def _ja_boundary_source_categories(text: str) -> list[str]:
+    # 新增的語意分支須完整匹配受詞與並列項，未知補語不能只憑前綴通過。
     return [
         category
         for category, pattern in JA_BOUNDARY_SOURCE_CATEGORY_PATTERNS.items()
@@ -526,6 +538,12 @@ def _ja_protected_constraint_view(item: dict[str, Any]) -> dict[str, Any]:
     preserved_constraint_ids: set[str] = set()
 
     for field_path, text in _source_text_fields(source):
+        # 同句上下文只供缺少主句的因果片段判讀；span 序號與原文維持不變。
+        sentence_by_ordinal = [
+            sentence
+            for sentence in re.findall(r"[^。！？!?]+[。！？!?]?", text)
+            for _ in _ja_source_candidate_clauses(sentence)
+        ]
         for ordinal, source_text in enumerate(_ja_source_candidate_clauses(text), start=1):
             if not JA_BOUNDARY_SOURCE_HEURISTIC_RE.search(source_text):
                 continue
@@ -543,6 +561,17 @@ def _ja_protected_constraint_view(item: dict[str, Any]) -> dict[str, Any]:
                 "provenance": "source",
             }
             categories = _ja_boundary_source_categories(source_text)
+            if not categories and re.fullmatch(
+                r"(?:我們|你|讀者)?不能(?:因為|單憑)[^，,；;。！？!?]*(?:星座特質|星座|落點|指標)",
+                source_text,
+            ):
+                sentence = sentence_by_ordinal[ordinal - 1]
+                # 必須有緊接的斷定主句；不得借用別句或別片段的限制。
+                if not _ja_boundary_high_risk_unresolved(sentence) and re.search(
+                    re.escape(source_text) + r"[，,]\s*(?:就)?(?:直接)?(?:認定|斷定)[^，,；;。！？!?]+",
+                    sentence,
+                ):
+                    categories = ["outcome_not_determined"]
             if not categories:
                 if _ja_boundary_high_risk_unresolved(source_text):
                     dispositions.append(
