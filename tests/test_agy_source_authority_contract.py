@@ -43,13 +43,14 @@ def new_brief(locale="ja"):
     return brief
 
 
-def test_lossless_facts_include_duplicate_provenance():
+def test_article_disclosure_fact_keeps_policy_provenance_in_source():
     brief = new_brief()
     facts = m._source_fact_package(brief)["articles"][0]["facts"]
     disclosure = article_policy()["evidence"]["disclosure"]
     matching = [fact for fact in facts if fact["text"] == disclosure]
-    assert len(matching) == 2
-    assert {fact["field_path"] for fact in matching} == {"answer", "publication_policy.article_policy.evidence.disclosure"}
+    assert len(matching) == 1
+    assert {fact["field_path"] for fact in matching} == {"answer"}
+    assert brief["articles"][0]["source"]["publication_policy"]["article_policy"]["evidence"]["disclosure"] == disclosure
     assert len({fact["fact_id"] for fact in facts}) == len(facts)
     assert all(fact["provenance"] == "source" for fact in facts)
     assert any(fact["safety_boundary"] for fact in matching)
@@ -135,9 +136,10 @@ def test_every_source_leaf_reaches_every_consumer(locale):
             return [text for child in value.values() for text in leaves(child)]
         if isinstance(value, list):
             return [text for child in value for text in leaves(child)]
-        return [value if isinstance(value, str) else json.dumps(value)]
+        return [value]
     expected = [text for key, value in source.items() if key not in {"article_id", "canonical_path"} for text in leaves(value)]
-    assert sorted(f["text"] for f in package["facts"]) == sorted(expected)
+    article_expected = [text for key, value in source.items() if key not in {"article_id", "canonical_path", "publication_policy"} for text in leaves(value)]
+    assert sorted(f["text"] for f in package["facts"]) == sorted(article_expected)
     assert all("field_path" in fact for fact in package["facts"])
     prompts = [m._plan_prompt(brief, generation=1, prior_plan=None, findings=[], rebuild_by_slot={"article-01": False}), m._article_prompt(brief, plan, []), m._reviewer_prompt(brief, translation_candidate(locale), [])]
     for prompt in prompts:
@@ -264,6 +266,9 @@ def test_source_rejects_missing_required_policy_evidence(evidence):
 
 def test_large_current_source_ref_map_roundtrip(tmp_path):
     brief = new_brief()
+    source = brief["articles"][0]["source"]
+    source["bodySections"][0]["paragraphs"].extend(f"第{index}個具體文章觀察。" for index in range(100))
+    brief["articles"][0]["source_sha256"] = m.source_sha256(source)
     path = tmp_path / "source-refs.json"
     args = {"generation": 2, "external_plan_path": tmp_path / "external.json"}
     first = m._load_or_create_source_ref_maps(path, brief, {}, **args)

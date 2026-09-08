@@ -530,7 +530,8 @@ def _source_text_fields(source: dict[str, Any]) -> list[tuple[str, str]]:
             else:
                 fields.append((path, value if isinstance(value, str) else json.dumps(value)))
 
-        for key in ("title", "description", "answer", "tags", "faq", "bodySections", "publication_policy"):
+        # policy 留在完整 source 與 digest，不投影為文章 facts／H2 coverage。
+        for key in ("title", "description", "answer", "tags", "faq", "bodySections"):
             visit(source[key], key)
         return fields
     fields = [
@@ -1301,8 +1302,7 @@ def _source_fact_package(brief: dict[str, Any]) -> dict[str, Any]:
                     "field_path": path,
                     "provenance": "source",
                     "safety_boundary": (
-                        path.startswith("publication_policy.")
-                        or bool(safety_pattern.search(text))
+                        bool(safety_pattern.search(text))
                         or bool(JA_BOUNDARY_HIGH_RISK_UNRESOLVED_RE.search(text))
                     ),
                 }
