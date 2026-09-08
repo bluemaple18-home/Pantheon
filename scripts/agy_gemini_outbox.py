@@ -856,6 +856,38 @@ def consume_external_response(queue_root: Path, request: dict[str, Any]) -> dict
             ),
         )
         closed_failure.schema_diagnostics = closed_schema_diagnostics
+        # 僅從已驗證 receipt 取安全觀測；界線由失敗 request 的 schema 擁有。
+        length_observations = []
+        for diagnostic in (broker_diagnostic or {}).get("schema_diagnostics", []):
+            path = diagnostic["path"]
+            if (
+                diagnostic["keyword"] != "minLength"
+                or diagnostic.get("type") != "string"
+                or len(path) != 3
+                or path[0] != "articles"
+                or type(path[1]) is not int
+                or path[2] not in {"title", "description"}
+            ):
+                continue
+            field_schema = (
+                request["response_schema"].get("properties", {})
+                .get("articles", {}).get("items", {}).get("properties", {})
+                .get(path[2], {})
+            )
+            lower, upper = field_schema.get("minLength"), field_schema.get("maxLength")
+            if (
+                type(lower) is int and type(upper) is int
+                and 0 <= diagnostic["char_count"] < lower <= upper
+            ):
+                length_observations.append({
+                    "path": tuple(path),
+                    "type": diagnostic["type"],
+                    "char_count": diagnostic["char_count"],
+                    "value_sha256": diagnostic["value_sha256"],
+                    "minLength": lower,
+                    "maxLength": upper,
+                })
+        closed_failure.schema_length_observations = tuple(length_observations)
         raise closed_failure
     response_path = queue_root / "inbox" / f"{job_id}.json"
     if not response_path.exists():

@@ -4382,6 +4382,7 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
     schema_repair_diagnostics: tuple[
         tuple[str, tuple[str | int, ...]], ...
     ] = ()
+    schema_length_hints: tuple[str, ...] = ()
     repair_findings_are_deterministic = False
     attempt = 0
     while True:
@@ -4423,6 +4424,7 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
                         ],
                         ensure_ascii=False,
                     ),
+                    *schema_length_hints,
                     "必須輸出完整 schema，且每篇都不得漏掉任何 required field。",
                 ]
             )
@@ -4459,6 +4461,21 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
             schema_repairs_used += 1
             current_schema_repair += 1
             schema_repair_diagnostics = getattr(error, "schema_diagnostics", ())
+            schema_length_hints = ()
+            if mode == "create":
+                hints = []
+                for observation in getattr(error, "schema_length_observations", ()):
+                    lower, upper = observation["minLength"], observation["maxLength"]
+                    width = upper - lower
+                    target_lower = lower + width * 2 // 5
+                    target_upper = upper - width // 5
+                    path = json.dumps(list(observation["path"]), ensure_ascii=False)
+                    hints.append(
+                        f"安全長度觀測 {path}：實際 {observation['char_count']} 字；"
+                        f"contract {lower}–{upper} 字；target {target_lower}–{target_upper} 字（僅建議）。"
+                        "請重寫相應欄位、增加實質內容、不得空白補字；仍須輸出完整 schema。"
+                    )
+                schema_length_hints = tuple(hints)
             write_json(
                 attempt_dir / "writer-schema-rejection.json",
                 {

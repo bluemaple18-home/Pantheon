@@ -5463,3 +5463,177 @@ def test_invalid_reviewer_schema_exhausts_transport_without_semantic_repair(
     assert not (run_dir / "attempts/02").exists()
     for forbidden in ("candidate.json", "review.json", "approval.json", "run-evidence.json"):
         assert not (run_dir / forbidden).exists()
+
+
+@pytest.mark.parametrize("case", [
+    "valid", "legacy", "bad_count", "bad_hash", "bad_type", "partial",
+    "raw", "bounds", "job_id", "request_sha256", "request_bounds", "optimize",
+])
+def test_validated_length_receipt_reaches_next_outbound_prompt(
+    tmp_path: Path, case: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir = tmp_path / "runs" / "create-writer-schema-repair"
+    queue_root = tmp_path / "queue"
+    run_dir.mkdir(parents=True)
+    target = {
+        "id": "PUBLIC-RETRY-001",
+        "section": "astrology",
+        "product": "astrology",
+        "slug": "writer-schema-retry",
+        "serial": "astrology-0001",
+        "urlSlug": "writer-schema-retry",
+        "primaryKeyword": "公開搜尋詞",
+        "published": "2026-09-07",
+        "updated": "2026-09-07",
+    }
+    brief = {
+        "schema_version": 1,
+        "run_id": "private-writer-schema-retry",
+        "mode": "create",
+        "articles": [
+            {
+                "matrix": {
+                    "id": target["id"],
+                    "primaryKeyword": target["primaryKeyword"],
+                    "title": "公開搜尋詞的使用情境",
+                    "intent": "理解公開搜尋詞",
+                },
+                "target": target,
+                "policy": pipeline.compact_publication_policy(),
+            }
+        ],
+    }
+    if case == "optimize":
+        brief = {
+            "schema_version": 1, "run_id": "synthetic-optimize", "mode": "optimize",
+            "allowed_fields": ["title", "description", "answer"],
+            "articles": [{
+                "article_id": "synthetic", "canonical_path": "/articles/astrology/astrology-0002",
+                "source_file": "app/web/static/article-registry.js",
+                "current": {"title": "舊標題", "description": "舊描述", "answer": "舊答案"},
+                "queries": [{"query": "公開搜尋詞二"}],
+            }],
+        }
+    if case in {"request_bounds", "optimize"}:
+        original_schema = pipeline.external_candidate_schema
+        def custom_schema(mode):
+            schema = original_schema("create" if case == "optimize" else mode)
+            if case == "optimize":
+                return schema
+            field = schema["properties"]["articles"]["items"]["properties"]["description"]
+            field.update(minLength=75, maxLength=100)
+            return schema
+        monkeypatch.setattr(pipeline, "external_candidate_schema", custom_schema)
+    (run_dir / "brief.json").write_text(json.dumps(brief, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(ExternalJobPending) as first_pending:
+        run_pipeline_tick(run_dir, queue_root)
+    first_request = json.loads(
+        (queue_root / "outbox" / f"{first_pending.value.job_id}.json").read_text()
+    )
+    invalid_writer_payload = _new_output_contract_fixture()
+    invalid_writer_payload["articles"][0]["title"] = "合" * 19
+    invalid_writer_payload["articles"][0]["description"] = "成" * 59
+    process_once(queue_root, generate_json=lambda *_args: invalid_writer_payload)
+    failed = json.loads(
+        (
+            queue_root
+            / "failed"
+            / f"{first_request['job_id']}.json"
+        ).read_text()
+    )
+    assert failed["failure_category"] == "SCHEMA_INVALID_PAYLOAD"
+    diagnostics = failed["broker_diagnostic"]["schema_diagnostics"]
+    if case == "legacy":
+        for diagnostic in diagnostics:
+            for key in ("type", "char_count", "value_sha256"):
+                diagnostic.pop(key, None)
+    elif case in {"bad_count", "bad_hash", "bad_type", "partial", "raw", "bounds"}:
+        diagnostic = diagnostics[0]
+        if case == "partial":
+            diagnostic.pop("value_sha256")
+        else:
+            key, value = {
+                "bad_count": ("char_count", True), "bad_hash": ("value_sha256", "invalid"),
+                "bad_type": ("type", "object"), "raw": ("value", "禁止原文"),
+                "bounds": ("minLength", 999),
+            }[case]
+            diagnostic[key] = value
+    elif case in {"job_id", "request_sha256"}:
+        failed[case] = "0" * 64
+    failed_path = queue_root / "failed" / f"{first_request['job_id']}.json"
+    failed_path.write_text(json.dumps(failed, ensure_ascii=False), encoding="utf-8")
+    if case in {"bad_count", "bad_hash", "bad_type", "partial", "raw", "bounds", "job_id", "request_sha256"}:
+        with pytest.raises(ExternalJobFailed) as invalid:
+            run_pipeline_tick(run_dir, queue_root)
+        assert invalid.value.failure_category == "INVALID_RECEIPT"
+        assert not (run_dir / "attempts" / "02").exists()
+        return
+    with pytest.raises(outbox.ExternalWriterSchemaInvalid) as consumed:
+        consume_external_response(queue_root, first_request)
+    assert consumed.value.schema_diagnostics
+    if case in {"valid", "optimize"}:
+        observations = consumed.value.schema_length_observations
+        assert any(item["char_count"] == 59 and item["type"] == "string"
+                   and item["value_sha256"] == hashlib.sha256(("成" * 59).encode()).hexdigest()
+                   for item in observations)
+
+    with pytest.raises(ExternalJobPending) as retry_pending:
+        run_pipeline_tick(run_dir, queue_root)
+
+    assert retry_pending.value.job_id != first_pending.value.job_id
+    retry = json.loads((queue_root / "outbox" / f"{retry_pending.value.job_id}.json").read_text())
+    if case == "optimize":
+        assert "schema repair 1" in retry["prompt"]
+        assert "安全長度觀測" not in retry["prompt"]
+        return
+    assert retry["namespace"] == first_request["namespace"]
+    assert retry["request_sha256"] != first_request["request_sha256"]
+    assert retry["prompt"] != first_request["prompt"]
+    assert retry.get("transport_attempt", 0) == 0
+    assert "schema repair 1" in retry["prompt"]
+    assert '"keyword": "minLength", "path": ["articles", 0, "title"]' in retry["prompt"]
+    assert '"keyword": "minLength", "path": ["articles", 0, "description"]' in retry["prompt"]
+    assert "title 硬範圍為 20 到 45 字" in retry["prompt"]
+    assert "description 硬範圍為 70 到 95 字" in retry["prompt"]
+    if case == "legacy":
+        assert "安全長度觀測" not in retry["prompt"]
+    elif case == "request_bounds":
+        assert "實際 59 字；contract 75–100 字；target 85–95 字" in retry["prompt"]
+    else:
+        assert "實際 59 字；contract 70–95 字；target 80–90 字" in retry["prompt"]
+        assert "實際 19 字；contract 20–45 字；target 30–40 字（僅建議）" in retry["prompt"]
+        assert "請重寫相應欄位、增加實質內容、不得空白補字；仍須輸出完整 schema。" in retry["prompt"]
+    assert "合" * 19 not in retry["prompt"]
+    assert "成" * 59 not in retry["prompt"]
+    assert hashlib.sha256(("成" * 59).encode()).hexdigest() not in retry["prompt"]
+    assert (run_dir / "attempts" / "02").is_dir()
+
+    process_once(queue_root, generate_json=lambda *_args: invalid_writer_payload)
+    with pytest.raises(ExternalJobPending) as final_repair_pending:
+        run_pipeline_tick(run_dir, queue_root)
+    final_repair = json.loads(
+        (
+            queue_root
+            / "outbox"
+            / f"{final_repair_pending.value.job_id}.json"
+        ).read_text()
+    )
+    assert final_repair.get("transport_attempt", 0) == 0
+    assert "schema repair 2" in final_repair["prompt"]
+
+    process_once(queue_root, generate_json=lambda *_args: invalid_writer_payload)
+    with pytest.raises(
+        pipeline.CandidateValidationError,
+        match="writer schema remained invalid after bounded schema repairs",
+    ):
+        run_pipeline_tick(run_dir, queue_root)
+
+    assert not (run_dir / "attempts" / "04").exists()
+    assert not [
+        path
+        for path in queue_root.glob("**/*.json")
+        if json.loads(path.read_text()).get("role") == "reviewer"
+    ]
+    for forbidden in ("candidate.json", "review.json", "approval.json", "run-evidence.json"):
+        assert not (run_dir / forbidden).exists()
