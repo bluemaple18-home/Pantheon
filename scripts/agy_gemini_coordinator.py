@@ -4243,8 +4243,9 @@ def _campaign_translation_source(item: Mapping[str, Any]) -> dict[str, Any]:
         "tags": metadata.get("tags"),
         "faq": metadata.get("faq"),
         "bodySections": article.get("bodySections"),
+        "publication_policy": multilingual.source_publication_policy(policy),
     }
-    return multilingual._validate_source(source)
+    return multilingual.validate_source_contract(source)
 
 
 def _campaign_translation_brief(
@@ -6089,10 +6090,11 @@ def cycle_once(
         runner: dict[str, str] = {"status": "idle"}
         if pending and not new_only:
             try:
+                runner_kwargs = {"_coordinator_lock_fd": lock.fileno()} if process is process_once else {}
                 if selected_run_ids is None:
-                    runner = process(root)
+                    runner = process(root, **runner_kwargs)
                 else:
-                    runner = process(root, exact_run_ids=selected_run_ids)
+                    runner = process(root, exact_run_ids=selected_run_ids, **runner_kwargs)
             except json.JSONDecodeError:
                 job_id = next(
                     (str(state["last_job_id"]) for state in states if state.get("last_job_id")),

@@ -877,13 +877,21 @@ def test_prepare_exact_fresh_ja_run_rejects_other_selectors(
 
 
 def test_prepare_exact_fresh_ja_run_uses_existing_queue_registration(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     queue_root = tmp_path / "queue"
     repo_root = Path(__file__).resolve().parents[1]
     source_run_id = "ja-topology-canary-20260806-01"
     article_id = "V2-MBTI-PAIR-ISFJ-ESTJ-LOVE"
     expected_run_id = publisher.multilingual.translation_run_id(source_run_id, article_id, "ja")
+    # 舊真實文章尚有 policy migration debt；本測試只以合格來源驗證既有 registration。
+    from tests.test_agy_source_authority_contract import new_brief
+    source = new_brief()["articles"][0]["source"]
+    source["article_id"] = article_id
+    enqueue = publisher.multilingual.enqueue_article_translations
+    def enqueue_with_current_source(*args, **kwargs):
+        return enqueue(*args, **kwargs, source_loader=lambda *_args: source)
+    monkeypatch.setattr(publisher.multilingual, "enqueue_article_translations", enqueue_with_current_source)
 
     record = publisher.prepare_exact_fresh_ja_translation_run(
         repo_root,
@@ -1802,6 +1810,8 @@ def test_rewrite_full_test_failure_rolls_back_updated_date_transaction(
 def test_collect_ready_translation_runs_keeps_reject_deferred_without_blocking_approve(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from tests.test_agy_source_authority_contract import new_brief
+    source = new_brief()["articles"][0]["source"]
     queue_root = tmp_path / "queue"
     for locale, verdict in [("en", "APPROVE"), ("ja", "REJECT")]:
         run_id = f"translate-{locale}"
@@ -1817,7 +1827,7 @@ def test_collect_ready_translation_runs_keeps_reject_deferred_without_blocking_a
                 "schema_version": 1,
                 "run_id": run_id,
                 "mode": "translate_existing",
-                "articles": [{"source_article_id": "AUTO-001", "source_sha256": "same"}],
+                "articles": [{"source_article_id": "AUTO-001", "source_sha256": "same", "source": source}],
             },
         )
         _write_json(run_dir / "candidate.json", {"run_id": run_id, "mode": "translate_existing", "articles": [article]})
@@ -1848,7 +1858,7 @@ def test_collect_ready_translation_runs_keeps_reject_deferred_without_blocking_a
     monkeypatch.setattr(publisher.multilingual, "validate_translation_candidate", lambda _brief, _candidate: None)
     monkeypatch.setattr(publisher.pipeline, "validate_review", lambda _review, _articles: None)
     monkeypatch.setattr(publisher.multilingual, "translation_findings", lambda _brief, _articles: [])
-    monkeypatch.setattr(publisher.multilingual, "load_source_article", lambda _repo, _article_id: {"source": "same"})
+    monkeypatch.setattr(publisher.multilingual, "load_source_article", lambda _repo, _article_id: source)
     monkeypatch.setattr(publisher.multilingual, "source_sha256", lambda _source: "same")
 
     state_root = tmp_path / "state"
@@ -1864,8 +1874,10 @@ def test_collect_ready_translation_runs_keeps_reject_deferred_without_blocking_a
 def _sealed_publisher_fixture(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    *, current_contract: bool = True,
 ) -> tuple[dict[str, object], dict[str, object]]:
-    fixture = approved_stage_fixture(tmp_path)
+    from tests.test_agy_source_authority_contract import new_brief
+    fixture = approved_stage_fixture(tmp_path, source_contract=new_brief()["articles"][0]["source"] if current_contract else None)
     (fixture["repo_root"] / "pyproject.toml").write_text(
         '[project]\nversion = "0.3.998"\n', encoding="utf-8"
     )
@@ -1889,7 +1901,8 @@ def _sealed_publisher_fixture(
 def _sealed_replacement_publisher_fixture(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[dict[str, object], dict[str, object]]:
-    fixture = replacement_approved_stage_fixture(tmp_path)
+    from tests.test_agy_source_authority_contract import new_brief
+    fixture = replacement_approved_stage_fixture(tmp_path, source_contract=new_brief()["articles"][0]["source"])
     (fixture["repo_root"] / "pyproject.toml").write_text('[project]\nversion = "0.3.998"\n', encoding="utf-8")
     (fixture["repo_root"] / "package.json").write_text('{"version":"0.3.998","type":"module"}\n', encoding="utf-8")
     plan = publisher.multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
@@ -6096,3 +6109,18 @@ def test_main_runs_real_publish_in_isolated_worktree(
     assert transaction_roots[0] != actor
     assert not transaction_roots[0].exists()
     assert (actor / "app/web/owned.txt").read_bytes() == b"concurrent-user\n"
+
+
+@pytest.mark.parametrize("drift", ["legacy", "policy"])
+def test_translation_publication_rejects_obsolete_source_authority(tmp_path, monkeypatch, drift):
+    import copy
+    fixture, _receipt = _sealed_publisher_fixture(tmp_path, monkeypatch, current_contract=drift != "legacy")
+    repo_root, queue_root, state_root = _sealed_publisher_roots(fixture)
+    if drift == "policy":
+        brief = json.loads((fixture["run_dir"] / "brief.json").read_text())
+        current = copy.deepcopy(brief["articles"][0]["source"])
+        current["publication_policy"]["article_policy"]["evidence"]["disclosure"] += "新限制。"
+        monkeypatch.setattr(publisher.multilingual, "load_source_article", lambda *_args: current)
+    assert publisher.collect_ready_translation_runs(repo_root, queue_root, state_root) == []
+    ledger = json.loads((state_root / "ledger.json").read_text())
+    assert ledger["translation_deferred_runs"][0]["run_id"] == fixture["kwargs"]["expected_run_id"]

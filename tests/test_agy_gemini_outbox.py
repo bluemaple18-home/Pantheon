@@ -2747,7 +2747,10 @@ def test_four_lanes_compete_for_last_provider_admission(
         " def __init__(self,*_args,**_kwargs): pass\n"
         " def _single_request_http_transport(self,*_args,**_kwargs): return None\n"
         " def generate_json(self,*_args,**_kwargs): return {'ok':True}\n"
+        # 此測試只隔離驗證跨 lane 額度競爭；來源 authority 由專用 dispatch 測試覆蓋。
         "r.GeminiClient=C\n"
+        "r._validate_translation_dispatch=lambda *_args: None\n"
+        "r._translation_coordinator_lock=lambda *_args: None\n"
         "print(json.dumps(r.process_once(pathlib.Path(sys.argv[1]),lane=sys.argv[2],clock=lambda:1788220800.0)))\n"
     )
     environment = os.environ.copy()

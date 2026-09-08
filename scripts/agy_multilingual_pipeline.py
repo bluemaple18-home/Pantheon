@@ -236,6 +236,37 @@ def _validate_faq(value: object, name: str) -> None:
         _non_empty_string(item.get("answer"), f"{name}.answer")
 
 
+def _validate_policy_shape(value: Any, template: Any) -> None:
+    """按既有 policy 的結構核對快照，保留值與可變長度清單。"""
+    if type(value) is not type(template):
+        raise ValueError("publication policy shape differs")
+    if isinstance(template, dict):
+        if set(value) != set(template):
+            raise ValueError("publication policy fields differ")
+        for key in template:
+            _validate_policy_shape(value[key], template[key])
+    elif isinstance(template, list) and template:
+        for item in value:
+            _validate_policy_shape(item, template[0])
+
+
+def source_publication_policy(article_policy: object) -> dict[str, Any]:
+    """兩個正式 producer 共用完整快照，避免 mutable alias。"""
+    return copy.deepcopy({
+        "contract_version": 1,
+        "global_policy": pipeline.load_article_publication_policy(Path(__file__).resolve().parents[1] / pipeline.POLICY_V2_PATH),
+        "article_policy": article_policy,
+    })
+
+
+def validate_source_contract(source: object) -> dict[str, Any]:
+    """正式入口要求新契約；pure legacy helper 仍可讀取歷史八欄。"""
+    source = _validate_source(source)
+    if "publication_policy" not in source:
+        raise ValueError("source publication_policy is required")
+    return source
+
+
 def _validate_source(source: object) -> dict[str, Any]:
     required = {
         "article_id",
@@ -247,8 +278,36 @@ def _validate_source(source: object) -> dict[str, Any]:
         "faq",
         "bodySections",
     }
-    if not isinstance(source, dict) or set(source) != required:
+    if not isinstance(source, dict) or set(source) not in (required, required | {"publication_policy"}):
         raise ValueError("translation source fields are strict")
+    if "publication_policy" in source:
+        policy = source["publication_policy"]
+        if not isinstance(policy, dict) or set(policy) != {"contract_version", "global_policy", "article_policy"}:
+            raise ValueError("source publication policy fields are strict")
+        if type(policy["contract_version"]) is not int or policy["contract_version"] != 1:
+            raise ValueError("unsupported source policy contract version")
+        current = pipeline.load_article_publication_policy()
+        _validate_policy_shape(policy["global_policy"], current)
+        article = policy["article_policy"]
+        pipeline._validate_publication_contract_shape(article)
+        if (policy["global_policy"]["policy_version"] != current["policy_version"]
+                or article["policyVersion"] != current["policy_version"]):
+            raise ValueError("unsupported source publication policy version")
+        for key in ("policyVersion", "canonical", "editorialResponsibility", "published", "modified", "changeType"):
+            _non_empty_string(article[key], f"publicationPolicy.{key}")
+        for value in article["author"].values():
+            _non_empty_string(value, "publicationPolicy.author")
+        evidence = article["evidence"]
+        if evidence["mode"] not in ("sources", "cultural_reflection") or not isinstance(evidence["disclosure"], str):
+            raise ValueError("source evidence shape differs")
+        if (evidence["mode"] == "sources" and not evidence["sources"]) or (
+            evidence["mode"] == "cultural_reflection"
+            and (evidence["sources"] or not evidence["disclosure"].strip())
+        ):
+            raise ValueError("source evidence required fields are incomplete")
+        for entry in evidence["sources"]:
+            for value in [entry["title"], entry["url"], *entry["supports"]]:
+                _non_empty_string(value, "publicationPolicy.evidence.source")
     for field in ["article_id", "canonical_path", "title", "description", "answer"]:
         _non_empty_string(source.get(field), f"source.{field}")
     if not str(source["canonical_path"]).startswith("/articles/"):
@@ -445,6 +504,22 @@ def _ja_field_text(article: dict[str, Any], field: str) -> str:
 
 
 def _source_text_fields(source: dict[str, Any]) -> list[tuple[str, str]]:
+    if "publication_policy" in source:
+        fields: list[tuple[str, str]] = []
+
+        def visit(value: Any, path: str) -> None:
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    visit(child, f"{path}.{key}" if path else key)
+            elif isinstance(value, list):
+                for index, child in enumerate(value):
+                    visit(child, f"{path}[{index}]")
+            else:
+                fields.append((path, value if isinstance(value, str) else json.dumps(value)))
+
+        for key in ("title", "description", "answer", "tags", "faq", "bodySections", "publication_policy"):
+            visit(source[key], key)
+        return fields
     fields = [
         ("description", str(source["description"])),
         ("answer", str(source["answer"])),
@@ -708,7 +783,7 @@ def _ja_boundary_contracts_for_brief(brief: dict[str, Any]) -> dict[str, Any]:
     validate_translation_brief(brief)
     articles = []
     for index, item in enumerate(brief["articles"]):
-        if item["locale"] != "ja":
+        if item["locale"] != "ja" or "publication_policy" in item["source"]:
             continue
         view = _ja_protected_constraint_view(item)
         articles.append(
@@ -958,6 +1033,7 @@ console.log(JSON.stringify({{
   tags: content.displayTags,
   faq: content.faq,
   bodySections: content.bodySections,
+  publication_policy: {{contract_version: 1, global_policy: {json.dumps(pipeline.load_article_publication_policy(repo_root / pipeline.POLICY_V2_PATH), ensure_ascii=False)}, article_policy: article.publicationPolicy}},
 }}));
 """
     result = subprocess.run(
@@ -967,7 +1043,7 @@ console.log(JSON.stringify({{
         capture_output=True,
         text=True,
     )
-    return _validate_source(json.loads(result.stdout))
+    return validate_source_contract(json.loads(result.stdout))
 
 
 def prepare_translation_run(
@@ -1206,6 +1282,30 @@ def _source_fact_package(brief: dict[str, Any]) -> dict[str, Any]:
     )
     for index, item in enumerate(brief["articles"]):
         source = item["source"]
+        if "publication_policy" in source:
+            facts = [
+                {
+                    "fact_id": "fact-" + hashlib.sha256(compact_json_bytes([path, text])).hexdigest()[:24],
+                    "text": text,
+                    "field_path": path,
+                    "provenance": "source",
+                    "safety_boundary": (
+                        path.startswith("publication_policy.")
+                        or bool(safety_pattern.search(text))
+                        or bool(JA_BOUNDARY_HIGH_RISK_UNRESOLVED_RE.search(text))
+                    ),
+                }
+                for path, text in _source_text_fields(source)
+            ]
+            articles.append({
+                "slot": f"article-{index + 1:02d}",
+                "locale": item["locale"],
+                "source_sha256": item["source_sha256"],
+                "topic_cues": {"title": source["title"], "tags": source["tags"]},
+                "source": copy.deepcopy(source),
+                "facts": sorted(facts, key=lambda fact: fact["fact_id"]),
+            })
+            continue
         protected_view = (
             _ja_protected_constraint_view(item)
             if item["locale"] == "ja"
@@ -1343,7 +1443,7 @@ def _source_ref_maps_from_artifact(
                 or set(item) != {"source_ref", "source_fact_id"}
                 or not isinstance(item.get("source_ref"), str)
                 or not isinstance(item.get("source_fact_id"), str)
-                or not re.fullmatch(r"source_ref_\d{2}", item["source_ref"])
+                or not re.fullmatch(r"source_ref_[0-9]{2,}", item["source_ref"])
             ):
                 raise ValueError("source ref map refs are strict")
             if item["source_ref"] in refs:
@@ -1566,6 +1666,7 @@ def _source_fact_package_for_prompt(
         fact_to_ref = {fact_id: ref for ref, fact_id in refs.items()}
         article["facts"] = [
             {
+                **{key: value for key, value in fact.items() if key in {"field_path", "provenance"}},
                 "source_ref": fact_to_ref[str(fact["fact_id"])],
                 "text": fact["text"],
             }
@@ -2248,6 +2349,22 @@ def _rebuild_topology_constraints(
     return {"articles": articles}
 
 
+def _boundary_prompt(brief: dict[str, Any], legacy: str) -> str:
+    new_targets = [item for item in brief["articles"] if "publication_policy" in item["source"]]
+    if not new_targets:
+        return legacy
+    instruction = (
+        "對 publication_policy.contract_version=1 的來源：完整原文與 publication_policy 是約束依據。"
+        "逐項覆蓋 facts，保留否定、條件、限制及承諾；global_policy 是適用規則，不能當成文章新增事實。"
+        "safety_boundary 僅供診斷，不以三分類或每欄 regex 作語意驗收。"
+        "既有 Reviewer 必須對照全部原文與同一 policy 核對候選，語意遺失或新增承諾必須 REJECT；"
+        "deterministic 只保證來源、identity 與 coverage 完整，不能代替語意審查。"
+    )
+    if len(new_targets) != len(brief["articles"]):
+        instruction += "以下只適用無 publication_policy 的 legacy 來源：" + legacy
+    return instruction
+
+
 def _plan_prompt(
     brief: dict[str, Any],
     *,
@@ -2266,8 +2383,8 @@ def _plan_prompt(
             "你是 Pantheon 的目標語言內容規劃主編。只輸出 locale plan，不寫文章。",
             "topic、native search intent、query phrasing 與 H2 必須完全由本次 source fact package 產生，不得套用任何預設題材。",
             f"coverage_mapping 必須逐一覆蓋 source fact，且每筆只能輸出 {source_identity}、planned_h2_slot 與 coverage_note。",
-            "不得輸出 schema 未列欄位；限制保留由 pipeline 的本機 source fact authority 在 hydrate 時處理。",
-            "JA protected_constraints 是 boundary coverage authority；boundary source spans 只供 provenance trace，不得逐段重現為獨立 safety requirement。",
+            _boundary_prompt(brief, "不得輸出 schema 未列欄位；限制保留由 pipeline 的本機 source fact authority 在 hydrate 時處理。"),
+            _boundary_prompt(brief, "JA protected_constraints 是 boundary coverage authority；boundary source spans 只供 provenance trace，不得逐段重現為獨立 safety requirement。"),
             "ordered_h2_outline 必須恰好有 4 個 H2；coverage_mapping.planned_h2_slot 必須使用 h2-1、h2-2、h2-3 或 h2-4，不得另寫或改寫 H2 文字。",
             "ordered_h2_outline 必須是目標語言的自然標題；h2-1、h2-2、h2-3、h2-4 只供 planned_h2_slot 定位，禁止把它們當成標題。",
             "source_structure_to_avoid 只用來辨識不能複製的來源 H2、section count、paragraph pattern；不得把它當 outline。",
@@ -2378,8 +2495,8 @@ def _article_prompt(
             "ordered_h2_outline 是唯一 section authority；不得推回或模仿來源 H2、段落數、敘事順序。",
             "bodySections 的數量、順序與 heading 必須逐字對齊 ordered_h2_outline；h2-1 到 h2-4 只是 mapping slot，不是可輸出的標題。",
             "不得逐句對譯。可拆分、合併、重排 facts，但不能新增來源沒有的事實或承諾。",
-            "JA protected_constraints 必須覆蓋其 required_fields；raw boundary source_text 只供 provenance trace，不得逐段複製成重複 boilerplate。",
-            "JA field-by-field protected boundary checklist: meta_description 與 body 必須各自包含每個 protected_constraints category 的自然日文可辨識語意；outcome_not_determined 在每個 required field 都要明確表達結果／未來結果不可斷定或保證，例如「結果を断定しない」「結果を保証しない」「未来の結果を完全に確定することはできない」。不得用 FAQ、answer、tags、另一個 required field、contextual/general disclaimer 或 professional advice disclaimer 代替；也不得把同一句 disclaimer 逐段重複成 boilerplate。",
+            _boundary_prompt(brief, "JA protected_constraints 必須覆蓋其 required_fields；raw boundary source_text 只供 provenance trace，不得逐段複製成重複 boilerplate。"),
+            _boundary_prompt(brief, "JA field-by-field protected boundary checklist: meta_description 與 body 必須各自包含每個 protected_constraints category 的自然日文可辨識語意；outcome_not_determined 在每個 required field 都要明確表達結果／未來結果不可斷定或保證，例如「結果を断定しない」「結果を保証しない」「未来の結果を完全に確定することはできない」。不得用 FAQ、answer、tags、另一個 required field、contextual/general disclaimer 或 professional advice disclaimer 代替；也不得把同一句 disclaimer 逐段重複成 boilerplate。"),
             "禁止用比喻、口號、華麗形容詞或抽象 AI 套話填補篇幅。",
             "只針對 findings 做 targeted repair，但不得接收或沿用前一版文章全文。",
             "article input:",
@@ -2438,6 +2555,8 @@ def _external_candidate_schema() -> dict[str, Any]:
 
 
 def _public_brief(brief: dict[str, Any]) -> dict[str, Any]:
+    validate_translation_brief(brief)
+    facts = _source_fact_package(brief)["articles"]
     return {
         "mode": "translate_existing",
         "policy": {
@@ -2455,6 +2574,7 @@ def _public_brief(brief: dict[str, Any]) -> dict[str, Any]:
                 "language": LOCALE_LABELS[item["locale"]],
                 "editorial_contract": LOCALE_EDITORIAL_CONTRACTS[item["locale"]],
                 "source": item["source"],
+                **({"facts": facts[index]["facts"]} if "publication_policy" in item["source"] else {}),
             }
             for index, item in enumerate(brief["articles"])
         ],
@@ -2525,7 +2645,7 @@ def _reviewer_prompt(
             "只要命中 LITERAL_TRANSLATION、SOURCE_SYNTAX_TRANSFER、MIRRORED_STRUCTURE、NON_NATIVE_SEARCH_INTENT 或 AI_TEMPLATE_STYLE 任一項，就必須 REJECT。",
             "不要因為意思大致正確就放行；文章必須讀起來像直接以該語言採訪、規劃並寫成的原生內容。",
             "deterministic findings 必須判 REJECT，不得忽略。",
-            "JA protected source constraints 與 deterministic findings 是 boundary authority；raw source_text 只供 trace，不是逐段複製要求。",
+            _boundary_prompt(brief, "JA protected source constraints 與 deterministic findings 是 boundary authority；raw source_text 只供 trace，不是逐段複製要求。"),
             "public brief:",
             json.dumps(_public_brief(brief), ensure_ascii=False),
             "public candidate:",
@@ -4520,6 +4640,9 @@ def apply_approved_translations(
     source_loader: SourceLoader = load_source_article,
     public_replacement: dict[str, Any] | None = None,
 ) -> list[Path]:
+    validate_translation_brief(brief)
+    for target in brief["articles"]:
+        validate_source_contract(target["source"])
     validate_translation_candidate(brief, candidate)
     deterministic = translation_findings(brief, candidate["articles"])
     if deterministic:
@@ -4533,7 +4656,7 @@ def apply_approved_translations(
     if not approved:
         return []
     for article in approved:
-        current = source_loader(repo_root, str(article["source_article_id"]))
+        current = validate_source_contract(source_loader(repo_root, str(article["source_article_id"])))
         if source_sha256(current) != article["source_sha256"]:
             raise ValueError(f"translation source drift for {article['article_id']}")
 

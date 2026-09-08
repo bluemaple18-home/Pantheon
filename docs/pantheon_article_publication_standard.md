@@ -592,3 +592,39 @@ H2: 如果想看自己的狀況，先把問題縮小
 FAQ
 延伸閱讀
 ```
+
+## 2026-09-08 翻譯來源契約（僅新契約適用）
+
+新翻譯的 authoritative input 由既有全域 publication policy、逐篇
+`publicationPolicy`（含 evidence/disclosure）與完整可見來源文字共同構成。
+`publication_policy.contract_version = 1` 的 source 必須攜帶全域完整快照與逐篇原值；
+原有 source digest 一併涵蓋這些值，不另建 registry。
+
+原文與 provenance 必須完整送入既有 planner、Writer、Reviewer。
+三分類只作衍生 projection；deterministic validation 負責完整 facts、mapping、
+來源與版本一致性，既有 Reviewer 負責否定、條件與限制的語意保留。
+缺 policy、格式／版本不合法、mapping 遺漏、Reviewer 缺件或 REJECT 均拒絕。
+單獨的未知 regex category 不等同來源限制缺漏。
+
+此責任分配明示取代 2026-08-27
+`CARD-PANTHEON-JA-PROTECTED-SOURCE-CONSTRAINT-TRACEABILITY-REPAIR-20260827.md`
+的 SC-004/SC-005 在新契約下的分類式拒絕規則；FR-004 的共用來源與 traceability
+要求仍保留。description/body 的限制表達需求仍存在，但不再要求
+「每一分類必須在每一欄重複」，其語意充分性由既有 Reviewer 判斷。
+歷史八欄 source 僅供相容讀取，不能用來正式 dispatch 或 publish。
+
+實際 runner 在 provider admission／attempt 前及 claim 後，透過既有
+namespace → registered run → brief 綁定重新讀取來源。正文、disclosure、
+逐篇 policy 或全域 policy 改動，均使舊封存 digest 無效；publisher 再驗一次。
+不得改寫封存 brief 或舊 pending request 來繞過失效。
+獨立 runner 沿用既有 `coordinator.lock` 等待交接完成；鎖忙時保留 pending，
+coordinator 內部呼叫沿用同一 descriptor。shared queue 亦須先查 namespace 的
+registered identity，不能因缺少 lane 參數而略過翻譯檢查。
+
+policy-only 改版不會自動產生新 run。本次不擴充 lifecycle；新 run 仍只由既有
+合法 publish/rewrite 的真實 source run 建立，禁止虛構 source run ID，亦不放寬
+no-substantive-change。舊 pending／active run 失效後不能續送。
+
+本地測試只能證明契約與控制流程；四線恢復的驗收仍是
+新 brief → Writer → Reviewer → publish → 公開 HTTP 200 且正文可見。
+fake provider、分類零錯誤與單獨的測試通過均不等同此終點。

@@ -40,6 +40,16 @@ def source_article() -> dict[str, object]:
     }
 
 
+
+def source_article_with_policy() -> dict[str, object]:
+    """正式寫入測試使用新契約；歷史 source_article 保持八欄。"""
+    source = source_article()
+    policy = multilingual.pipeline._hydrate_create_publication_policy({
+        "target": {**source, "published": "2026-09-08", "updated": "2026-09-08"},
+    })
+    source["publication_policy"] = multilingual.source_publication_policy(policy)
+    return source
+
 def translation_brief(locale: str = "en") -> dict[str, object]:
     source = source_article()
     return {
@@ -267,7 +277,8 @@ def write_stage_json(path: Path, payload: object) -> None:
 
 
 def approved_stage_fixture(
-    tmp_path: Path, *, replacement_shape: bool = False
+    tmp_path: Path, *, replacement_shape: bool = False,
+    source_contract: dict[str, object] | None = None,
 ) -> dict[str, object]:
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
@@ -280,6 +291,12 @@ def approved_stage_fixture(
     brief["run_id"] = run_id
     candidate = translation_candidate("ja")
     candidate["run_id"] = run_id
+    if source_contract is not None:
+        multilingual.validate_source_contract(source_contract)
+        source = json.loads(json.dumps(source_contract))
+        brief["articles"][0]["source"] = source
+        brief["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
+        candidate["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
     article = candidate["articles"][0]
     approved_review = {
         "schema_version": 1,
@@ -413,8 +430,10 @@ def approved_stage_fixture(
     }
 
 
-def replacement_approved_stage_fixture(tmp_path: Path) -> dict[str, object]:
-    fixture = approved_stage_fixture(tmp_path, replacement_shape=True)
+def replacement_approved_stage_fixture(
+    tmp_path: Path, *, source_contract: dict[str, object] | None = None,
+) -> dict[str, object]:
+    fixture = approved_stage_fixture(tmp_path, replacement_shape=True, source_contract=source_contract)
     old_run_dir = fixture["run_dir"]
     run_id = "stage-en-replacement-01"
     run_dir = old_run_dir.parent / run_id
@@ -423,6 +442,11 @@ def replacement_approved_stage_fixture(tmp_path: Path) -> dict[str, object]:
 
     brief = translation_brief("en")
     candidate = translation_candidate("en")
+    if source_contract is not None:
+        source = json.loads(json.dumps(source_contract))
+        brief["articles"][0]["source"] = source
+        brief["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
+        candidate["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
     brief["run_id"] = run_id
     candidate["run_id"] = run_id
     root_review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
@@ -745,7 +769,8 @@ def test_replacement_approved_stage_cli_rejects_descriptor_drift_before_writes(t
 
 
 def test_replacement_apply_updates_exact_existing_record_in_place(tmp_path: Path) -> None:
-    fixture = replacement_approved_stage_fixture(tmp_path)
+    source = source_article_with_policy()
+    fixture = replacement_approved_stage_fixture(tmp_path, source_contract=source)
     plan = multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
     multilingual.apply_approved_edited_candidate_stage(
         **fixture["kwargs"], expected_plan_digest=plan["plan_digest"]
@@ -763,7 +788,7 @@ def test_replacement_apply_updates_exact_existing_record_in_place(tmp_path: Path
         json.loads((fixture["run_dir"] / "brief.json").read_text(encoding="utf-8")),
         loaded["candidate"], loaded["review"], approval,
         public_replacement=loaded["seal"]["public_replacement"],
-        source_loader=lambda _repo, _article_id: translation_brief("en")["articles"][0]["source"],
+        source_loader=lambda _repo, _article_id: source,
     )
 
     assert changed == [fixture["module_path"]]
@@ -5607,6 +5632,10 @@ def test_apply_approved_translation_writes_run_module_and_manifest(tmp_path: Pat
     )
     brief = translation_brief("en")
     candidate = translation_candidate("en")
+    source = source_article_with_policy()
+    brief["articles"][0]["source"] = source
+    brief["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
+    candidate["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
     article = candidate["articles"][0]
     review = {
         "schema_version": 1,
@@ -5636,7 +5665,7 @@ def test_apply_approved_translation_writes_run_module_and_manifest(tmp_path: Pat
         candidate,
         review,
         approval,
-        source_loader=lambda _repo, _article_id: source_article(),
+        source_loader=lambda _repo, _article_id: source,
     )
 
     module = static / "article-locale-translate-test-en.js"
@@ -5656,6 +5685,10 @@ def test_apply_translation_fails_closed_when_source_changed(tmp_path: Path) -> N
     (static / "article-locales.js").write_text("export const ARTICLE_LOCALE_REGISTRY = [\n];\n", encoding="utf-8")
     brief = translation_brief()
     candidate = translation_candidate()
+    source = source_article_with_policy()
+    brief["articles"][0]["source"] = source
+    brief["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
+    candidate["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
     article = candidate["articles"][0]
     review = {
         "schema_version": 1,
@@ -5677,7 +5710,7 @@ def test_apply_translation_fails_closed_when_source_changed(tmp_path: Path) -> N
         {str(article["article_id"]): "APPROVE"},
         "test",
     )
-    changed_source = source_article()
+    changed_source = source_article_with_policy()
     changed_source["title"] = "原文後來改過"
 
     with pytest.raises(ValueError, match="source drift"):

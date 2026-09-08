@@ -25,6 +25,7 @@ from scripts.agy_gemini_outbox import (
     SCHEMA_VERSION,
     atomic_write_json,
     classify_external_failure,
+    read_closed_json_artifact,
     validate_external_request,
 )
 from scripts.agy_gemini_allocator import (
@@ -1380,6 +1381,120 @@ def _closed_error_code(error: BaseException) -> str | None:
     return None
 
 
+def _translation_queue_root(queue_root: Path) -> Path:
+    inferred = queue_root.parent.parent if queue_root.parent.name == "lanes" else queue_root
+    return Path(os.environ.get("PANTHEON_RUNTIME_QUEUE_ROOT", str(inferred))).resolve()
+
+
+def _translation_dispatch_lane(
+    queue_root: Path, lane: str | None, request: dict[str, Any] | None = None,
+) -> str | None:
+    """從既有 lane 路徑／服務識別決定是否需要來源 authority。"""
+    path_lane = queue_root.name if queue_root.parent.name == "lanes" else None
+    label = os.environ.get("PANTHEON_RUNTIME_SERVICE_LABEL", "")
+    service_lane = label.removeprefix("com.pantheon.agy-gemini-") if label.startswith("com.pantheon.agy-gemini-") else None
+    candidates = [value for value in (lane, path_lane, service_lane) if value is not None]
+    translation_lanes = {value for value in candidates if value in {"i18n-new", "i18n-rewrite"}}
+    if translation_lanes and len(set(candidates)) != 1:
+        raise ValueError("translation dispatch lane identities differ")
+    if translation_lanes:
+        return next(iter(translation_lanes))
+    if request is not None:
+        registry = _translation_queue_root(queue_root) / "runs" / f"{request['namespace']}.json"
+        if registry.exists() or registry.is_symlink():
+            state = read_closed_json_artifact(registry, max_bytes=4 * 1024 * 1024, label="translation dispatch registry")
+            identity = state.get("identity_envelope") or {}
+            if (state.get("lane") in {"i18n-new", "i18n-rewrite"}
+                    or state.get("mode") == "translate_existing"
+                    or (isinstance(identity, dict) and identity.get("mode") == "translate_existing")
+                    or Path(str(state.get("run_dir", ""))).parent.name == "translation-runs"):
+                if state.get("lane") not in {"i18n-new", "i18n-rewrite"}:
+                    raise ValueError("translation dispatch registered lane is missing")
+                return str(state["lane"])
+    return None
+
+
+def _translation_coordinator_lock(root: Path, inherited_fd: int | None) -> int | None:
+    """沿用 coordinator 交接鎖；內部 runner 使用同一 descriptor，不重建同步機制。"""
+    path = root / "coordinator.lock"
+    if inherited_fd is not None:
+        observed = os.fstat(inherited_fd)
+        expected = path.stat(follow_symlinks=False)
+        if not stat.S_ISREG(observed.st_mode) or (observed.st_dev, observed.st_ino) != (expected.st_dev, expected.st_ino):
+            raise ValueError("translation coordinator lock identity differs")
+        fcntl.flock(inherited_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return None
+    descriptor = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError("translation coordinator lock is not regular")
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+def _validate_translation_dispatch(
+    queue_root: Path, request: dict[str, Any], lane: str | None,
+) -> None:
+    """在既有 provider 邊界拒絕無綁定、舊契約或來源改版的翻譯工作。"""
+    translation_lane = _translation_dispatch_lane(queue_root, lane, request)
+    if translation_lane is None:
+        return
+    from scripts import agy_multilingual_pipeline as multilingual
+
+    root = _translation_queue_root(queue_root)
+    expected_job_root = root / "lanes" / translation_lane
+    if queue_root.resolve() != expected_job_root or queue_root.is_symlink():
+        raise ValueError("translation dispatch queue identity differs")
+
+    def read(path: Path, label: str) -> dict[str, Any]:
+        path.relative_to(root)
+        current = path
+        while current != root:
+            if current.is_symlink():
+                raise ValueError("translation dispatch authority path is not canonical")
+            current = current.parent
+        return read_closed_json_artifact(path, max_bytes=4 * 1024 * 1024, label=label)
+
+    namespace = str(request["namespace"])
+    state = read(root / "runs" / f"{namespace}.json", "translation dispatch registry")
+    run_id = state.get("run_id")
+    if (
+        type(run_id) is not str
+        or EXACT_RUN_ID_PATTERN.fullmatch(run_id) is None
+        or hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24] != namespace
+        or state.get("schema_version") != multilingual.SCHEMA_VERSION
+        or state.get("status") != "active"
+        or state.get("lane") != translation_lane
+    ):
+        raise ValueError("translation dispatch registered identity differs")
+    run_dir = root / "translation-runs" / run_id
+    if state.get("run_dir") != str(run_dir):
+        raise ValueError("translation dispatch run directory differs")
+    if state.get("last_job_id") not in {None, request["job_id"]}:
+        raise ValueError("translation dispatch job is no longer current")
+    brief = multilingual._normalize_registered_translation_brief(
+        read(run_dir / "brief.json", "translation dispatch brief"),
+        run_dir,
+        trusted_state=state,
+    )
+    if brief["run_id"] != run_id:
+        raise ValueError("translation dispatch brief identity differs")
+    source_ids = {item["source_article_id"] for item in brief["articles"]}
+    if len(source_ids) != 1 or state.get("identity_envelope") != multilingual.translation_identity_envelope(
+        next(iter(source_ids)), translation_lane,
+    ):
+        raise ValueError("translation dispatch source identity differs")
+    actor_root = Path(os.environ.get("PANTHEON_RUNTIME_ACTOR_ROOT", str(Path(__file__).resolve().parents[1])))
+    for item in brief["articles"]:
+        multilingual.validate_source_contract(item["source"])
+        current_source = multilingual.load_source_article(actor_root, item["source_article_id"])
+        if multilingual.source_sha256(current_source) != item["source_sha256"]:
+            raise ValueError("translation dispatch source drift")
+
+
 def process_once(
     queue_root: Path,
     *,
@@ -1387,8 +1502,10 @@ def process_once(
     clock: Callable[[], float] | None = None,
     lane: str | None = None,
     exact_run_ids: Iterable[str] | None = None,
+    _coordinator_lock_fd: int | None = None,
 ) -> dict[str, Any]:
     selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
+    translation_lock_fd: int | None = None
     processing_path: Path | None = None
     archive_path: Path | None = None
     job_id = ""
@@ -1433,6 +1550,37 @@ def process_once(
         transport_block = _formal_production_transport_block(service_label)
         if transport_block is not None:
             return transport_block
+        selected = _peek_next_model(queue_root, selected_run_ids)
+        if selected is not None and (selected[0] != "" or _translation_dispatch_lane(queue_root, lane) is not None):
+            _model, job_id = selected
+            try:
+                request = read_closed_json_artifact(
+                    queue_root / "outbox" / f"{job_id}.json",
+                    max_bytes=4 * 1024 * 1024,
+                    label="translation dispatch request",
+                )
+                validate_external_request(request)
+                if request["job_id"] != job_id:
+                    raise ValueError("request job id differs from queue filename")
+                if _translation_dispatch_lane(queue_root, lane, request) is not None:
+                    try:
+                        translation_lock_fd = _translation_coordinator_lock(
+                            _translation_queue_root(queue_root), _coordinator_lock_fd,
+                        )
+                    except BlockingIOError:
+                        return {"status": "busy", "reason": "coordinator_handoff"}
+                _validate_translation_dispatch(queue_root, request, lane)
+            except Exception:
+                # 沿用既有失敗終態，避免舊請求永久卡住同 lane；不建立 provider attempt。
+                processing_path = _claim_next(queue_root, selected_run_ids)
+                if processing_path is None:
+                    return {"status": "idle"}
+                if processing_path.stem != job_id:
+                    _restore_unattempted_claim(queue_root, processing_path)
+                    processing_path = None
+                    return {"status": "selection_changed"}
+                archive_path = queue_root / "archive" / f"{job_id}.json"
+                raise
         pool_file = os.environ.get("AGY_GEMINI_CREDENTIAL_POOL_FILE", "").strip()
         provider_admission_enabled = bool(pool_file)
         credential_pool_transport = (
@@ -1498,6 +1646,7 @@ def process_once(
                 _restore_unattempted_claim(queue_root, processing_path)
                 processing_path = None
                 return {"status": "selection_changed"}
+            _validate_translation_dispatch(queue_root, request, lane)
             with production_slot_admission(
                 production_state_path,
                 pool_id=str(pool_payload["pool_id"]),
@@ -1546,6 +1695,8 @@ def process_once(
             validate_external_request(request)
             if request["job_id"] != job_id:
                 raise ValueError("request job id differs from queue filename")
+
+            _validate_translation_dispatch(queue_root, request, lane)
 
         if os.environ.get("AGY_GEMINI_V4_BROKER") == "1":
             executable = Path(os.environ["AGY_GEMINI_V4_EXECUTABLE"])
@@ -1670,7 +1821,10 @@ def process_once(
         return processed
     except Exception as error:
         if processing_path is None:
-            return {"status": "failed", "error_type": type(error).__name__}
+            return {
+                "status": "failed", "error_type": type(error).__name__,
+                **({"job_id": job_id} if job_id else {}),
+            }
         cooldown_receipt: dict[str, object] | None = None
         quota_receipt: dict[str, object] | None = None
         error_code = _closed_error_code(error)
@@ -1764,7 +1918,11 @@ def process_once(
             result["quota_block"] = quota_receipt
         return result
     finally:
-        _close_production_attempt(production_attempt_evidence)
+        try:
+            _close_production_attempt(production_attempt_evidence)
+        finally:
+            if translation_lock_fd is not None:
+                os.close(translation_lock_fd)
 
 
 def parse_args() -> argparse.Namespace:

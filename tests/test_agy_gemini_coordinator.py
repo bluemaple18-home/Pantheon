@@ -350,7 +350,6 @@ class _CampaignTranslationClient:
                             "source_fact_id": fact["fact_id"],
                             "planned_h2_slot": f"h2-{index % 4 + 1}",
                             "coverage_note": "この事実と制限を該当する節で説明する",
-                            "safety_boundary": fact["safety_boundary"],
                         }
                         for index, fact in enumerate(target["facts"])
                     ],

@@ -3044,6 +3044,7 @@ def collect_ready_translation_runs(
         source_current = True
         try:
             for target in brief["articles"]:
+                multilingual.validate_source_contract(target.get("source"))
                 current = multilingual.load_source_article(repo_root, str(target["source_article_id"]))
                 if multilingual.source_sha256(current) != target["source_sha256"]:
                     source_current = False
