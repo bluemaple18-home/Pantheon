@@ -2150,6 +2150,37 @@ def test_apply_failure_matrix_rolls_back_actor_manifest_and_stage(
     assert _snapshot(request) == before
 
 
+def test_actor_second_rename_failure_restores_actual_backup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """第二次 rename 失敗時，即使仍為 PREPARED 也必須還原舊 actor。"""
+    request, identities = _runtime_fixture(tmp_path)
+    before = _snapshot(request)
+    replace = promotion.os.replace
+    failed = False
+
+    def fail_second_rename(source: Path, target: Path) -> None:
+        nonlocal failed
+        if source == request.transaction_root / "actor.stage" and target == request.actor_root:
+            assert not request.actor_root.exists()
+            failed = True
+            raise OSError("injected second actor rename failure")
+        replace(source, target)
+
+    monkeypatch.setattr(promotion.os, "replace", fail_second_rename)
+    with pytest.raises(promotion.PromotionError, match="injected second actor rename failure"):
+        promotion.apply_promotion(request, expected_plan_digest=_planned_digest(request))
+
+    assert failed
+    assert request.actor_root.is_dir()
+    assert _git(request.actor_root, "rev-parse", "HEAD") == identities["old_sha"]
+    assert _snapshot(request) == before
+    receipt = promotion.load_receipt(request)
+    assert receipt["state_before_rollback"] == "PREPARED"
+    assert receipt["state"] == "ROLLED_BACK"
+    assert receipt["rollback_status"] == "ROLLBACK_COMPLETE"
+
+
 def test_crash_recovery_status_and_explicit_rollback(
     tmp_path: Path,
 ) -> None:

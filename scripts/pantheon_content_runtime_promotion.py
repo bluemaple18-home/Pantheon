@@ -1370,8 +1370,8 @@ def _restore_actor(request: PromotionRequest) -> None:
 def _rollback_from_state(request: PromotionRequest, state: str) -> None:
     _restore_stage(request)
     _restore_manifest(request)
-    if state in {"ACTOR_PROMOTED", "MANIFEST_WRITTEN", "STAGE_INSTALLED", "POSTCHECK_PASSED"}:
-        _restore_actor(request)
+    # 首次 rename 已產生備份時，state 可能仍為 PREPARED；以實際備份還原。
+    _restore_actor(request)
 
 
 def _assert_receipt_matches(

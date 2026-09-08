@@ -8926,13 +8926,15 @@ def test_aggregate_activation_rejects_before_mutation_with_failure_receipt(
 
 
 @pytest.mark.parametrize(
-    ("rollback_fail_at", "expected_rollback_status"),
-    [(0, "ROLLBACK_COMPLETE"), (4, "ROLLBACK_FAILED")],
+    ("rollback_fail_at", "expected_rollback_status", "fail_before_bootstrap"),
+    [(0, "ROLLBACK_COMPLETE", False), (4, "ROLLBACK_FAILED", False),
+     (0, "ROLLBACK_COMPLETE", True)],
 )
 def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
     tmp_path: Path,
     rollback_fail_at: int,
     expected_rollback_status: str,
+    fail_before_bootstrap: bool,
 ) -> None:
     """REG-PANTHEON-FOUR-LANE-INSTALL-ROLLBACK-001 動態 rollback。"""
     repo_root = Path(__file__).resolve().parents[1]
@@ -9002,13 +9004,15 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         "if [ \"$1\" = \"bootout\" ]; then\n"
         "  label=${2##*/}\n"
         f"  rm -f '{loaded}/'$label\n"
+        # 第二個舊服務已卸載後失敗，此時尚未 bootstrap，必須完整復原。
+        f"  if [ '{int(fail_before_bootstrap)}' = '1' ] && [ \"$label\" = '{labels[1]}' ]; then exit 23; fi\n"
         "  exit 0\n"
         "fi\n"
         "if [ \"$1\" = \"bootstrap\" ]; then\n"
         f"  count=$(cat '{bootstrap_count}' 2>/dev/null || printf 0)\n"
         "  count=$((count + 1))\n"
         f"  printf '%s' \"$count\" > '{bootstrap_count}'\n"
-        f"  if [ \"$count\" -eq 3 ] || [ \"$count\" -eq {rollback_fail_at} ]; then exit 1; fi\n"
+        f"  if [ '{int(fail_before_bootstrap)}' = '0' ] && {{ [ \"$count\" -eq 3 ] || [ \"$count\" -eq {rollback_fail_at} ]; }}; then exit 1; fi\n"
         "  label=${3##*/}\n"
         "  label=${label%.plist}\n"
         f"  touch '{loaded}/'$label\n"
@@ -9046,7 +9050,7 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         text=True,
     )
 
-    assert activated.returncode != 0
+    assert activated.returncode == (23 if fail_before_bootstrap else 1), activated.stderr
     for label in labels:
         assert (launch_agents / f"{label}.plist").read_bytes() == previous
     assert runtime_manifest.validate_barrier(barrier, manifest)["status"] == "PASS"
@@ -9061,12 +9065,17 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         "generation": manifest["generation"],
     }
     assert receipt["exit_reason"] == {
-        "phase": "bootstrap_staged_services",
-        "exit_code": 1,
+        "phase": "bootout_previous_services" if fail_before_bootstrap else "bootstrap_staged_services",
+        "exit_code": 23 if fail_before_bootstrap else 1,
     }
     mutations = mutation_log.read_text(encoding="utf-8")
     assert mutations.count("bootout") >= 2
     assert mutations.count("bootstrap") >= len(labels)
+    if expected_rollback_status == "ROLLBACK_COMPLETE":
+        assert all((loaded / label).is_file() for label in labels)
+        assert receipt["rollback_check_ids"] == []
+    if fail_before_bootstrap:
+        assert mutations.count("bootstrap") == len(labels)
 
 
 def test_four_lane_activation_success_commits_matching_private_stage(

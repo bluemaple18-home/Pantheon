@@ -929,7 +929,8 @@ rollback_activation() {
   trap - ERR
   set +e
   rm -f "${ACTIVATION_BARRIER}" || record_rollback_failure "rollback.barrier.remove"
-  for LABEL in "${STARTED_LABELS[@]}"; do
+  # Bash 3.2 的 nounset 不接受直接展開空陣列。
+  for LABEL in ${STARTED_LABELS[@]+"${STARTED_LABELS[@]}"}; do
     if ! launchctl bootout "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
       record_rollback_failure "rollback.bootout"
     fi
