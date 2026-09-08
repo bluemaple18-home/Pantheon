@@ -1,4 +1,4 @@
-import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=agy-content-2eddbf3937-01-7b800e7d-manual-01";
+import { getArticlePath, getProductThemeRecord, listArticleRecords } from "./article-registry.js?v=agy-content-2eddbf3937-03-99b48392";
 import { initPantheonAnimatedLogos } from "./pantheon-logo.js?v=articles-hub-20260711-balanced-1";
 import { initPantheonMotionVisuals } from "./pantheon-motion-visual.js?v=articles-hub-20260711-mobile-motion-1";
 
