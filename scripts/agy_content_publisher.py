@@ -2813,7 +2813,7 @@ def _load_completed_run(state_path: Path) -> tuple[dict[str, Any], dict[str, Any
         raise PublishBlocked("run id drift between state, candidate, and review")
     try:
         if candidate.get("mode") == "translate_existing":
-            brief = _read_json(run_dir / "brief.json")
+            brief = multilingual.read_translation_brief_payload(run_dir / "brief.json")
             multilingual.validate_translation_candidate(brief, candidate)
         else:
             pipeline.validate_candidate(candidate)
@@ -2986,8 +2986,8 @@ def collect_ready_translation_runs(
             brief_path = run_dir / "brief.json"
             if not run_id or not brief_path.is_file():
                 continue
-            brief = _read_json(brief_path)
-        except (OSError, json.JSONDecodeError):
+            brief = multilingual.read_translation_brief_payload(brief_path)
+        except (OSError, json.JSONDecodeError, ValueError):
             continue
         if brief.get("mode") != "translate_existing" or run_id in published or run_id in deferred:
             continue
@@ -3107,8 +3107,10 @@ def _assert_exact_fresh_ja_translation_run(
         if _retry_path(state_root, "translation", run_id).exists():
             raise PublishBlocked("exact fresh JA selector rejects old retry run")
         run_dir = Path(str(state.get("run_dir") or ""))
-        brief = _read_json(run_dir / "brief.json")
-    except (OSError, json.JSONDecodeError) as error:
+        brief = multilingual.read_translation_brief_payload(run_dir / "brief.json")
+    except PublishBlocked:
+        raise
+    except (OSError, json.JSONDecodeError, ValueError) as error:
         raise PublishBlocked("exact fresh JA run metadata is unreadable") from error
     if brief.get("run_id") != run_id or brief.get("mode") != "translate_existing":
         raise PublishBlocked("exact fresh JA run is not a translation run")

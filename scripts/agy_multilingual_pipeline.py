@@ -25,6 +25,8 @@ from scripts import agy_seo_copy_pipeline as pipeline
 
 
 SCHEMA_VERSION = 1
+# 沿用 translation dispatch 既有 artifact 上限，與模型 request 限制分開。
+MAX_TRANSLATION_BRIEF_BYTES = 4 * 1024 * 1024
 SUPPORTED_LOCALES = {"en", "ja", "ko"}
 TRANSLATION_IDENTITY_LANES = {"i18n-new", "i18n-rewrite"}
 TRANSLATION_BRIEF_FIELDS = frozenset({"schema_version", "run_id", "mode", "articles"})
@@ -319,7 +321,18 @@ def _validate_source(source: object) -> dict[str, Any]:
     return source
 
 
+def read_translation_brief_payload(path: Path) -> dict[str, Any]:
+    """共用有界檔案讀取；各入口仍負責既有 schema／identity 驗證。"""
+    from scripts.agy_gemini_outbox import read_closed_json_artifact
+
+    return read_closed_json_artifact(
+        path, max_bytes=MAX_TRANSLATION_BRIEF_BYTES, label="translation brief",
+    )
+
+
 def validate_translation_brief(brief: dict[str, Any]) -> None:
+    if len(pipeline.compact_json_bytes(brief)) + 1 > MAX_TRANSLATION_BRIEF_BYTES:
+        raise ValueError("translation brief exceeds closed size")
     if set(brief) != TRANSLATION_BRIEF_FIELDS:
         raise ValueError("translation brief fields are strict")
     if brief.get("schema_version") != SCHEMA_VERSION or brief.get("mode") != "translate_existing":
@@ -433,7 +446,7 @@ def _normalize_registered_translation_brief(
 
 
 def _load_registered_translation_brief(run_dir: Path) -> dict[str, Any]:
-    brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
+    brief = read_translation_brief_payload(run_dir / "brief.json")
     if not isinstance(brief, dict):
         raise ValueError("translation brief must be a JSON object")
     return _normalize_registered_translation_brief(brief, run_dir)
@@ -1124,7 +1137,7 @@ def enqueue_article_translations(
             brief_path = run_dir / "brief.json"
             if not brief_path.is_file():
                 raise ValueError("registered translation run brief is missing")
-            existing_brief = json.loads(brief_path.read_text(encoding="utf-8"))
+            existing_brief = read_translation_brief_payload(brief_path)
             existing_brief = _normalize_registered_translation_brief(
                 existing_brief,
                 run_dir,
@@ -1188,7 +1201,7 @@ def enqueue_translation_replacement(
     base_brief_path = base_run_dir / "brief.json"
     if not base_brief_path.is_file():
         raise ValueError("translation replacement base brief is missing")
-    base_brief = json.loads(base_brief_path.read_text(encoding="utf-8"))
+    base_brief = read_translation_brief_payload(base_brief_path)
     base_brief = _normalize_registered_translation_brief(
         base_brief,
         base_run_dir,
@@ -1221,9 +1234,7 @@ def enqueue_translation_replacement(
     validate_translation_brief(replacement_brief)
     replacement_brief_path = replacement_run_dir / "brief.json"
     if replacement_brief_path.exists():
-        existing_brief = json.loads(
-            replacement_brief_path.read_text(encoding="utf-8")
-        )
+        existing_brief = read_translation_brief_payload(replacement_brief_path)
         if existing_brief != replacement_brief:
             raise ValueError("translation replacement brief collision")
     else:

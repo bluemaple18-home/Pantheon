@@ -524,9 +524,9 @@ def _brief(run_dir: Path) -> dict[str, Any]:
     path = run_dir / "brief.json"
     if not path.is_file():
         raise ValueError("run directory must contain brief.json")
-    if path.stat().st_size > MAX_BRIEF_BYTES:
+    brief = multilingual.read_translation_brief_payload(path)
+    if brief.get("mode") != "translate_existing" and path.stat().st_size > MAX_BRIEF_BYTES:
         raise ValueError("brief exceeds 12 KB")
-    brief = json.loads(path.read_text(encoding="utf-8"))
     run_id = brief.get("run_id")
     articles = brief.get("articles")
     if not isinstance(run_id, str) or not run_id.strip():
@@ -879,6 +879,14 @@ def register_run(
     resolved = run_dir.resolve()
     brief = _brief(resolved)
     identity_envelope = _identity_envelope_from_brief(brief)
+    if brief.get("mode") == "translate_existing":
+        multilingual._normalize_registered_translation_brief(
+            brief, resolved, trusted_state={
+                "run_id": brief["run_id"], "run_dir": str(resolved),
+                "status": "active", "lane": identity_envelope["lane"],
+                "identity_envelope": identity_envelope,
+            },
+        )
     path = _state_path(str(brief["run_id"]), queue_root.resolve())
     if path.exists():
         state = json.loads(path.read_text(encoding="utf-8"))
@@ -4295,7 +4303,7 @@ def _preflight_translation_registration(
         or state.get("status") not in {"active", "complete"}
     ):
         raise ValueError("translation run identity collision")
-    existing_brief = _read_editorial_artifact(run_dir / "brief.json")
+    existing_brief = multilingual.read_translation_brief_payload(run_dir / "brief.json")
     multilingual.validate_translation_brief(existing_brief)
     if existing_brief != brief:
         raise ValueError("registered translation run source, locale, or identity drift")

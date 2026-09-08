@@ -628,3 +628,9 @@ no-substantive-change。舊 pending／active run 失效後不能續送。
 本地測試只能證明契約與控制流程；四線恢復的驗收仍是
 新 brief → Writer → Reviewer → publish → 公開 HTTP 200 且正文可見。
 fake provider、分類零錯誤與單獨的測試通過均不等同此終點。
+
+### 翻譯 brief 的容量契約
+
+翻譯 brief 的 compact UTF-8 JSON（含結尾換行）與持久化檔案共用 4MiB 上限，沿用既有 translation dispatch artifact 的物理界線。producer 必須先完成結構、source hash 與容量驗證，才寫入 brief／active registry；coordinator、registered reader、runner 與 Publisher 共用有界檔案讀取。全域及逐篇 policy、disclosure 與原文不可為符合容量而裁切。
+
+create／rewrite 的 coordinator brief 上限仍為 12KiB。翻譯 artifact 通過不代表模型 request 可接受；既有 outbox prompt 256KiB、schema 64KiB 限制維持不變。

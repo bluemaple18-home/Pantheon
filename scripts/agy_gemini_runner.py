@@ -1456,6 +1456,8 @@ def _validate_translation_dispatch(
             if current.is_symlink():
                 raise ValueError("translation dispatch authority path is not canonical")
             current = current.parent
+        if path.name == "brief.json":
+            return multilingual.read_translation_brief_payload(path)
         return read_closed_json_artifact(path, max_bytes=4 * 1024 * 1024, label=label)
 
     namespace = str(request["namespace"])

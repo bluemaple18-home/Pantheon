@@ -1346,7 +1346,7 @@ def test_register_and_exact_activation_persist_immutable_identity_envelope(
         ),
     ],
 )
-def test_register_run_persists_immutable_mode_and_lane(
+def test_register_run_persists_routing_or_rejects_incomplete_translation(
     tmp_path: Path,
     run_id: str,
     brief: dict[str, object],
@@ -1359,6 +1359,13 @@ def test_register_run_persists_immutable_mode_and_lane(
         json.dumps({"schema_version": 1, "run_id": run_id, **brief}),
         encoding="utf-8",
     )
+
+    if brief.get("mode") == "translate_existing":
+        # 僅有 source_article_id 的 routing fixture 不具備可讀回的 source 契約。
+        with pytest.raises(ValueError):
+            register_run(run_dir, queue_root)
+        assert not list((queue_root / "runs").glob("*.json"))
+        return
 
     state = register_run(run_dir, queue_root)
 
@@ -2168,23 +2175,19 @@ def test_lane_mode_continues_oldest_registered_run_until_terminal(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    from test_agy_source_authority_contract import new_brief
+
     queue_root = tmp_path / "queue"
-    for index, run_id in enumerate(("i18n-oldest", "i18n-next")):
-        run_dir = tmp_path / "runs" / run_id
-        run_dir.mkdir(parents=True)
-        (run_dir / "brief.json").write_text(
-            json.dumps(
-                {
-                    "schema_version": 1,
-                    "run_id": run_id,
-                    "mode": "translate_existing",
-                    "lane": "i18n-new",
-                    "articles": [{"source_article_id": f"V2-NEW-{index + 1:03d}", "locale": "en"}],
-                }
-            ),
-            encoding="utf-8",
-        )
-        register_run(run_dir, queue_root)
+    registered_ids = []
+    for index, source_run_id in enumerate(("i18n-oldest", "i18n-next")):
+        source = new_brief("en")["articles"][0]["source"]
+        record = coordinator.multilingual.enqueue_article_translations(
+            tmp_path, queue_root, source_run_id=source_run_id,
+            article_id=source["article_id"], locales=["en"], lane="i18n-new",
+            source_loader=lambda *_args: source,
+        )[0]
+        run_id = record["run_id"]
+        registered_ids.append(run_id)
         state_path = coordinator._state_path(run_id, queue_root)
         state = json.loads(state_path.read_text(encoding="utf-8"))
         state["registered_at"] = f"2026-07-25T10:0{index}:00+08:00"
@@ -2207,7 +2210,7 @@ def test_lane_mode_continues_oldest_registered_run_until_terminal(
             lane_mode=True,
         )
 
-    assert advanced == ["i18n-oldest", "i18n-oldest"]
+    assert advanced == [registered_ids[0], registered_ids[0]]
 
 
 def test_new_only_cycle_advances_one_new_and_skips_non_new_lanes(
