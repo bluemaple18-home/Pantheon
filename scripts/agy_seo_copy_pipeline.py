@@ -225,16 +225,19 @@ def validate_antigravity_cli_capabilities(
 def validate_gemini_api_model_capabilities(
     route_config: ModelRouteConfig | None = None,
 ) -> dict[str, str]:
-    """確認正式 direct Gemini API route 使用官方 stable Lite model ID。"""
+    """允許明確選用 Lite 或 Flash Writer，Reviewer 維持既有 Lite。"""
     config = route_config or MODEL_ROUTE_CONFIG
     for role, expected in OFFICIAL_LITE_API_MODEL_ROUTES.items():
-        if config.routes[role] != (expected,):
-            raise ValueError(f"Gemini API {role} route must use official stable Lite model ID")
+        allowed = {(expected,)}
+        if role == "writer":
+            allowed.add(("gemini-3.5-flash",))
+        if config.routes[role] not in allowed:
+            raise ValueError(f"Gemini API {role} route must use one approved model ID")
     return {
         "status": "PASS",
         "transport": "api",
-        "writer_model": OFFICIAL_LITE_API_MODEL_ROUTES["writer"],
-        "reviewer_model": OFFICIAL_LITE_API_MODEL_ROUTES["reviewer"],
+        "writer_model": config.routes["writer"][0],
+        "reviewer_model": config.routes["reviewer"][0],
     }
 GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 RUN_ROOT = Path(".work/gsc-copy")
