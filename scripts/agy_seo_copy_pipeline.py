@@ -2891,6 +2891,19 @@ class GeminiClient:
             "responseJsonSchema": _response_schema_for_model(model, schema),
             "thinkingConfig": thinking_config,
         }
+        if role == "writer" and schema == external_candidate_schema("create"):
+            # 數值限制仍由本地驗證；欄位說明只提供模型可讀的生成指引。
+            provider_schema = json.loads(json.dumps(generation_config["responseJsonSchema"]))
+            fields = provider_schema["properties"]["articles"]["items"]["properties"]
+            source_fields = schema["properties"]["articles"]["items"]["properties"]
+            for field in ("title", "description"):
+                lower = source_fields[field]["minLength"]
+                upper = source_fields[field]["maxLength"]
+                fields[field]["description"] = (
+                    f"{field} 必須為 {lower} 到 {upper} 個 Unicode 字元（含標點）；"
+                    "請自行寫足內容，不以空白補足字數。"
+                )
+            generation_config["responseJsonSchema"] = provider_schema
         if not _omits_sampling_parameters(model):
             generation_config["temperature"] = 0.45 if role == "writer" else 0.1
         payload = {

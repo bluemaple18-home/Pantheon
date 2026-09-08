@@ -877,6 +877,44 @@ def test_writer_and_reviewer_requests_have_independent_contexts() -> None:
     assert "hard_failure" not in review_schema()["properties"]["articles"]["items"]["properties"]
 
 
+def test_create_writer_projects_length_guidance_without_changing_contract() -> None:
+    schema = pipeline.external_candidate_schema("create")
+    original = json.loads(json.dumps(schema))
+    calls = []
+    client = GeminiClient(
+        writer_model="gemini-3.5-flash-lite",
+        transport=lambda model, payload: calls.append(payload) or {},
+    )
+    for _ in range(2):
+        client.generate_json("writer", "原始提示", schema)
+    projected = calls[0]["generationConfig"]["responseJsonSchema"]
+    assert projected == calls[1]["generationConfig"]["responseJsonSchema"]
+    fields = projected["properties"]["articles"]["items"]["properties"]
+    for field, lower, upper in [("title", 20, 45), ("description", 70, 95)]:
+        assert fields[field].pop("description") == (
+            f"{field} 必須為 {lower} 到 {upper} 個 Unicode 字元（含標點）；"
+            "請自行寫足內容，不以空白補足字數。"
+        )
+    assert projected == original
+    assert schema == original
+    assert calls[1]["generationConfig"]["responseJsonSchema"] != projected
+    assert calls[0]["contents"] == calls[1]["contents"]
+
+
+@pytest.mark.parametrize("role,mode", [
+    ("reviewer", "create"), ("writer", "optimize"), ("writer", "rewrite_existing_body"),
+])
+def test_field_guidance_keeps_other_roles_and_modes_unchanged(role, mode) -> None:
+    schema = pipeline.external_candidate_schema(mode)
+    calls = []
+    client = GeminiClient(
+        writer_model="gemini-3.5-flash-lite", reviewer_model="gemini-3.1-flash-lite",
+        transport=lambda model, payload: calls.append(payload) or {},
+    )
+    client.generate_json(role, "原始提示", schema)
+    assert calls[0]["generationConfig"]["responseJsonSchema"] == schema
+
+
 @pytest.mark.parametrize("model", ["gemini-2.5-flash", "gemini-2.5-flash-lite"])
 def test_gemini_25_flash_models_use_compatible_generation_config(model: str) -> None:
     calls: list[tuple[str, dict[str, object]]] = []
