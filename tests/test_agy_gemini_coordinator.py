@@ -12828,7 +12828,7 @@ def test_activation_preflight_uses_api_route_gate_without_running_agy_cli(
     )
 
     assert '"transport": "api"' in activated.stdout
-    assert 'gemini-3.5-flash-lite' in activated.stdout
+    assert f'"writer_model": "{pipeline.DEFAULT_WRITER_MODEL}"' in activated.stdout
     assert 'gemini-3.1-flash-lite' in activated.stdout
     assert "CLI capability" not in activated.stderr
     assert not agy_marker.exists()
