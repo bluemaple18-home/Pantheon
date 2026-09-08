@@ -45,6 +45,7 @@ from scripts.agy_seo_copy_pipeline import (
     CLOSED_GEMINI_ERROR_CODES,
     GeminiClient,
     closed_gemini_http_diagnostic,
+    closed_gemini_provider_diagnostic,
     normalize_new_output_contract,
 )
 from scripts.agy_gemini_v4_broker import (
@@ -1882,6 +1883,10 @@ def process_once(
             failed_record["error_code"] = error_code
         if http_diagnostic is not None:
             failed_record.update(http_diagnostic)
+            if failed_record.get("http_status") == 400 and error_code == "API_HTTP_ERROR":
+                provider_diagnostic = closed_gemini_provider_diagnostic(getattr(error, "provider_diagnostic", None))
+                if provider_diagnostic is not None:
+                    failed_record["provider_diagnostic"] = provider_diagnostic
         if isinstance(error, V4BrokerFailure) and broker_diagnostic is not None:
             failed_record["broker_diagnostic"] = broker_diagnostic
         if credential_pool is not None:

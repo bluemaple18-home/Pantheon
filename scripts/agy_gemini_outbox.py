@@ -52,6 +52,7 @@ FAILURE_RECEIPT_BASE_FIELDS = frozenset({
     "completed_at",
 })
 FAILURE_RECEIPT_OPTIONAL_FIELDS = frozenset({
+    "provider_diagnostic",
     "broker_diagnostic",
     "credential_pool",
     "error_code",
@@ -705,6 +706,12 @@ def _failure_receipt_is_valid(
             failure.get("http_status_class"),
         )
         is None
+    ):
+        return False
+    if "provider_diagnostic" in failure and (
+        failure.get("http_status") != 400
+        or error_code != "API_HTTP_ERROR"
+        or pipeline.closed_gemini_provider_diagnostic(failure["provider_diagnostic"]) is None
     ):
         return False
     broker_diagnostic = failure.get("broker_diagnostic")

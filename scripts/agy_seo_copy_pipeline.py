@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -2723,10 +2724,117 @@ def closed_gemini_http_diagnostic(
     }
 
 
+MAX_GEMINI_ERROR_BODY_BYTES = 16 * 1024
+MAX_GEMINI_PROVIDER_DIAGNOSTIC_BYTES = 4096
+_GEMINI_DIAGNOSTIC_STATUSES = frozenset({"INVALID_ARGUMENT", "FAILED_PRECONDITION", "OUT_OF_RANGE"})
+
+
+def _safe_provider_error_text(value: object, limit: int) -> bool:
+    return (
+        type(value) is str and 0 < len(value) <= limit
+        and all(ord(char) >= 32 and not 0xD800 <= ord(char) <= 0xDFFF for char in value)
+        and re.search(r"(?i)(AIza|bearer|authorization|api[_-]?key|credential|https?://|(?<![A-Za-z0-9_])/|[A-Z]:\\|~/)", value) is None
+    )
+
+
+def closed_gemini_provider_diagnostic(value: object) -> dict[str, Any] | None:
+    """驗證既有failed receipt新增的可選白名單，拒絕未知欄位。"""
+    if type(value) is not dict or not value or not set(value) <= {"status", "message", "fieldViolations"}:
+        return None
+    if "status" in value and (type(value["status"]) is not str or value["status"] not in _GEMINI_DIAGNOSTIC_STATUSES):
+        return None
+    if "message" in value and not _safe_provider_error_text(value["message"], 768):
+        return None
+    if "fieldViolations" in value:
+        rows = value["fieldViolations"]
+        if type(rows) is not list or not 1 <= len(rows) <= 4:
+            return None
+        for row in rows:
+            if type(row) is not dict or not row or not set(row) <= {"field", "description"}:
+                return None
+            if any(not _safe_provider_error_text(text, 256) for text in row.values()):
+                return None
+    if len(compact_json_bytes(value)) > MAX_GEMINI_PROVIDER_DIAGNOSTIC_BYTES:
+        return None
+    return json.loads(compact_json_bytes(value))
+
+
+def _gemini_400_diagnostic(error: urllib.error.HTTPError, payload: dict[str, Any], api_key: str) -> dict[str, Any] | None:
+    """有界讀取400；只保留白名單，任何request/credential回顯整段捨棄。"""
+    if error.code != 400:
+        return None
+    try:
+        encoded = error.read(MAX_GEMINI_ERROR_BODY_BYTES + 1)
+        if len(encoded) > MAX_GEMINI_ERROR_BODY_BYTES:
+            return None
+        document = json.loads(encoded.decode("utf-8"))
+        detail = document.get("error")
+        if type(detail) is not dict:
+            return None
+        protected = []
+        def collect(value: Any) -> None:
+            if isinstance(value, dict):
+                for child in value.values(): collect(child)
+            elif isinstance(value, list):
+                for child in value: collect(child)
+            elif isinstance(value, str) and value:
+                protected.append(value.casefold())
+        collect(payload.get("contents", []))
+        collect(payload.get("systemInstruction", {}))
+        def collect_schema(value: Any) -> None:
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    if key in {"enum", "const", "default", "examples", "description", "title"}:
+                        collect(child)
+                    else:
+                        collect_schema(child)
+            elif isinstance(value, list):
+                for child in value: collect_schema(child)
+        collect_schema(payload.get("generationConfig", {}).get("responseJsonSchema", {}))
+        def clean(value: object, limit: int) -> str | None:
+            if not _safe_provider_error_text(value, limit):
+                return None
+            lower = value.casefold()
+            if api_key and api_key.casefold() in lower:
+                return None
+            for text in protected:
+                if len(text) < 12 and text.isascii() and text.isalnum():
+                    if re.search(r"(?<![a-z0-9])" + re.escape(text) + r"(?![a-z0-9])", lower):
+                        return None
+                elif text in lower:
+                    return None
+            if any(lower[index:index + 12] in text for index in range(max(0, len(lower) - 11)) for text in protected):
+                return None
+            return value
+        result: dict[str, Any] = {}
+        status = detail.get("status")
+        if type(status) is str and status in _GEMINI_DIAGNOSTIC_STATUSES:
+            result["status"] = status
+        message = clean(detail.get("message"), 768)
+        if message is not None: result["message"] = message
+        violations = []
+        details = detail.get("details", [])
+        if type(details) is list:
+            for item in details:
+                if type(item) is not dict or item.get("@type") != "type.googleapis.com/google.rpc.BadRequest":
+                    continue
+                rows = item.get("fieldViolations", [])
+                if type(rows) is not list: continue
+                for row in rows:
+                    if type(row) is not dict: continue
+                    kept = {key: clean(row.get(key), 256) for key in ("field", "description")}
+                    kept = {key: text for key, text in kept.items() if text is not None}
+                    if kept and len(violations) < 4: violations.append(kept)
+        if violations: result["fieldViolations"] = violations
+        return closed_gemini_provider_diagnostic(result)
+    except (AttributeError, TypeError, UnicodeError, ValueError, OSError, RecursionError, http.client.HTTPException):
+        return None
+
+
 class GeminiApiFailure(RuntimeError):
     """不攜帶 HTTP response、request header 或 credential 的封閉失敗分類。"""
 
-    def __init__(self, error_code: str, *, http_status: int | None = None) -> None:
+    def __init__(self, error_code: str, *, http_status: int | None = None, provider_diagnostic: dict[str, Any] | None = None) -> None:
         if error_code not in CLOSED_GEMINI_ERROR_CODES or not error_code.startswith("API_"):
             raise ValueError("Gemini API error code is not closed")
         self.error_code = error_code
@@ -2738,6 +2846,10 @@ class GeminiApiFailure(RuntimeError):
         self.http_status = diagnostic["http_status"] if diagnostic is not None else None
         self.http_status_class = (
             diagnostic["http_status_class"] if diagnostic is not None else None
+        )
+        self.provider_diagnostic = (
+            closed_gemini_provider_diagnostic(provider_diagnostic)
+            if self.http_status == 400 and error_code == "API_HTTP_ERROR" else None
         )
         super().__init__(error_code)
 
@@ -2966,7 +3078,8 @@ class GeminiClient:
                 encoded = response.read()
         except urllib.error.HTTPError as error:
             code = _gemini_error_code_for_http_error(error)
-            raise GeminiApiFailure(code, http_status=error.code) from None
+            diagnostic = _gemini_400_diagnostic(error, payload, self.api_key)
+            raise GeminiApiFailure(code, http_status=error.code, provider_diagnostic=diagnostic) from None
         except urllib.error.URLError as error:
             code = "API_TIMEOUT" if isinstance(error.reason, TimeoutError) else "API_TRANSPORT_ERROR"
             raise GeminiApiFailure(code) from None
