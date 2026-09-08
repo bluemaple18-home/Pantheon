@@ -2787,7 +2787,9 @@ def _omits_sampling_parameters(model: str) -> bool:
 
 def _has_provider_enum_limit(model: str) -> bool:
     parsed = _gemini_version_and_variant(model)
-    return parsed is not None and parsed[0] >= (3, 5) and parsed[1] == "flash-lite"
+    return model == "gemini-3.5-flash" or (
+        parsed is not None and parsed[0] >= (3, 5) and parsed[1] == "flash-lite"
+    )
 
 
 GEMINI_25_COMPLEX_SCHEMA_KEYS = frozenset(

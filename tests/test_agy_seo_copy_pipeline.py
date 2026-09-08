@@ -987,7 +987,18 @@ def test_latest_gemini_models_omit_deprecated_sampling_parameters(model: str) ->
     assert generation_config["responseJsonSchema"] is schema
 
 
-def test_gemini_35_flash_lite_strips_only_large_provider_enums() -> None:
+@pytest.mark.parametrize("model, strips_large", [
+    ("gemini-3.5-flash-lite", True),
+    ("gemini-3.5-flash", True),
+    ("gemini-3.1-flash-lite", False),
+    ("gemini-3.6-flash", False),
+    ("gemini-3.5-pro", False),
+    ("unknown", False),
+])
+@pytest.mark.parametrize("enum_count", [8, 9, 21])
+def test_provider_large_enum_compatibility_is_model_bounded(
+    model: str, strips_large: bool, enum_count: int,
+) -> None:
     calls: list[tuple[str, dict[str, object]]] = []
 
     def transport(model: str, payload: dict[str, object]) -> dict[str, object]:
@@ -996,7 +1007,7 @@ def test_gemini_35_flash_lite_strips_only_large_provider_enums() -> None:
 
     client = GeminiClient(
         api_key="redacted",
-        writer_model="gemini-3.5-flash-lite",
+        writer_model=model,
         transport=transport,
     )
     schema = {
@@ -1008,12 +1019,13 @@ def test_gemini_35_flash_lite_strips_only_large_provider_enums() -> None:
             },
             "source_fact_id": {
                 "type": "string",
-                "enum": [f"fact-{index:02d}" for index in range(17)],
+                "enum": [f"fact-{index:02d}" for index in range(enum_count)],
             },
         },
         "required": ["outline_slot", "source_fact_id"],
     }
 
+    canonical_before = json.dumps(schema, sort_keys=True)
     client.generate_json("writer", "writer prompt", schema)
 
     provider_schema = calls[0][1]["generationConfig"]["responseJsonSchema"]
@@ -1023,8 +1035,13 @@ def test_gemini_35_flash_lite_strips_only_large_provider_enums() -> None:
         "h2-3",
         "h2-4",
     ]
-    assert "enum" not in provider_schema["properties"]["source_fact_id"]
-    assert len(schema["properties"]["source_fact_id"]["enum"]) == 17
+    expected = json.loads(canonical_before)
+    if strips_large and enum_count > 8:
+        del expected["properties"]["source_fact_id"]["enum"]
+    assert provider_schema == expected
+    assert json.dumps(schema, sort_keys=True) == canonical_before
+    assert calls[0][0] == model
+    assert calls[0][1]["contents"][0]["parts"][0]["text"] == "writer prompt"
 
 
 def test_environment_defaults_to_direct_api_with_flash_writer_and_lite_reviewer(
