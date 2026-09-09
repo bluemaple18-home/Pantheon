@@ -2989,11 +2989,16 @@ def collect_ready_translation_runs(
             brief = multilingual.read_translation_brief_payload(brief_path)
         except (OSError, json.JSONDecodeError, ValueError):
             continue
-        if brief.get("mode") != "translate_existing" or run_id in published or run_id in deferred:
+        if brief.get("mode") != "translate_existing" or run_id in published:
+            continue
+        stage_present = (run_dir / "editorial-staging" / "current.json").exists()
+        if run_id in deferred and not stage_present:
             continue
         if not _retry_eligible(state_root, "translation", run_id):
             continue
         if state.get("status") == "failed":
+            if run_id in deferred:
+                continue
             _record_translation_deferred(state_root, run_id, f"run failed: {state.get('error_type') or 'unknown'}")
             continue
         if state.get("status") != "complete":
@@ -3008,14 +3013,21 @@ def collect_ready_translation_runs(
             multilingual.validate_translation_candidate(brief, candidate)
             pipeline.validate_review(review, candidate["articles"])
         except (OSError, json.JSONDecodeError, ValueError) as error:
+            if stage_present:
+                continue
             _record_translation_deferred(state_root, run_id, f"invalid translation result: {type(error).__name__}")
             continue
         approved_stage: dict[str, Any] | None = None
-        if not _review_is_clean_approve(review):
+        if stage_present or not _review_is_clean_approve(review):
             try:
                 approved_stage = multilingual.load_approved_edited_candidate_stage(run_dir)
                 seal = approved_stage["seal"]
                 terminal_owner = seal["terminal_owner"]
+                if run_id in deferred and not (
+                    terminal_owner["kind"] == "native_approved_attempt"
+                    and multilingual._duplicate_existing_deferral(ledger, run_id, seal.get("public_replacement"))
+                ):
+                    continue
                 if (
                     _file_sha256(_ledger_path(state_root)) != seal["publisher_ledger_sha256"]
                     or _file_sha256(state_path) != seal["queue_state_sha256"]
@@ -3032,13 +3044,20 @@ def collect_ready_translation_runs(
                     )
                 ):
                     raise ValueError("approved edited stage current locks differ")
+                if terminal_owner["kind"] == "native_approved_attempt":
+                    multilingual._locale_replacement_plan(repo_root, seal["public_replacement"],
+                        approved_stage["candidate"]["articles"][0], run_id)
                 candidate = approved_stage["candidate"]
                 review = approved_stage["review"]
             except (OSError, json.JSONDecodeError, ValueError):
+                if stage_present and (run_id in deferred or _review_is_clean_approve(review)):
+                    continue
                 _record_translation_deferred(state_root, run_id, "translation reviewer did not cleanly approve")
                 continue
         findings = multilingual.translation_findings(brief, candidate["articles"])
         if findings:
+            if approved_stage and approved_stage["seal"]["terminal_owner"]["kind"] == "native_approved_attempt":
+                continue
             _record_translation_deferred(state_root, run_id, f"translation deterministic findings: {len(findings)}")
             continue
         source_current = True
@@ -3052,6 +3071,8 @@ def collect_ready_translation_runs(
         except (OSError, subprocess.CalledProcessError, ValueError):
             source_current = False
         if not source_current:
+            if approved_stage and approved_stage["seal"]["terminal_owner"]["kind"] == "native_approved_attempt":
+                continue
             _record_translation_deferred(state_root, run_id, "translation source drift")
             continue
         if approved_stage is not None:

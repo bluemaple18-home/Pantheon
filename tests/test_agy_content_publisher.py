@@ -1899,10 +1899,14 @@ def _sealed_publisher_fixture(
 
 
 def _sealed_replacement_publisher_fixture(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, native: bool = False,
 ) -> tuple[dict[str, object], dict[str, object]]:
     from tests.test_agy_source_authority_contract import new_brief
-    fixture = replacement_approved_stage_fixture(tmp_path, source_contract=new_brief()["articles"][0]["source"])
+    from tests.test_agy_multilingual_pipeline import native_approved_stage_fixture, native_reviewer_replacement
+    factory = native_approved_stage_fixture if native else replacement_approved_stage_fixture
+    fixture = factory(tmp_path, source_contract=new_brief()["articles"][0]["source"])
+    if native:
+        native_reviewer_replacement(fixture)
     (fixture["repo_root"] / "pyproject.toml").write_text('[project]\nversion = "0.3.998"\n', encoding="utf-8")
     (fixture["repo_root"] / "package.json").write_text('{"version":"0.3.998","type":"module"}\n', encoding="utf-8")
     plan = publisher.multilingual.plan_approved_edited_candidate_stage(**fixture["kwargs"])
@@ -2008,10 +2012,11 @@ def test_approved_stage_publisher_dry_run_has_zero_runtime_mutation(
     assert _tree_bytes(tmp_path) == before
 
 
+@pytest.mark.parametrize("native", [False, True])
 def test_replacement_publisher_dry_run_recomputes_after_bytes_without_mutation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, native: bool,
 ) -> None:
-    fixture, _receipt = _sealed_replacement_publisher_fixture(tmp_path, monkeypatch)
+    fixture, _receipt = _sealed_replacement_publisher_fixture(tmp_path, monkeypatch, native=native)
     repo_root, queue_root, state_root = _sealed_publisher_roots(fixture)
     monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 1)
     (repo_root / ".git").mkdir(); (repo_root / ".git/agy-content-publisher.transaction.lock").touch()
@@ -2075,10 +2080,11 @@ def test_approved_stage_publish_binds_receipt_and_preserves_terminal_audit(
     assert {path: path.read_bytes() for path in audit_paths} == audit_before
 
 
+@pytest.mark.parametrize("native", [False, True])
 def test_replacement_publisher_applies_exact_module_and_binds_ledger(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, native: bool,
 ) -> None:
-    fixture, _receipt = _sealed_replacement_publisher_fixture(tmp_path, monkeypatch)
+    fixture, _receipt = _sealed_replacement_publisher_fixture(tmp_path, monkeypatch, native=native)
     repo_root, queue_root, state_root = _sealed_publisher_roots(fixture)
     (repo_root / ".git").mkdir(); fixture_path = repo_root / "cache-fixture.txt"
     fixture_path.write_text("stable\n", encoding="utf-8")
@@ -5111,12 +5117,13 @@ def test_replacement_publish_local_commit_before_prepared_fails_closed_without_r
      ("target", "malformed", "BLOCKED_TAG", False, False),
      ("target", "extra-line", "BLOCKED_TAG", False, False)],
 )
+@pytest.mark.parametrize("native", [False, True])
 def test_replacement_publish_reconciles_crash_after_push_before_ledger_without_second_release(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     initial_main: str, initial_tag: str | None, expected_second_push: str | None,
-    crash_after_ledger: bool, ledger_drift: bool,
+    crash_after_ledger: bool, ledger_drift: bool, native: bool,
 ) -> None:
-    fixture, _receipt = _sealed_replacement_publisher_fixture(tmp_path, monkeypatch)
+    fixture, _receipt = _sealed_replacement_publisher_fixture(tmp_path, monkeypatch, native=native)
     repo_root, queue_root, state_root = _sealed_publisher_roots(fixture)
     monkeypatch.setattr(publisher, "_public_article_count", lambda _repo: 1)
     ready = publisher.collect_ready_translation_runs(
@@ -6209,3 +6216,73 @@ def test_handoff_postpush_fault_never_rolls_back_or_republishes(tmp_path, monkey
     assert sum(args[0]=='push' for args in calls) == 1
     assert sum(args[0]=='commit' for args in calls) == 1
     assert not (state/'retry').exists()
+
+
+def test_native_stage_selector_replaces_one_record_and_repeated_apply_is_noop(tmp_path, monkeypatch):
+    fixture, receipt = _sealed_replacement_publisher_fixture(tmp_path, monkeypatch, native=True)
+    repo, queue, state_root = _sealed_publisher_roots(fixture)
+    ledger_before = fixture['publisher_ledger_path'].read_bytes()
+    manifest_before = fixture['manifest_path'].read_bytes()
+    ready = publisher.collect_ready_translation_runs(repo, queue, state_root)
+    assert len(ready) == 1
+    state, brief, candidate, review = ready[0]
+    assert state['_approved_revision_stage']['receipt_sha256']
+    approval = publisher.pipeline.build_approval(candidate['run_id'], candidate['articles'], review,
+        {candidate['articles'][0]['article_id']: 'APPROVE'}, 'offline-test')
+    def apply():
+        return publisher.multilingual.apply_approved_translations(repo, candidate['run_id'], brief, candidate,
+            review, approval, source_loader=publisher.multilingual.load_source_article,
+            public_replacement=state['_approved_revision_stage']['public_replacement'])
+    assert apply() == [fixture['module_path']]
+    after = _tree_bytes(repo)
+    with monkeypatch.context() as guard:
+        guard.setattr(publisher.multilingual, '_atomic_write_bytes', lambda *_: pytest.fail('重複 apply 不應寫檔'))
+        assert apply() == [fixture['module_path']]
+    assert _tree_bytes(repo) == after
+    records = publisher.multilingual._locale_inventory(repo)
+    assert len(records) == 2 and fixture['sibling'] in records
+    assert next(item for item in records if item['locale'] == 'en')['runId'] == candidate['run_id']
+    assert fixture['manifest_path'].read_bytes() == manifest_before
+    assert fixture['publisher_ledger_path'].read_bytes() == ledger_before
+    assert json.loads((fixture['run_dir']/'review.json').read_text()) == review
+
+
+@pytest.mark.parametrize('damage', ['missing_stage', 'payload', 'queue', 'ledger', 'deferral',
+    'candidate', 'review', 'source', 'request', 'lineage', 'published', 'module', 'manifest'])
+def test_native_stage_selector_fails_closed_without_writes(tmp_path, monkeypatch, damage):
+    fixture, receipt = _sealed_replacement_publisher_fixture(tmp_path, monkeypatch, native=True)
+    repo, queue, state_root = _sealed_publisher_roots(fixture)
+    if damage == 'missing_stage': Path(receipt['current_seal_path']).unlink()
+    elif damage == 'source':
+        monkeypatch.setattr(publisher.multilingual, 'load_source_article', lambda *_: {'wrong': True})
+    elif damage in ('deferral', 'published'):
+        path = fixture['publisher_ledger_path']; value = json.loads(path.read_text())
+        if damage == 'deferral': value['translation_deferred_runs'][0]['reason'] = 'other'
+        else: value['translation_published_runs'].append({'run_id': fixture['kwargs']['expected_run_id']})
+        _write_json(path, value)
+    else:
+        path = {'payload': Path(receipt['payload_path']), 'queue': fixture['queue_state_path'],
+            'ledger': fixture['publisher_ledger_path'], 'candidate': fixture['run_dir']/'candidate.json',
+            'review': fixture['run_dir']/'review.json', 'request': fixture['request_path'],
+            'lineage': fixture['decision_path'], 'module': fixture['module_path'], 'manifest': fixture['manifest_path']}[damage]
+        path.write_bytes(path.read_bytes() + b'\n')
+    before = _tree_bytes(tmp_path)
+    assert publisher.collect_ready_translation_runs(repo, queue, state_root) == []
+    assert _tree_bytes(tmp_path) == before
+
+
+def test_native_unstaged_duplicate_still_rejected(tmp_path, monkeypatch):
+    fixture, receipt = _sealed_replacement_publisher_fixture(tmp_path, monkeypatch, native=True)
+    repo, queue, state_root = _sealed_publisher_roots(fixture)
+    Path(receipt['current_seal_path']).unlink()
+    ledger = json.loads(fixture['publisher_ledger_path'].read_text())
+    ledger['translation_deferred_runs'] = []; _write_json(fixture['publisher_ledger_path'], ledger)
+    state, brief, candidate, review = publisher.collect_ready_translation_runs(repo, queue, state_root)[0]
+    assert '_approved_revision_stage' not in state
+    approval = publisher.pipeline.build_approval(candidate['run_id'], candidate['articles'], review,
+        {candidate['articles'][0]['article_id']: 'APPROVE'}, 'offline-test')
+    before = _tree_bytes(tmp_path)
+    with pytest.raises(ValueError, match='translation already exists'):
+        publisher.multilingual.apply_approved_translations(repo, candidate['run_id'], brief, candidate, review, approval,
+            source_loader=publisher.multilingual.load_source_article)
+    assert _tree_bytes(tmp_path) == before

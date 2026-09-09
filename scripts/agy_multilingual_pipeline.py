@@ -3134,6 +3134,111 @@ def _validate_approved_stage_formal_identity(
         raise ValueError("formal review identity is invalid")
 
 
+def _approved_stage_identity_path(result_path: Path, kind: str) -> Path:
+    if kind == "native_approved_attempt":
+        return result_path.parent.parent / "archive" / result_path.name
+    return result_path.parent / "formal-request-identity.json"
+
+
+def _duplicate_existing_deferral(ledger: dict[str, Any], run_id: str, descriptor: dict[str, Any] | None) -> bool:
+    entries = [item for item in ledger.get("translation_deferred_runs", []) if item.get("run_id") == run_id]
+    return bool(descriptor and entries) and all(
+        item.get("reason") == f"translation apply failed: translation already exists: {descriptor['source_article_id']}:{descriptor['locale']}"
+        for item in entries
+    )
+
+
+def _native_approved_stage_owner(
+    run_dir: Path, state_path: Path, request: dict[str, Any], response: dict[str, Any],
+    brief: dict[str, Any], candidate: dict[str, Any], review: dict[str, Any],
+) -> dict[str, Any]:
+    """以既有 outbox authority 驗證首輪核准；所有讀取均不產生外部工作。"""
+    from scripts import agy_gemini_outbox as outbox
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    run_id = brief["run_id"]; lane = state.get("lane")
+    namespace = hashlib.sha256(run_id.encode()).hexdigest()[:24]
+    continuation = run_dir / "continuation"
+    # root-update 完成後可留下空目錄；任何續代 authority 或不安全路徑都拒絕。
+    if os.path.lexists(continuation) and (continuation.is_symlink() or not continuation.is_dir()
+            or continuation.resolve(strict=True) != continuation or any(continuation.iterdir())):
+        raise ValueError("native approved attempt continuation differs")
+    if (state.get("run_id") != run_id or state.get("run_dir") != str(run_dir)
+            or state.get("status") != "complete" or lane not in TRANSLATION_IDENTITY_LANES
+            or state_path.name != f"{namespace}.json" or state_path.parent.name != "runs"
+            or state.get("result", {}).get("candidate") != str(run_dir / "candidate.json")
+            or state.get("identity_envelope") != translation_identity_envelope(candidate["articles"][0]["source_article_id"], lane)
+            or any(key in state for key in ("replacement_of", "replacement_reason"))
+            or os.path.lexists(run_dir / "generations")
+            or sorted(path.name for path in (run_dir / "attempts").iterdir()) != ["01"]):
+        raise ValueError("native approved attempt lineage differs")
+    audit = run_dir / "attempts" / "01"
+    if audit.resolve(strict=True) != audit or any(path.is_symlink() for path in audit.rglob("*")):
+        raise ValueError("native approved attempt audit path differs")
+    for name, value in (("candidate.json", candidate), ("review.json", review)):
+        if (json.loads((run_dir / name).read_text(encoding="utf-8")) != value
+                or (run_dir / name).read_bytes() != (audit / name).read_bytes()):
+            raise ValueError("native approved attempt root audit differs")
+    job_root = state_path.parents[1] / "lanes" / lane
+    job_id = str(state.get("last_job_id") or "")
+    if re.fullmatch(r"[0-9a-f]{40}", job_id) is None:
+        raise ValueError("native approved reviewer job differs")
+    request_path = job_root / "archive" / f"{job_id}.json"
+    response_path = job_root / "inbox" / f"{job_id}.json"
+    evidence = [state_path, request_path, response_path]
+    actual = outbox._load_known_external_request(job_root, job_id)
+    operation = json.loads((audit / "reviewer-operation.json").read_text(encoding="utf-8"))
+    plan = json.loads((audit / "locale-plan.json").read_text(encoding="utf-8"))
+    findings = json.loads((audit / "deterministic-findings.json").read_text(encoding="utf-8"))
+    if (findings != [*_candidate_plan_findings(candidate, plan), *translation_findings(brief, candidate["articles"])]
+            or actual != request or json.loads(response_path.read_text(encoding="utf-8")) != response
+            or request["namespace"] != namespace or request["role"] != "reviewer"
+            or request["prompt"] != _reviewer_prompt(brief, candidate, findings, plan=plan)
+            or request["response_schema"] != pipeline.external_review_schema()
+            or operation.get("status") != "success" or operation.get("transport") != "_outbox_transport"
+            or operation.get("fresh_headless_process") is not True
+            or any(operation.get(key) != request[key] for key in
+                   ("role", "model", "thinking_level", "prompt_sha256", "schema_sha256"))):
+        raise ValueError("native approved reviewer request differs")
+    replacement = request.get("replacement")
+    if replacement:
+        source = outbox._load_known_external_request(job_root, replacement["source_job_id"])
+        outbox.validate_external_failure_receipt(job_root, source)
+        if outbox._load_failed_external_replacement(job_root, source) != request:
+            raise ValueError("native approved reviewer replacement differs")
+        decision = outbox.failed_external_replacement_decision_path(job_root, source["job_id"])
+        evidence.extend([outbox._known_external_request_path(job_root, source["job_id"]),
+                         job_root / "failed" / f"{source['job_id']}.json", decision])
+        lineage = state.get("failed_external_job_replacement", {})
+        if not isinstance(lineage, dict) or any(lineage.get(key) != value for key, value in {
+            "lane": lane, "namespace": namespace, "source_job_id": source["job_id"],
+            "replacement_job_id": job_id, "request_sha256": request["request_sha256"],
+            "authority_digest": replacement["authority_digest"], "replacement_lineage_id": replacement["lineage_id"],
+            "decision": decision.relative_to(state_path.parents[1]).as_posix(),
+        }.items()):
+            raise ValueError("native approved reviewer queue lineage differs")
+    elif state.get("failed_external_job_replacement"):
+        raise ValueError("native approved reviewer queue lineage differs")
+    try:
+        external = outbox.consume_external_response(job_root, request)
+    except (outbox.ExternalJobPending, outbox.ExternalJobFailed) as error:
+        raise ValueError("native approved reviewer response is not successful") from error
+    if (external != json.loads((audit / "external-review.json").read_text(encoding="utf-8"))
+            or _review_generated_candidate(brief, candidate, external, findings) != review
+            or not _review_approved(review)):
+        raise ValueError("native approved reviewer result differs")
+    for path in evidence:
+        if path.is_symlink() or path.resolve(strict=True) != path:
+            raise ValueError("native approved evidence path differs")
+    return {
+        "kind": "native_approved_attempt", "queue_state_path": str(state_path),
+        "replacement_reason": "native approved existing locale replacement",
+        "root_candidate_sha256": _file_sha256(run_dir / "candidate.json"),
+        "root_review_sha256": _file_sha256(run_dir / "review.json"),
+        "terminal_audit_tree_sha256": _tree_sha256(run_dir / "attempts"),
+        "native_evidence_sha256": _json_sha256([_file_sha256(path) for path in evidence]),
+    }
+
+
 def _approved_stage_path(
     run_dir: Path,
     relative: str,
@@ -3361,7 +3466,7 @@ def plan_approved_edited_candidate_stage(
         raise ValueError("actor hash is invalid")
     if expected_run_id.strip() != expected_run_id or not expected_run_id:
         raise ValueError("approved edited stage run id is invalid")
-    formal_job_identity_path = formal_review_result_path.parent / "formal-request-identity.json"
+    formal_job_identity_path = _approved_stage_identity_path(formal_review_result_path, terminal_owner_kind)
     input_paths = (run_dir / "brief.json", run_dir / "candidate.json", run_dir / "review.json",
                    approved_candidate_path, approved_review_path, formal_review_result_path,
                    queue_state_path, publisher_ledger_path, formal_job_identity_path)
@@ -3376,8 +3481,20 @@ def plan_approved_edited_candidate_stage(
     pipeline.validate_review(root_review, root_candidate["articles"])
     pipeline.validate_review(approved_review, approved_candidate["articles"])
     approved_article_sha256 = pipeline.article_sha256(approved_candidate["articles"][0])
-    _validate_approved_stage_formal_identity(formal_job_identity, formal_result, approved_review,
-                                             expected_run_id, approved_article_sha256)
+    native_owner = None
+    if terminal_owner_kind == "native_approved_attempt":
+        if any(value is not None for value in (terminal_generation, terminal_attempt, replacement_of,
+                replacement_reason, expected_continuation_state_sha256, expected_replacement_state_sha256)):
+            raise ValueError("approved stage terminal owner fields are mixed")
+        native_owner = _native_approved_stage_owner(run_dir, queue_state_path, formal_job_identity,
+                                                   formal_result, brief, approved_candidate, approved_review)
+        if (approved_candidate_path.read_bytes() != (run_dir / "candidate.json").read_bytes()
+                or approved_review_path.read_bytes() != (run_dir / "review.json").read_bytes()
+                or formal_review_result_path != queue_state_path.parents[1] / "lanes" / queue_state["lane"] / "inbox" / f"{queue_state['last_job_id']}.json"):
+            raise ValueError("native approved input bytes differ")
+    else:
+        _validate_approved_stage_formal_identity(formal_job_identity, formal_result, approved_review,
+                                                 expected_run_id, approved_article_sha256)
     if any(item.get("run_id") != expected_run_id for item in
            (brief, root_candidate, root_review, approved_candidate, approved_review)):
         raise ValueError("approved edited stage run identity differs")
@@ -3404,10 +3521,13 @@ def plan_approved_edited_candidate_stage(
         item.get("run_id") == expected_run_id
         for key in ("translation_published_runs", "translation_deferred_runs")
         for item in publisher_ledger.get(key, [])
-        if isinstance(item, dict)
+        if isinstance(item, dict) and not (
+            key == "translation_deferred_runs" and native_owner is not None
+            and _duplicate_existing_deferral(publisher_ledger, expected_run_id, public_replacement)
+        )
     ):
         raise ValueError("publisher ledger lifecycle is not stageable")
-    terminal_owner = _approved_stage_terminal_owner(
+    terminal_owner = native_owner or _approved_stage_terminal_owner(
         run_dir=run_dir, kind=terminal_owner_kind, queue_state=queue_state,
         root_candidate=root_candidate, root_review=root_review,
         expected_root_candidate_sha256=expected_root_candidate_sha256,
@@ -3418,7 +3538,7 @@ def plan_approved_edited_candidate_stage(
         replacement_reason=replacement_reason,
         expected_replacement_state_sha256=expected_replacement_state_sha256,
     )
-    if terminal_owner_kind == "replacement_attempt":
+    if terminal_owner_kind in {"replacement_attempt", "native_approved_attempt"}:
         if public_replacement is None:
             raise ValueError("replacement stage requires public replacement descriptor")
         _locale_replacement_plan(repo_root, public_replacement, approved_candidate["articles"][0], expected_run_id)
@@ -3491,6 +3611,8 @@ def apply_approved_edited_candidate_stage(
     inputs = dict(locals())
     expected_plan_digest = _require_sha256_digest(inputs.pop("expected_plan_digest"), "plan digest")
     stage_lock = _continuation_run_lock if terminal_owner_kind == "continuation_generation" else _approved_stage_run_lock
+    if terminal_owner_kind == "native_approved_attempt":
+        plan_approved_edited_candidate_stage(**inputs)
     with stage_lock(run_dir):
         plan = plan_approved_edited_candidate_stage(**inputs)
         if plan["plan_digest"] != expected_plan_digest:
@@ -3508,7 +3630,7 @@ def apply_approved_edited_candidate_stage(
             "candidate": json.loads(approved_candidate_path.read_text(encoding="utf-8")),
             "review": json.loads(approved_review_path.read_text(encoding="utf-8")),
             "formal_review_result": json.loads(formal_review_result_path.read_text(encoding="utf-8")),
-            "formal_job_identity": json.loads((formal_review_result_path.parent / "formal-request-identity.json").read_text(encoding="utf-8")),
+            "formal_job_identity": json.loads(_approved_stage_identity_path(formal_review_result_path, terminal_owner_kind).read_text(encoding="utf-8")),
         }
         rollback_receipt = {
             "schema_version": SCHEMA_VERSION, "contract": "approved-edited-candidate-stage-rollback",
@@ -3592,8 +3714,14 @@ def _load_approved_edited_candidate_stage_record(
     validate_translation_candidate(brief, candidate)
     pipeline.validate_review(review, candidate["articles"])
     approved_article_sha256 = pipeline.article_sha256(candidate["articles"][0])
-    _validate_approved_stage_formal_identity(formal_job_identity, formal_result, review,
-                                             str(seal["run_id"]), approved_article_sha256)
+    if seal.get("terminal_owner", {}).get("kind") == "native_approved_attempt":
+        owner = seal["terminal_owner"]
+        if _native_approved_stage_owner(run_dir, Path(owner["queue_state_path"]), formal_job_identity,
+                                       formal_result, brief, candidate, review) != owner:
+            raise ValueError("native approved stage evidence drift")
+    else:
+        _validate_approved_stage_formal_identity(formal_job_identity, formal_result, review,
+                                                 str(seal["run_id"]), approved_article_sha256)
     if (_json_sha256(formal_job_identity) != seal["formal_job_identity_content_sha256"]
             or formal_job_identity["job_id"] != seal["formal_job_id"]
             or formal_job_identity["request_sha256"] != seal["formal_request_sha256"]):
@@ -3607,10 +3735,11 @@ def _load_approved_edited_candidate_stage_record(
     if not isinstance(terminal_owner, dict):
         raise ValueError("approved edited stage terminal owner is invalid")
     kind = terminal_owner.get("kind")
-    expected_owner_keys = continuation_keys if kind == "continuation_generation" else replacement_keys
-    if kind not in {"continuation_generation", "replacement_attempt"} or set(terminal_owner) != expected_owner_keys:
+    native_keys = common_owner_keys | {"queue_state_path", "native_evidence_sha256", "replacement_reason"}
+    expected_owner_keys = native_keys if kind == "native_approved_attempt" else continuation_keys if kind == "continuation_generation" else replacement_keys
+    if kind not in {"continuation_generation", "replacement_attempt", "native_approved_attempt"} or set(terminal_owner) != expected_owner_keys:
         raise ValueError("approved edited stage terminal owner is invalid")
-    if (kind == "replacement_attempt") != ("public_replacement" in seal):
+    if (kind in {"replacement_attempt", "native_approved_attempt"}) != ("public_replacement" in seal):
         raise ValueError("approved edited stage public replacement owner differs")
     current_locks = [
         (run_dir / "candidate.json", terminal_owner["root_candidate_sha256"]),
@@ -3624,6 +3753,8 @@ def _load_approved_edited_candidate_stage_record(
             (audit_dir / "candidate.json", terminal_owner["terminal_generation_candidate_sha256"]),
             (audit_dir / "review.json", terminal_owner["terminal_generation_review_sha256"]),
         ))
+    elif kind == "native_approved_attempt":
+        audit_dir = run_dir / "attempts"
     else:
         if terminal_owner.get("terminal_attempt") != 3:
             raise ValueError("approved edited stage terminal owner is invalid")
@@ -4833,7 +4964,7 @@ def parse_args() -> argparse.Namespace:
     stage = subparsers.add_parser("stage-approved-edited-candidate")
     for name in ("run-dir", "approved-candidate", "approved-review", "formal-review-result", "queue-state", "publisher-ledger"):
         stage.add_argument(f"--{name}", type=Path, required=True)
-    stage.add_argument("--terminal-owner-kind", choices=("continuation_generation", "replacement_attempt"), required=True)
+    stage.add_argument("--terminal-owner-kind", choices=("continuation_generation", "replacement_attempt", "native_approved_attempt"), required=True)
     stage.add_argument("--terminal-generation", type=int)
     stage.add_argument("--terminal-attempt", type=int)
     stage.add_argument("--replacement-of")

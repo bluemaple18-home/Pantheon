@@ -6169,3 +6169,209 @@ def test_handoff_orphan_brief_drift_is_not_overwritten(tmp_path):
     with pytest.raises(ValueError, match='unregistered translation brief source drift'):
         multilingual.prepare_translation_run(tmp_path, 'source-01', 'TEST-001', ['en'], tmp_path/'runs', source_loader=lambda *_: source)
     assert path.read_bytes() == before
+
+
+def native_approved_stage_fixture(tmp_path: Path, *, source_contract=None) -> dict:
+    """沿用 replacement fixture，改成未經退件的首輪 native 核准。"""
+    from scripts import agy_gemini_outbox as outbox
+    fixture = replacement_approved_stage_fixture(tmp_path, source_contract=source_contract)
+    run = fixture['run_dir']; kwargs = fixture['kwargs']
+    for name in ('continuation', 'attempts/02', 'attempts/03'):
+        shutil.rmtree(run / name)
+    for key in ('terminal_attempt', 'replacement_of', 'replacement_reason', 'expected_replacement_state_sha256'):
+        kwargs.pop(key)
+    kwargs['terminal_owner_kind'] = 'native_approved_attempt'
+    candidate = json.loads((run/'candidate.json').read_text()); review = fixture['approved_review']
+    brief = json.loads((run / 'brief.json').read_text())
+    external = {'articles': [{'slot': 'article-01', 'verdict': 'APPROVE', 'findings': []}]}
+    plan = multilingual._candidate_outline_plan(candidate)
+    for path, payload in ((run/'review.json', review), (run/'attempts/01/review.json', review),
+                          (run/'attempts/01/external-review.json', external),
+                          (run/'attempts/01/locale-plan.json', plan),
+                          (run/'attempts/01/deterministic-findings.json', [])):
+        write_stage_json(path, payload)
+    state_path = fixture['queue_state_path']; state = json.loads(state_path.read_text())
+    for key in ('replacement_of', 'replacement_reason'):
+        state.pop(key)
+    namespace = hashlib.sha256(candidate['run_id'].encode()).hexdigest()[:24]
+    state_path = state_path.with_name(namespace + '.json')
+    fixture['queue_state_path'].unlink(); fixture['queue_state_path'] = state_path
+    kwargs['queue_state_path'] = state_path
+    request = outbox.build_external_request(namespace=namespace, role='reviewer',
+        model=multilingual.pipeline.DEFAULT_REVIEWER_MODEL,
+        prompt=multilingual._reviewer_prompt(brief, candidate, [], plan=plan),
+        response_schema=multilingual.pipeline.external_review_schema())
+    state.update(lane='i18n-rewrite', last_job_id=request['job_id'],
+                 identity_envelope=multilingual.translation_identity_envelope(candidate['articles'][0]['source_article_id'], 'i18n-rewrite'))
+    write_stage_json(state_path, state)
+    job_root = state_path.parents[1] / 'lanes/i18n-rewrite'
+    request_path = job_root/'archive'/f"{request['job_id']}.json"
+    result_path = job_root/'inbox'/request_path.name
+    response = dict(schema_version=1, job_id=request['job_id'], request_sha256=request['request_sha256'],
+                    model=request['model'], completed_at='2026-09-09T00:00:00Z', result=external)
+    write_stage_json(request_path, request); write_stage_json(result_path, response)
+    write_stage_json(run/'attempts/01/reviewer-operation.json', {
+        'status': 'success', 'role': 'reviewer', 'model': request['model'],
+        'prompt_sha256': request['prompt_sha256'], 'schema_sha256': request['schema_sha256'],
+        'thinking_level': 'LOW', 'transport': '_outbox_transport', 'fresh_headless_process': True})
+    ledger = json.loads(fixture['publisher_ledger_path'].read_text())
+    article = candidate['articles'][0]
+    ledger['translation_deferred_runs'] = [{'run_id': candidate['run_id'], 'recorded_at': '2026-09-09',
+        'reason': f"translation apply failed: translation already exists: {article['source_article_id']}:{article['locale']}"}]
+    write_stage_json(fixture['publisher_ledger_path'], ledger)
+    kwargs.update(approved_candidate_path=run/'candidate.json', approved_review_path=run/'review.json',
+                  formal_review_result_path=result_path)
+    for key, path in (('root_candidate', run/'candidate.json'), ('root_review', run/'review.json'),
+                      ('queue_state', state_path), ('publisher_ledger', fixture['publisher_ledger_path']),
+                      ('approved_candidate', run/'candidate.json'), ('approved_review', run/'review.json'),
+                      ('formal_review_result', result_path)):
+        kwargs[f'expected_{key}_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return {**fixture, 'request_path': request_path, 'job_root': job_root}
+
+
+def test_native_approved_stage_without_fake_reject(tmp_path: Path) -> None:
+    fixture = native_approved_stage_fixture(tmp_path)
+    kwargs = fixture['kwargs']
+    plan = multilingual.plan_approved_edited_candidate_stage(**kwargs)
+    receipt = multilingual.apply_approved_edited_candidate_stage(**kwargs, expected_plan_digest=plan['plan_digest'])
+    loaded = multilingual.load_approved_edited_candidate_stage(fixture['run_dir'])
+    assert loaded['review'] == fixture['approved_review']
+    assert loaded['seal']['terminal_owner']['kind'] == 'native_approved_attempt'
+    assert receipt['formal_job_id'] == json.loads(fixture['request_path'].read_text())['job_id']
+    assert multilingual.apply_approved_edited_candidate_stage(**kwargs, expected_plan_digest=plan['plan_digest'])['status'] == 'ALREADY_STAGED'
+
+
+def native_reviewer_replacement(fixture: dict) -> None:
+    """沿既有 outbox 建立合法 503 replacement，保留 request SHA。"""
+    from scripts import agy_gemini_outbox as outbox
+    from tests.test_agy_gemini_outbox import _failure_receipt
+    read = lambda path: json.loads(path.read_text())
+    source = read(fixture['request_path']); root = fixture['job_root']; kwargs = fixture['kwargs']
+    request = outbox.build_external_replacement_request(source, authority_digest='a' * 64)
+    request_path = root/'archive'/f"{request['job_id']}.json"
+    write_stage_json(request_path, request)
+    failure = _failure_receipt(source, error_type='GeminiApiFailure', error_code='API_HTTP_ERROR')
+    failure.update(http_status=503, http_status_class='5xx')
+    write_stage_json(root/'failed'/fixture['request_path'].name, failure)
+    decision_path = outbox.failed_external_replacement_decision_path(root, source['job_id'])
+    decision = dict(schema_version=1, status='replacement_created', action='replace_failed_external_job',
+        run_id=kwargs['expected_run_id'], lane='i18n-rewrite', correlation_id=None,
+        namespace=source['namespace'], source_job_id=source['job_id'], replacement_job_id=request['job_id'],
+        request_sha256=source['request_sha256'], model=source['model'], role='reviewer', source_transport_attempt=0,
+        authority_digest='a' * 64, replacement_lineage_id=request['replacement']['lineage_id'],
+        request_file_sha256=hashlib.sha256(request_path.read_bytes()).hexdigest(), created_at='2026-09-09',
+        to='outbox')
+    decision['from'] = 'archive+failed'; write_stage_json(decision_path, decision)
+    state = read(fixture['queue_state_path']); state['last_job_id'] = request['job_id']
+    state['failed_external_job_replacement'] = {key: decision[key] for key in
+        ('lane', 'namespace', 'source_job_id', 'replacement_job_id', 'request_sha256', 'authority_digest', 'replacement_lineage_id')}
+    state['failed_external_job_replacement']['decision'] = decision_path.relative_to(fixture['queue_state_path'].parents[1]).as_posix()
+    write_stage_json(fixture['queue_state_path'], state)
+    response = read(kwargs['formal_review_result_path']); response['job_id'] = request['job_id']
+    kwargs['formal_review_result_path'].unlink()
+    kwargs['formal_review_result_path'] = root/'inbox'/request_path.name
+    write_stage_json(kwargs['formal_review_result_path'], response)
+    kwargs['expected_formal_review_result_sha256'] = hashlib.sha256(kwargs['formal_review_result_path'].read_bytes()).hexdigest()
+    kwargs['expected_queue_state_sha256'] = hashlib.sha256(fixture['queue_state_path'].read_bytes()).hexdigest()
+    fixture.update(request_path=request_path, decision_path=decision_path)
+    assert outbox.consume_external_response(root, source) == response['result']
+    assert request['job_id'] != request['request_sha256'][:40]
+
+
+def test_native_approved_stage_accepts_real_outbox_replacement_shape(tmp_path: Path) -> None:
+    fixture = native_approved_stage_fixture(tmp_path); native_reviewer_replacement(fixture)
+    plan = multilingual.plan_approved_edited_candidate_stage(**fixture['kwargs'])
+    multilingual.apply_approved_edited_candidate_stage(**fixture['kwargs'], expected_plan_digest=plan['plan_digest'])
+    assert multilingual.load_approved_edited_candidate_stage(fixture['run_dir'])['review'] == fixture['approved_review']
+
+
+@pytest.mark.parametrize('damage', [
+    'old_run_id', 'old_record_sha256', 'module_before_sha256', 'manifest_sha256', 'replacement_source_sha256',
+    'approved_article_sha256', 'candidate', 'review', 'root_bytes', 'attempt_bytes', 'next_attempt', 'continuation',
+    'replacement_owner', 'last_job_id', 'namespace', 'model', 'plan', 'prompt', 'schema', 'response', 'lineage',
+    'queue_lineage', 'failure', 'deferral', 'mixed_deferral', 'published',
+])
+def test_native_approved_stage_rejects_drift_without_writes(tmp_path: Path, damage: str) -> None:
+    fixture = native_approved_stage_fixture(tmp_path); native_reviewer_replacement(fixture)
+    kwargs = fixture['kwargs']; run = fixture['run_dir']; state_path = fixture['queue_state_path']
+    original_plan = multilingual.plan_approved_edited_candidate_stage(**kwargs)
+    def change(path, edit):
+        payload = json.loads(path.read_text()); edit(payload); write_stage_json(path, payload)
+    descriptor = kwargs['public_replacement']
+    if damage in descriptor:
+        descriptor[damage] = 'wrong' if damage == 'old_run_id' else 'f' * 64
+    elif damage in ('candidate', 'review'):
+        change(run/f'{damage}.json', lambda value: value.update(run_id='wrong'))
+    elif damage in ('root_bytes', 'attempt_bytes'):
+        path = run/('candidate.json' if damage == 'root_bytes' else 'attempts/01/review.json')
+        path.write_bytes(path.read_bytes() + b'\n')
+    elif damage in ('next_attempt', 'continuation'):
+        (run/('attempts/02' if damage == 'next_attempt' else 'continuation')).mkdir()
+        if damage == 'continuation': write_stage_json(run/'continuation/state.json', {})
+    elif damage in ('replacement_owner', 'last_job_id', 'queue_lineage'):
+        change(state_path, lambda value: value.update(**{
+            'replacement_of' if damage == 'replacement_owner' else 'last_job_id' if damage == 'last_job_id' else 'failed_external_job_replacement': 'wrong'}))
+    elif damage in ('namespace', 'model', 'prompt', 'schema'):
+        change(fixture['request_path'], lambda value: value.update(**{'response_schema' if damage == 'schema' else damage: 'wrong'}))
+    elif damage == 'plan':
+        change(run/'attempts/01/locale-plan.json', lambda value: value['articles'][0]['ordered_h2_outline'].append('wrong'))
+    elif damage == 'response':
+        change(kwargs['formal_review_result_path'], lambda value: value.update(request_sha256='f' * 64))
+    elif damage in ('lineage', 'failure'):
+        path = fixture['decision_path'] if damage == 'lineage' else next((fixture['job_root']/'failed').iterdir())
+        change(path, lambda value: value.update(request_sha256='f' * 64))
+    else:
+        def edit(ledger):
+            if damage == 'published': ledger['translation_published_runs'].append({'run_id': kwargs['expected_run_id']})
+            elif damage == 'mixed_deferral': ledger['translation_deferred_runs'].append({'run_id': kwargs['expected_run_id'], 'reason': 'other'})
+            else: ledger['translation_deferred_runs'][0]['reason'] += ' other'
+        change(fixture['publisher_ledger_path'], edit)
+        kwargs['expected_publisher_ledger_sha256'] = hashlib.sha256(fixture['publisher_ledger_path'].read_bytes()).hexdigest()
+    before = {str(p): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    with pytest.raises((ValueError, OSError)):
+        multilingual.plan_approved_edited_candidate_stage(**kwargs)
+    with pytest.raises((ValueError, OSError)):
+        multilingual.apply_approved_edited_candidate_stage(**kwargs, expected_plan_digest=original_plan['plan_digest'])
+    assert {str(p): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()} == before
+
+
+@pytest.mark.parametrize('damage', ['audit', 'request', 'response', 'decision', 'queue', 'continuation'])
+def test_native_approved_stage_revalidates_live_authority(tmp_path: Path, damage: str) -> None:
+    fixture = native_approved_stage_fixture(tmp_path); native_reviewer_replacement(fixture)
+    plan = multilingual.plan_approved_edited_candidate_stage(**fixture['kwargs'])
+    multilingual.apply_approved_edited_candidate_stage(**fixture['kwargs'], expected_plan_digest=plan['plan_digest'])
+    if damage == 'continuation': write_stage_json(fixture['run_dir']/'continuation/state.json', {})
+    else:
+        path = {'audit': fixture['run_dir']/'attempts/01/reviewer-operation.json',
+                'request': fixture['request_path'], 'response': fixture['kwargs']['formal_review_result_path'],
+                'decision': fixture['decision_path'], 'queue': fixture['queue_state_path']}[damage]
+        path.write_bytes(path.read_bytes() + b'\n')
+    with pytest.raises(ValueError):
+        multilingual.load_approved_edited_candidate_stage(fixture['run_dir'])
+
+
+@pytest.mark.parametrize('residue', ['empty', 'state', 'transaction', 'lock', 'file', 'symlink', 'dangling', 'unreadable'])
+def test_native_approved_stage_continuation_residue_is_closed(tmp_path, monkeypatch, residue):
+    fixture = native_approved_stage_fixture(tmp_path); run = fixture['run_dir']; path = run/'continuation'
+    if residue in ('symlink', 'dangling'):
+        target = tmp_path/'target'
+        if residue == 'symlink': target.mkdir()
+        path.symlink_to(target, target_is_directory=True)
+    elif residue == 'file': path.write_text('')
+    else:
+        path.mkdir()
+        if residue in ('state', 'transaction', 'lock'):
+            (path/{'state':'state.json', 'transaction':'root-update.json', 'lock':'continuation.lock'}[residue]).write_text('{}')
+    before = protected_stage_snapshot(fixture)
+    if residue == 'unreadable':
+        original = Path.iterdir
+        def enumerate_path(value):
+            if value == path: raise OSError('unreadable')
+            return original(value)
+        monkeypatch.setattr(Path, 'iterdir', enumerate_path)
+    if residue == 'empty':
+        assert multilingual.plan_approved_edited_candidate_stage(**fixture['kwargs'])['status'] == 'READY_TO_EXECUTE'
+    else:
+        with pytest.raises((ValueError, OSError)):
+            multilingual.plan_approved_edited_candidate_stage(**fixture['kwargs'])
+    assert protected_stage_snapshot(fixture) == before
