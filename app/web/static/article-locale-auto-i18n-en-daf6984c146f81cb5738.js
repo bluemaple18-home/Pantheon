@@ -2,70 +2,77 @@
 
 export const AUTO_I18N_EN_DAF6984C146F81CB5738_ARTICLE_LOCALES = [
   {
-    "runId": "auto-i18n-en-daf6984c146f81cb5738",
+    "runId": "auto-i18n-en-4f04d2097863fac9e068",
     "articleId": "ASTRO-LOVE-01",
     "locale": "en",
     "sourcePath": "/articles/astrology/astrology-0004",
-    "sourceSha256": "27cff5b1237771c1ec9bb324dcbaa03adf7120dc190f5627ae90ea24413d2ca0",
-    "answer": "Use a relationship horoscope as a prompt for observation, not as a forecast. Compare its themes about communication, security, and interaction patterns with what actually happens between you. No reading can reveal someone's unspoken intentions or decide where the relationship will go.",
+    "sourceSha256": "1cecc8921397a268ee79349080a49e5f2ff0c9fe175c32cde2052c87519e14d4",
+    "answer": "Love horoscopes help you understand relationship expression, emotional security, and pacing, but they cannot directly predict the ultimate outcome of your relationship.",
     "bodySections": [
       {
-        "heading": "Focusing on Personal Life and Boundaries",
+        "heading": "How Love Horoscopes Guide Your Real-World Relationship Pace",
         "paragraphs": [
-          "An unanswered message or an uncertain relationship can make a horoscope feel unusually convincing. It may give you language for communication habits, security needs, or the pace of an interaction, but it cannot tell you how the relationship will end. That boundary matters most when anxiety is pushing you to look for certainty.",
-          "Bring some of that attention back to your own day. Make dinner, see a friend, return to a hobby, or spend quiet time reading or working. Keeping your routines and social life intact gives you a steadier source of security than notifications or predictions, whether you are single or in a relationship."
+          "To understand love horoscopes constructively, you must first clarify what the Sun, Moon, and Rising signs represent. Many people treat romantic predictions as absolute destiny, but a birth chart actually reflects your emotional habits and communication patterns rather than a fixed outcome. When a relationship hits a bottleneck, your primary step should be observing your actual, real-world interactions instead of rushing to search for astrological prophecies.",
+          "For instance, if someone you are dating starts replying slowly or seems distant after a meetup, do not waste energy guessing their intentions. Instead, write down the details of your interactions over the past week. Note who initiates conversations, whether the responses are balanced, and if there are concrete plans to meet again. Use horoscopes as a mirror to examine behavior rather than an absolute tool for fortune-telling.",
+          "This factual observation helps reduce anxiety and grounds your relationship in reality. Regardless of what a horoscope predicts, your daily interactions with your partner reflect the true state of your connection. By watching these patterns, you can clearly see whether there is room to work things out. Do not surrender your feelings to the stars; taking the first step to communicate actively is what actually brings you closer."
         ]
       },
       {
-        "heading": "Interpreting Astrological Charts and Real Limits",
+        "heading": "Interpreting Your Placements: Mapping Your Sun, Moon, and Rising",
         "paragraphs": [
-          "A sun sign is only one part of the picture. In common astrological interpretation, the sun is associated with outward expression and values, the moon with emotional responses and security, and the rising sign with first impressions and how someone enters a new relationship. These angles can complement one another; none of them should be treated as a complete personality on its own. A full chart still cannot replace personal history or the context of a specific situation.",
-          "Astrology can suggest questions, but it cannot do the work of a relationship. If two people are arguing over daily responsibilities, a chart will not wash the dishes or negotiate a compromise. Actual choices, boundaries, and a willingness to communicate carry more weight than a generalized description, and a horoscope is not a substitute for professional judgment."
+          "Your Sun sign represents your outward self and conscious will, your Moon sign governs your deepest emotional needs for security, and your Rising sign functions as your natural defense mechanism when meeting strangers or entering new relationships. When reading love horoscopes, you should cross-reference these three placements. If you find a description that seems remarkably accurate, try to connect it to a specific, real-life event in your recent schedule.",
+          "For example, if a horoscope warns that your Moon sign is experiencing emotional volatility and needs space, take a moment to see if work stress is causing you to speak coldly to your partner. Try explaining your state during dinner by saying, 'I had a stressful day at work, so I would like to rest quietly for half an hour.' Expressing your needs directly prevents unnecessary misunderstandings and turns astrological insights into practical daily actions.",
+          "Vague predictions like 'excellent romantic luck' or 'a turning point is coming' are too abstract to help you decide whether to confess your feelings or end a relationship. You must identify the core problem and place those broad terms back into the context of your actual relationship. Focus on how quickly you both recover after a disagreement, as this recovery speed is a vital indicator of whether a relationship can last."
         ]
       },
       {
-        "heading": "Tracking Real Interactions and Communication",
+        "heading": "Establishing Personal Boundaries: Astrology Is Not a Direct Line to Your Partner's Mind",
         "paragraphs": [
-          "When you are waiting for a reply, write down what has happened over the past week before interpreting it. Who started the conversations? Were replies reasonably consistent? Did either person make a specific plan to meet? Start with one clear description of the situation, then ask whether an astrology article helps define the issue, its limits, or the next condition you need to check.",
-          "Pay attention to visible patterns as well. Notice whether someone becomes quiet or irritable under pressure, and record what was said before an argument escalated. Everyday behavior tells you more about compatibility than an abstract symbol. Blaming poor communication on astrological incompatibility or Mercury retrograde can hide the interaction that actually needs attention."
+          "Many people search love horoscopes hoping to decode a partner's thoughts, expecting predictions to reveal if an ex wants to reconcile or when someone will confess. However, astrology does not serve as a megaphone for another person's mind. Your partner's true intentions are found only in their explicit words and actions. If they have clearly stated they want to separate, no prediction about a returning ex should be used as an excuse to avoid this reality.",
+          "If you find yourself stuck waiting indefinitely, set a clear deadline for yourself. For example, decide to send an invitation to meet up by next Friday. If they continue to make excuses and decline, it is time to shift your focus back to your own life. Taking concrete action is far more useful than constantly refreshing horoscopes on your phone. You must not hand over your life choices to random predictions.",
+          "Real emotional security is built on clear personal boundaries and active choices. Use your birth chart to recognize personal vulnerabilities, such as a tendency to compromise too easily or a fear of conflict, and try to address them in your next conversation. When you take responsibility for your own emotions, astrological patterns become tools for self-observation rather than barriers that limit your growth.",
+          "Furthermore, do not use astrology to escape personal responsibility. You cannot excuse a sudden outburst of anger by blaming Mercury retrograde, nor can you excuse poor communication by claiming your signs are naturally incompatible. Such explanations keep relationships stagnant. Real maturity involves recognizing your own emotional reactions and offering a sincere apology when your behavior causes harm."
         ]
       },
       {
-        "heading": "Evaluating Predictions with Practical Steps",
+        "heading": "Translating Astrological Insights into Practical Self-Dialogue and Action",
         "paragraphs": [
-          "Emotional timing affects how a prediction lands. If you open a relationship horoscope late at night while feeling lonely, pause before accepting its language. Ask what specific behavior or need the article has identified. A claim that things will improve soon, with no observable clue behind it, is not enough to support a major relationship decision.",
-          "Choose one step you can verify today: ask when you will meet next, state a need clearly, or set a reasonable limit on how long you are willing to wait in an ambiguous situation. No horoscope can promise reconciliation, a successful confession, or a destined partner, and it cannot speak for another person. Treat it as a reflection tool—not the final judge of your luck, your choices, or your relationship."
+          "Everyone desires a different style of care, which is why the same horoscope can affect two people in entirely different ways. If you easily feel anxious in relationships, pay close attention to the habits associated with your Moon sign. Once you recognize that you need consistent companionship to feel secure, you can openly discuss a concrete meetup frequency with your partner.",
+          "You can initiate this conversation with a gentle, specific proposal: 'Could we set aside one day every weekend to have dinner together?' A clear request lets your partner understand your needs and reduces mutual doubt. If they cannot accommodate this, you can discuss a compromise early on. This is the correct way to apply astrological insights to improve your daily life.",
+          "Do not expect a horoscope to deliver a flawless partner or resolve your communication challenges. A healthy relationship requires effort, compromise, and deep dialogue. Once you understand your core needs, horoscopes serve merely as a reference to help organize your thoughts. When you feel lost, look back at the real efforts you have made; that is your most reliable foundation.",
+          "After reading a horoscope, identify one communication habit you can adjust during the week. For example, instead of venting your work frustrations to your partner before bed, decide to wind down by listening to music or taking a warm foot bath. When you change your daily habits, the emotional atmosphere around you will naturally shift. This change occurs because you made a new choice, not because the planets moved.",
+          "By treating astrology as a starting point for self-dialogue, you reclaim your personal agency. Do not let predictions limit your possibilities. No matter where the astrological pointers point, you have the power to make decisions that support your own interests and emotional health. Take practical steps to nurture your relationship through genuine, real-world connection."
         ]
       }
     ],
-    "description": "Relationship horoscopes can help you notice communication, security needs, and interaction patterns. Learn how to compare them with real behavior while respecting the limits of sun, moon, rising-sign, and full-chart interpretations.",
+    "description": "Love horoscopes can aid in relationship observation, but you must distinguish between your Sun, Moon, and Rising signs and actual real-world interactions.",
     "faq": [
       {
-        "answer": "It can offer general themes about communication, security needs, and interaction patterns. It cannot predict a specific relationship outcome.",
-        "question": "What can a relationship horoscope tell me?"
+        "answer": "Love horoscopes help you understand relationship expression, emotional security, and pacing, but they cannot directly predict the ultimate outcome of your relationship.",
+        "question": "What are love horoscopes?"
       },
       {
-        "answer": "No. Sun, moon, and rising signs are commonly used for different angles, and a full chart provides more context. A single placement should not be treated as a complete personality.",
-        "question": "Is a sun sign enough to judge compatibility?"
+        "answer": "It is best to combine love horoscopes with your Sun, Moon, Rising signs, or full birth chart to avoid oversimplifying an individual into a single trait.",
+        "question": "Which birth chart elements should be read alongside love horoscopes?"
       },
       {
-        "answer": "Reducing a person to one generalized description and ignoring what happens in the actual relationship.",
-        "question": "What is the biggest mistake when reading relationship horoscopes?"
+        "answer": "They are most easily simplified into single-character trait descriptions. However, horoscopes only represent a portion of relationship dynamics and cannot replace a full birth chart or real-world interactions.",
+        "question": "What are love horoscopes most easily simplified into?"
       },
       {
-        "answer": "No. A horoscope cannot reveal unspoken intentions, replace personal information, or substitute for a direct conversation or professional judgment.",
-        "question": "Can a horoscope tell me what someone really feels?"
+        "answer": "No. Love horoscopes only offer broad, generic concepts of signs. They cannot replace personal data, specific questions, or professional astrological analysis.",
+        "question": "Can you judge a person based purely on love horoscopes?"
       },
       {
-        "answer": "Write the situation as one specific sentence, then list the recent behaviors or interactions you can verify. Use the article to clarify terms and limits, not to supply a verdict.",
-        "question": "What should I do before applying a horoscope to my situation?"
+        "answer": "Write down your specific issue as a concrete description first, then see if the horoscope helps you clarify definitions, constraints, and the next steps you need to confirm.",
+        "question": "What should you prepare first to assess your own situation?"
       }
     ],
     "tags": [
-      "Astrology",
-      "Relationships",
-      "Horoscopes"
+      "birth chart",
+      "relationships",
+      "horoscopes"
     ],
-    "title": "How to Read Relationship Horoscopes Without Letting Them Run Your Love Life"
+    "title": "How to Read Love Horoscopes: Distinguishing Your Sun, Moon, and Rising Signs"
   }
 ];
