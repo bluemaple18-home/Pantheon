@@ -5650,3 +5650,40 @@ export function getArticlePath() { return "/articles/personality/personality-000
     drift_approval = build_approval("gsc-two", [drifted], drift_review, {"OLD-001": "APPROVE"}, "user")
     with pytest.raises(ValueError, match="source drift"):
         apply_approved_candidates(tmp_path, "gsc-two", [drifted], drift_review, drift_approval)
+
+
+@pytest.mark.parametrize("locale", ["en", "ja", "ko"])
+def test_writer_transport_defers_language_to_article_contract(locale: str) -> None:
+    """共用 transport 不得以繁中角色覆蓋多語 article input。"""
+    calls = []
+    prompt = 'article input:\n' + json.dumps({"articles": [{"locale": locale}]})
+    schema = {"type": "object", "properties": {"title": {"type": "string"}}}
+    client = GeminiClient(transport=lambda model, payload: calls.append(payload) or {})
+    client.generate_json("writer", prompt, schema)
+    payload = calls[0]
+    system = payload["systemInstruction"]["parts"][0]["text"]
+    assert "繁體中文文章 Writer" not in system
+    assert "使用任務指定的目標語言" in system
+    assert payload["contents"][0]["parts"][0]["text"] == prompt
+    assert payload["generationConfig"]["responseJsonSchema"] == schema
+    assert payload["generationConfig"]["thinkingConfig"] == {"thinkingLevel": "LOW"}
+
+
+@pytest.mark.parametrize("mode", ["create", "rewrite_existing_body"])
+def test_writer_transport_keeps_chinese_default_without_locale(mode: str) -> None:
+    """中文原創與改寫仍有明確繁中預設，不要求更動既有輸入。"""
+    calls = []
+    prompt = json.dumps({"mode": mode})
+    client = GeminiClient(transport=lambda model, payload: calls.append(payload) or {})
+    client.generate_json("writer", prompt, pipeline.external_candidate_schema(mode))
+    assert "未指定時使用繁體中文" in calls[0]["systemInstruction"]["parts"][0]["text"]
+    assert calls[0]["contents"][0]["parts"][0]["text"] == prompt
+
+
+def test_language_repair_keeps_reviewer_system_unchanged() -> None:
+    calls = []
+    client = GeminiClient(transport=lambda model, payload: calls.append(payload) or {})
+    client.generate_json("reviewer", "審查英文稿", {"type": "object"})
+    assert calls[0]["systemInstruction"]["parts"][0]["text"] == (
+        "你是獨立 Pantheon 文章 Reviewer。依規範嚴格審查，只輸出符合 schema 的 JSON；不得假設 Writer 對話內容。"
+    )

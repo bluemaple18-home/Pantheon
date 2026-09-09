@@ -2994,7 +2994,7 @@ class GeminiClient:
             raise ValueError("role must be writer or reviewer")
         model = self.writer_model if role == "writer" else self.reviewer_model
         system = (
-            "你是 Pantheon 繁體中文文章 Writer。只輸出符合 schema 的 JSON，不得加入未提供的事實或承諾。"
+            "你是 Pantheon 文章 Writer。使用任務指定的目標語言；未指定時使用繁體中文。只輸出符合 schema 的 JSON，不得加入未提供的事實或承諾。"
             if role == "writer"
             else "你是獨立 Pantheon 文章 Reviewer。依規範嚴格審查，只輸出符合 schema 的 JSON；不得假設 Writer 對話內容。"
         )
