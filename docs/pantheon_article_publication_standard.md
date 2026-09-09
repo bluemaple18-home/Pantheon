@@ -600,6 +600,17 @@ FAQ
 `publication_policy.contract_version = 1` 的 source 必須攜帶全域完整快照與逐篇原值；
 原有 source digest 一併涵蓋這些值，不另建 registry。
 
+全域快照依當前版本與結構驗證；逐篇 policy 是已發布來源的歷史事實，
+另接受官方 `pantheon-article-publication-v2.0.0`／`v2.1.0` 的既有同形 article 契約。
+逐篇版本、所有原值（含空白與 disclosure）及 source hash 不改寫成最新版；
+未知逐篇版本、過期全域版本或格式錯誤仍拒絕。
+
+發布後翻譯交接依來源獨立進行：不合法來源保留 ledger pending 與錯誤，
+其餘合法來源可繼續；既有 registered/complete run identity 不重建。
+中文 push 前沿既有 unresolved push 控制保護外部成功邊界，ledger、交接診斷與
+發布 evidence 完整落盤後才解除；未收斂時必須對帳，不得回退已發布 commit/tag
+或記為中文 publication retry。交接 pending 不代表翻譯已完成。
+
 原文與 provenance 必須完整送入既有 planner、Writer、Reviewer。
 三分類只作衍生 projection；deterministic validation 負責完整 facts、mapping、
 來源與版本一致性，既有 Reviewer 負責否定、條件與限制的語意保留。

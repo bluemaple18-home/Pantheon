@@ -2576,6 +2576,8 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                 except PushOutcomeUnknown:
                     raise
                 except PolicyRejected as error:
+                    if _unresolved_push_path(state_root).is_file():
+                        raise PushOutcomeUnknown("published handoff requires reconciliation; no rollback/retry") from error
                     if not journal.mutation_started:
                         raise
                     recovery_path = _recover_failed_publish(
@@ -2615,11 +2617,9 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                         ],
                     }
                 except Exception as error:
-                    if _unresolved_push_path(state_root).is_file() and _read_json(
-                        _unresolved_push_path(state_root)
-                    ).get("status") == "PUSH_PREPARED":
+                    if _unresolved_push_path(state_root).is_file():
                         raise PushOutcomeUnknown(
-                            "prepared translation requires exact reconciliation"
+                            "push or published handoff requires reconciliation; no rollback/retry"
                         ) from error
                     if not journal.mutation_started:
                         raise
@@ -3705,48 +3705,60 @@ def _rewrite_release_article_ids(queue_root: Path, run_id: str) -> list[str]:
 
 
 def _seed_pending_translations(repo_root: Path, queue_root: Path, state_root: Path) -> list[str]:
-    """補建已發布新文與成功改寫舊文尚未登記的多語 run。"""
+    """獨立交接每個已發布來源；錯誤留 pending，I/O 故障不可偽裝成功。"""
     ledger = _load_ledger(state_root)
     seeded_run_ids: list[str] = []
-    changed = False
-    for item in ledger["rewrite_released_runs"]:
-        if item.get("translation_seed_status") == "seeded":
-            continue
-        if not item.get("article_ids"):
-            article_ids = _rewrite_release_article_ids(queue_root, str(item.get("run_id") or ""))
-            if not article_ids:
-                continue
-            item["article_ids"] = article_ids
-            changed = True
-        if item.get("translation_seed_status") != "pending":
-            item["translation_seed_status"] = "pending"
-            changed = True
-    seeded_items = [
+    items = [
         *((item, "i18n-new") for item in ledger["published_runs"]),
         *((item, "i18n-rewrite") for item in ledger["rewrite_released_runs"]),
     ]
-    for item, lane in seeded_items:
-        if item.get("translation_seed_status") != "pending":
+    for item, lane in items:
+        if item.get("translation_seed_status") == "seeded":
             continue
+        if lane == "i18n-new" and item.get("translation_seed_status") != "pending":
+            continue
+        item["translation_seed_status"] = "pending"
+        errors: list[dict[str, str]] = []
+        if not item.get("article_ids"):
+            try:
+                if lane == "i18n-rewrite":
+                    item["article_ids"] = _rewrite_release_article_ids(queue_root, str(item.get("run_id") or ""))
+                if not item.get("article_ids"):
+                    raise ValueError("translation handoff article ids are missing")
+            except (ValueError, KeyError, TypeError) as error:
+                errors.append({"error_type": type(error).__name__, "error": str(error)})
         translation_runs: list[dict[str, str]] = []
         for article_id in item.get("article_ids", []):
-            translation_runs.extend(
-                multilingual.enqueue_article_translations(
-                    repo_root,
-                    queue_root,
-                    source_run_id=str(item["run_id"]),
-                    article_id=str(article_id),
-                    lane=lane,
-                )
-            )
-        item["translation_seed_status"] = "seeded"
-        item["translation_seeded_at"] = _now()
-        item["translation_run_ids"] = [run["run_id"] for run in translation_runs]
-        seeded_run_ids.extend(item["translation_run_ids"])
-        changed = True
-    if changed:
+            try:
+                translation_runs.extend(multilingual.enqueue_article_translations(
+                    repo_root, queue_root, source_run_id=str(item["run_id"]),
+                    article_id=str(article_id), lane=lane,
+                ))
+            except (ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:
+                errors.append({"article_id": str(article_id), "error_type": type(error).__name__, "error": str(error)})
+        item["translation_run_ids"] = list(dict.fromkeys([
+            *item.get("translation_run_ids", []), *(run["run_id"] for run in translation_runs),
+        ]))
+        if errors:
+            item["translation_seed_errors"] = errors
+        else:
+            item["translation_seed_status"] = "seeded"
+            item["translation_seeded_at"] = _now()
+            item.pop("translation_seed_errors", None)
+        # 每個來源分別保存進度，後一筆失敗不得抹掉已完成交接。
         _write_json(_ledger_path(state_root), ledger)
+        seeded_run_ids.extend(run["run_id"] for run in translation_runs)
     return seeded_run_ids
+
+
+def _translation_seed_evidence(state_root: Path) -> dict[str, Any]:
+    ledger = _load_ledger(state_root)
+    pending = [item for key in ("published_runs", "rewrite_released_runs") for item in ledger[key]
+               if item.get("translation_seed_status") == "pending"]
+    return {
+        "translation_seed_status": "pending" if pending else "seeded",
+        "translation_seed_errors": {str(item["run_id"]): item.get("translation_seed_errors", []) for item in pending},
+    }
 
 
 def _sync_web_test_release_fixture(repo_root: Path, *, cache_token: str, articles: list[dict[str, Any]]) -> Path:
@@ -3921,6 +3933,16 @@ def _stage_commit_tag_push(
             "version": version, "target_tag": f"v{version}", "expected_remote_tag_before": None,
         }
         _atomic_write_json(_unresolved_push_path(state_root), prepared)
+    handoff_control = push and state_root is not None and phase in {"create", "rewrite"}
+    if handoff_control:
+        if not run_ids or outcome_evidence_dir is None:
+            raise PublishBlocked("published handoff control context is incomplete")
+        _atomic_write_json(_unresolved_push_path(state_root), {
+            "schema_version": SCHEMA_VERSION, "status": "PUSH_OUTCOME_UNKNOWN",
+            "phase": phase, "candidate_sha": commit_sha, "version": version,
+            "run_ids": list(run_ids), "recorded_at": _now(),
+            "publish_evidence": str(outcome_evidence_dir / ("publish-evidence.json" if phase == "create" else "rewrite-evidence.json")),
+        })
     if push:
         try:
             git(repo_root, release_plan["push"], None)
@@ -3958,6 +3980,8 @@ def _stage_commit_tag_push(
                 })
                 raise PushOutcomeUnknown(f"prepared atomic push requires reconciliation; evidence: {evidence_path}") from push_error
             if remote_main != commit_sha and not remote_tag:
+                if handoff_control:
+                    _unresolved_push_path(state_root).unlink()
                 raise push_error
             evidence_dir = outcome_evidence_dir or repo_root / ".git"
             evidence_path = evidence_dir / "push-outcome-unknown.json"
@@ -4345,7 +4369,10 @@ def publish_ready_runs(
                 )
             ).hexdigest(),
         }
+        evidence.update(_translation_seed_evidence(state_root))
         _write_json(evidence_dir / "publish-evidence.json", evidence)
+        if push:
+            _unresolved_push_path(state_root).unlink(missing_ok=True)
         return evidence
 
 
@@ -4517,7 +4544,10 @@ def publish_ready_rewrite_runs(
                 pipeline.compact_json_bytes(candidates)
             ).hexdigest(),
         }
+        evidence.update(_translation_seed_evidence(state_root))
         _write_json(evidence_dir / "rewrite-evidence.json", evidence)
+        if push:
+            _unresolved_push_path(state_root).unlink(missing_ok=True)
         return evidence
 
 

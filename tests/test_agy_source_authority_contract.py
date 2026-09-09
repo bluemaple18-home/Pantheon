@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -280,3 +281,29 @@ def test_large_current_source_ref_map_roundtrip(tmp_path):
     first = m._load_or_create_source_ref_maps(path, brief, {}, **args)
     assert len(first["article-01"]) > 99
     assert m._load_or_create_source_ref_maps(path, brief, {}, **args) == first
+
+
+@pytest.mark.parametrize('version', ['pantheon-article-publication-v2.0.0', 'pantheon-article-publication-v2.1.0'])
+def test_handoff_historical_article_policy_preserves_source_identity(version):
+    source = new_brief()['articles'][0]['source']
+    source['publication_policy']['article_policy']['policyVersion'] = version
+    raw = m.pipeline.compact_json_bytes(source)
+    expected_hash = hashlib.sha256(raw).hexdigest()
+    assert m.validate_source_contract(source) is source
+    assert m.pipeline.compact_json_bytes(source) == raw
+    assert m.source_sha256(source) == expected_hash
+    article = source['publication_policy']['article_policy']
+    assert article['evidence']['disclosure'].encode() == article_policy()['evidence']['disclosure'].encode()
+    source['publication_policy']['global_policy']['policy_version'] = 'pantheon-article-publication-v2.0.0'
+    with pytest.raises(ValueError, match='unsupported source publication policy version'):
+        m.validate_source_contract(source)
+
+
+@pytest.mark.parametrize('version', ['pantheon-article-publication-v1.0.0', 'pantheon-article-publication-v2.2.0', 'unknown'])
+def test_handoff_unknown_article_policy_is_not_upgraded(version):
+    source = new_brief()['articles'][0]['source']
+    source['publication_policy']['article_policy']['policyVersion'] = version
+    raw = m.pipeline.compact_json_bytes(source)
+    with pytest.raises(ValueError, match='unsupported source publication policy version'):
+        m.validate_source_contract(source)
+    assert m.pipeline.compact_json_bytes(source) == raw

@@ -293,7 +293,7 @@ def _validate_source(source: object) -> dict[str, Any]:
         article = policy["article_policy"]
         pipeline._validate_publication_contract_shape(article)
         if (policy["global_policy"]["policy_version"] != current["policy_version"]
-                or article["policyVersion"] != current["policy_version"]):
+                or article["policyVersion"] not in {"pantheon-article-publication-v2.0.0", "pantheon-article-publication-v2.1.0"}):
             raise ValueError("unsupported source publication policy version")
         for key in ("policyVersion", "canonical", "editorialResponsibility", "published", "modified", "changeType"):
             _non_empty_string(article[key], f"publicationPolicy.{key}")
@@ -1091,6 +1091,11 @@ def prepare_translation_run(
     }
     validate_translation_brief(brief)
     path = output_root / run_id / "brief.json"
+    if path.exists():
+        # registry 落盤前中斷也不得覆寫既有來源或重新生成同 ID 的不同 brief。
+        if read_translation_brief_payload(path) != brief:
+            raise ValueError("unregistered translation brief source drift")
+        return path
     pipeline.write_json(path, brief)
     return path
 

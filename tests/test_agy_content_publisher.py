@@ -6124,3 +6124,88 @@ def test_translation_publication_rejects_obsolete_source_authority(tmp_path, mon
     assert publisher.collect_ready_translation_runs(repo_root, queue_root, state_root) == []
     ledger = json.loads((state_root / "ledger.json").read_text())
     assert ledger["translation_deferred_runs"][0]["run_id"] == fixture["kwargs"]["expected_run_id"]
+
+
+def test_handoff_mixed_sources_continue_and_pending_is_observable(tmp_path, monkeypatch):
+    from tests.test_agy_multilingual_pipeline import source_article_with_policy
+    multi = publisher.multilingual
+    queue, state = tmp_path/'queue', tmp_path/'state'
+    ledger = publisher._load_ledger(state)
+    ids = ['UNKNOWN', 'OLD-KNOWN', 'CURRENT']
+    ledger['published_runs'] = [{'run_id': 'published-'+article, 'article_ids':[article], 'translation_seed_status':'pending'} for article in ids]
+    publisher._write_json(publisher._ledger_path(state), ledger)
+    original = multi.enqueue_article_translations
+    def enqueue(repo, queue, **kwargs):
+        source = source_article_with_policy(); source['article_id'] = kwargs['article_id']
+        source['publication_policy']['article_policy']['policyVersion'] = {'UNKNOWN':'unknown', 'OLD-KNOWN':'pantheon-article-publication-v2.0.0', 'CURRENT':'pantheon-article-publication-v2.1.0'}[kwargs['article_id']]
+        def loader(*args): return multi.validate_source_contract(source)
+        return original(repo, queue, **kwargs, source_loader=loader)
+    monkeypatch.setattr(multi, 'enqueue_article_translations', enqueue)
+    assert len(publisher._seed_pending_translations(tmp_path, queue, state)) == 6
+    updated = publisher._load_ledger(state)['published_runs']
+    assert [item['translation_seed_status'] for item in updated] == ['pending', 'seeded', 'seeded']
+    assert updated[0]['translation_seed_errors'][0]['article_id'] == 'UNKNOWN'
+    assert publisher._translation_seed_evidence(state)['translation_seed_status'] == 'pending'
+    before = {path:path.read_bytes() for path in queue.rglob('*') if path.is_file()}
+    assert publisher._seed_pending_translations(tmp_path, queue, state) == []
+    assert before == {path:path.read_bytes() for path in queue.rglob('*') if path.is_file()}
+
+
+@pytest.mark.parametrize('phase', ['create', 'rewrite'])
+@pytest.mark.parametrize('fault', ['ledger', 'seed', 'seed-progress', 'evidence', 'ack-lost-seed'])
+def test_handoff_postpush_fault_never_rolls_back_or_republishes(tmp_path, monkeypatch, phase, fault):
+    repo, queue, state = tmp_path/'repo', tmp_path/'queue', tmp_path/'state'
+    namespace = _release_stage_plan(repo, '0.3.99')
+    candidate, base = 'c'*40, 'b'*40
+    calls = []; remote = {}; local = {'head':base}
+    def git(_repo, args, _input=None):
+        calls.append(args)
+        if args[0] == 'commit': local['head'] = candidate
+        if args[0] == 'tag': local['tag'] = candidate
+        if args[0] == 'push':
+            remote.update(head=candidate, tag=candidate)
+            if fault == 'ack-lost-seed': raise OSError('synthetic lost push acknowledgement')
+        if args[:2] == ['rev-parse','HEAD']: return local['head']
+        if args[:2] == ['rev-parse','origin/main']: return remote.get('head',base)
+        if args[0] == 'rev-parse' and args[1].startswith('refs/agy-publisher-reconcile/'): return remote['tag']
+        if args[0] == 'ls-remote' and remote: return candidate+'\trefs/tags/v0.3.99^{}'
+        return ''
+    monkeypatch.setattr(publisher, '_repo_lock_path', lambda *_: tmp_path/'repo.lock')
+    monkeypatch.setattr(publisher, '_assert_clean_origin_head', lambda *_: local['head'])
+    monkeypatch.setattr(publisher, '_run_checked', lambda *_: None)
+    def forbidden(*args, **kwargs): pytest.fail('已確認 push 不可 rollback 或登記中文 retry')
+    monkeypatch.setattr(publisher, '_recover_failed_publish', forbidden)
+    monkeypatch.setattr(publisher, '_record_retry_failure', forbidden)
+    original_write = publisher._write_json
+    writes = 0
+    def write(path, value):
+        nonlocal writes
+        if path == publisher._ledger_path(state):
+            writes += 1
+            if (fault == 'ledger' and writes == 1) or (fault == 'seed-progress' and writes == 2): raise OSError('synthetic ledger I/O')
+        if fault == 'evidence' and path.name in ('publish-evidence.json','rewrite-evidence.json'): raise OSError('synthetic evidence I/O')
+        original_write(path,value)
+    monkeypatch.setattr(publisher, '_write_json', write)
+    def enqueue(*args, **kwargs):
+        if fault in ('seed','ack-lost-seed'): raise RuntimeError('synthetic handoff failure')
+        return [{'run_id':'translation-'+locale} for locale in ('en','ja','ko')]
+    monkeypatch.setattr(publisher.multilingual,'enqueue_article_translations',enqueue)
+    @publisher._recoverable_publish(phase, 'published')
+    def publish(repo_root, queue_root, state_root, *, git, _transaction_base_sha=None, _mutation_journal=None):
+        _mutation_journal.begin(); _mutation_journal.select_runs(['source-01'])
+        commit = publisher._stage_commit_tag_push(repo_root,'0.3.99',git,namespace_plan=namespace,push=True,release_gate=False,outcome_evidence_dir=state/'evidence',state_root=state_root,phase=phase,run_ids=['source-01'])
+        ledger = publisher._load_ledger(state_root)
+        key = 'published_runs' if phase=='create' else 'rewrite_released_runs'
+        ledger[key].append({'run_id':'source-01','article_ids':['TEST-001'],'translation_seed_status':'pending','commit_sha':commit,'version':'0.3.99'})
+        publisher._write_json(publisher._ledger_path(state_root),ledger)
+        publisher._seed_pending_translations(repo_root,queue_root,state_root)
+        publisher._write_json(state/'evidence'/('publish-evidence.json' if phase=='create' else 'rewrite-evidence.json'),{'status':'PUBLISHED'})
+        return {'status':'PUBLISHED'}
+    with pytest.raises(publisher.PushOutcomeUnknown): publish(repo,queue,state,git=git)
+    assert local == {'head':candidate,'tag':candidate} and remote == {'head':candidate,'tag':candidate}
+    control = json.loads(publisher._unresolved_push_path(state).read_text())
+    assert control['candidate_sha'] == candidate
+    with pytest.raises(publisher.PublishBlocked,match='unresolved push'): publish(repo,queue,state,git=git)
+    assert sum(args[0]=='push' for args in calls) == 1
+    assert sum(args[0]=='commit' for args in calls) == 1
+    assert not (state/'retry').exists()

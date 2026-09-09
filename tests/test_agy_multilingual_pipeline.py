@@ -6117,3 +6117,55 @@ def test_effective_policy_projection_keeps_full_snapshot_identity() -> None:
     assert public["articles"][0]["source"] == next_public["articles"][0]["source"]
     assert public["articles"][0]["source_sha256"] != next_public["articles"][0]["source_sha256"]
     assert original_facts["articles"][0]["facts"] == multilingual._source_fact_package(changed)["articles"][0]["facts"]
+
+
+@pytest.mark.parametrize('status', ['active', 'complete'])
+@pytest.mark.parametrize('legacy_lane', [False, True])
+def test_handoff_existing_registered_identity_is_read_only(tmp_path, status, legacy_lane):
+    source = source_article_with_policy()
+    source['publication_policy']['article_policy']['policyVersion'] = 'pantheon-article-publication-v2.0.0'
+    def loader(*args):
+        return multilingual.validate_source_contract(source)
+    records = multilingual.enqueue_article_translations(tmp_path, tmp_path/'queue', source_run_id='published-01', article_id='TEST-001', lane='i18n-rewrite', source_loader=loader)
+    for record in records:
+        state_path = _translation_state_path(tmp_path/'queue', record['run_id'])
+        state = json.loads(state_path.read_text()); state['status'] = status
+        multilingual._atomic_write_json(state_path, state)
+        if legacy_lane:
+            brief_path = Path(record['run_dir'])/'brief.json'
+            brief = json.loads(brief_path.read_text()); brief['lane'] = 'i18n-rewrite'
+            multilingual._atomic_write_json(brief_path, brief)
+    before = {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in (tmp_path/'queue').rglob('*') if path.is_file()}
+    assert multilingual.enqueue_article_translations(tmp_path, tmp_path/'queue', source_run_id='published-01', article_id='TEST-001', lane='i18n-rewrite', source_loader=loader) == records
+    assert before == {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in (tmp_path/'queue').rglob('*') if path.is_file()}
+
+
+def test_handoff_partial_locale_registry_write_resumes_without_overwriting_brief(tmp_path, monkeypatch):
+    source = source_article_with_policy()
+    queue = tmp_path/'queue'
+    original = multilingual._atomic_write_json
+    calls = 0
+    def fail_second(path, value):
+        nonlocal calls
+        calls += 1
+        if calls == 2: raise OSError('synthetic registry I/O')
+        original(path, value)
+    kwargs = dict(source_run_id='published-01', article_id='TEST-001', lane='i18n-new', source_loader=lambda *_: source)
+    with monkeypatch.context() as scope:
+        scope.setattr(multilingual, '_atomic_write_json', fail_second)
+        with pytest.raises(OSError): multilingual.enqueue_article_translations(tmp_path, queue, **kwargs)
+    before = {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in queue.rglob('*') if path.is_file()}
+    records = multilingual.enqueue_article_translations(tmp_path, queue, **kwargs)
+    assert len(records) == 3
+    assert all((path.read_bytes(), path.stat().st_mtime_ns) == value for path, value in before.items())
+    assert len(list((queue/'runs').glob('*.json'))) == 3
+
+
+def test_handoff_orphan_brief_drift_is_not_overwritten(tmp_path):
+    source = source_article_with_policy()
+    path = multilingual.prepare_translation_run(tmp_path, 'source-01', 'TEST-001', ['en'], tmp_path/'runs', source_loader=lambda *_: source)
+    before = path.read_bytes()
+    source['answer'] += '不同來源。'
+    with pytest.raises(ValueError, match='unregistered translation brief source drift'):
+        multilingual.prepare_translation_run(tmp_path, 'source-01', 'TEST-001', ['en'], tmp_path/'runs', source_loader=lambda *_: source)
+    assert path.read_bytes() == before
