@@ -5640,3 +5640,18 @@ def test_validated_length_receipt_reaches_next_outbound_prompt(
     ]
     for forbidden in ("candidate.json", "review.json", "approval.json", "run-evidence.json"):
         assert not (run_dir / forbidden).exists()
+
+
+@pytest.mark.parametrize("history_name", ["disclosure-amendment.json", "disclosure-amendment-review.json"])
+def test_disclosure_amendment_incomplete_tick_stops_before_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, history_name: str) -> None:
+    """中斷接點的持久化痕跡必須先於正常 Writer 路由檢查。"""
+    from scripts import agy_gemini_outbox as amendment_outbox
+    run, queue = tmp_path / "run", tmp_path / "queue"
+    pipeline.write_json(run / "brief.json", {"run_id": pipeline.DISCLOSURE_AMENDMENT_RUN_ID})
+    pipeline.write_json(run / history_name, {})
+    def forbidden_writer(*args, **kwargs):
+        pytest.fail("中斷 amendment 不得重播 Writer")
+    monkeypatch.setattr(pipeline, "run_writer_reviewer", forbidden_writer)
+    with pytest.raises((KeyError, ValueError, FileNotFoundError)):
+        amendment_outbox.run_pipeline_tick(run, queue)
+    assert not (queue / "outbox").exists()

@@ -4509,6 +4509,8 @@ def _generate_with_receipt(
 
 
 def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 2) -> tuple[dict[str, Any], dict[str, Any]]:
+    if (run_dir / DISCLOSURE_AMENDMENT_FILE).exists() or (run_dir / "disclosure-amendment-review.json").exists():
+        raise ValueError("disclosure amendment requires reviewer-only outbox tick")
     brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
     mode = str(brief.get("mode"))
     if mode == "create":
@@ -6069,7 +6071,54 @@ def run_rewrite_repair_closure(
     return candidate, review
 
 
+# 本接點僅修訂已量測的單一候選；不得作為通用 disclosure 清洗器。
+DISCLOSURE_AMENDMENT_RUN_ID = "legacy-auto-sweep-v1-astrology-0004-astro-love-01"
+DISCLOSURE_AMENDMENT_ARTICLE_ID = "ASTRO-LOVE-01"
+DISCLOSURE_AMENDMENT_OLD_ARTICLE_SHA = "ed56b8daf1cad75bde426bb11cc55c6334d6f5c4e9a4dc86c3841a62d426bf01"
+DISCLOSURE_AMENDMENT_OLD_TEXT_SHA = "b8f15ca07f3298e4e6066b4edacd158f31e9483daf3bbc8585255536d7bd3097"
+DISCLOSURE_AMENDMENT_NEW_ARTICLE_SHA = "5eb9a4a8ba522c7b520b7c03a61011282053861a1577a558be23af7be5c470c5"
+DISCLOSURE_AMENDMENT_OLD_JOB_ID = "551ad7fd05cd1f14f89aba898095bc062ba6b151"
+DISCLOSURE_AMENDMENT_FILE = "disclosure-amendment.json"
+
+
+def amended_disclosure_candidate(brief: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+    """只改指定舊雜湊的一欄，其餘 JSON 值逐項保留。"""
+    validate_rewrite_brief(brief)
+    validate_candidate(candidate)
+    if (
+        brief.get("run_id") != DISCLOSURE_AMENDMENT_RUN_ID
+        or candidate.get("run_id") != DISCLOSURE_AMENDMENT_RUN_ID
+        or candidate.get("mode") != "rewrite_existing_body"
+        or len(candidate["articles"]) != 1 or len(brief["articles"]) != 1
+    ):
+        raise ValueError("disclosure amendment run identity mismatch")
+    article, source = candidate["articles"][0], brief["articles"][0]
+    if (
+        article["article_id"] != DISCLOSURE_AMENDMENT_ARTICLE_ID
+        or source["article_id"] != DISCLOSURE_AMENDMENT_ARTICLE_ID
+        or article["identity"] != source["identity"]
+        or article["current_body_sha256"] != source["current_body_sha256"]
+        or article_sha256(article) != DISCLOSURE_AMENDMENT_OLD_ARTICLE_SHA
+    ):
+        raise ValueError("disclosure amendment old article mismatch")
+    evidence = article["publicationPolicy"]["evidence"]
+    if (
+        evidence.get("mode") != "cultural_reflection" or evidence.get("sources") != []
+        or hashlib.sha256(evidence["disclosure"].encode("utf-8")).hexdigest() != DISCLOSURE_AMENDMENT_OLD_TEXT_SHA
+    ):
+        raise ValueError("disclosure amendment old disclosure mismatch")
+    # 固定序列化順序，讓落盤前後的新 request identity 一致。
+    amended = json.loads(json.dumps(candidate, ensure_ascii=False, sort_keys=True))
+    amended["articles"][0]["publicationPolicy"]["evidence"]["disclosure"] = CREATE_EVIDENCE_DISCLOSURE
+    if article_sha256(amended["articles"][0]) != DISCLOSURE_AMENDMENT_NEW_ARTICLE_SHA:
+        raise ValueError("disclosure amendment new article mismatch")
+    validate_candidate(amended)
+    return amended
+
+
 def review_existing_candidate(run_dir: Path, client: GeminiClient) -> dict[str, Any]:
+    if (run_dir / DISCLOSURE_AMENDMENT_FILE).exists() or (run_dir / "disclosure-amendment-review.json").exists():
+        raise ValueError("disclosure amendment requires reviewer-only outbox tick")
     brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
     candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
     validate_candidate(candidate)

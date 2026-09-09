@@ -1144,11 +1144,78 @@ class OutboxGeminiClient:
         raise RuntimeError("no distinct writer/reviewer model route is available")
 
 
+def _run_disclosure_amendment_tick(run_dir: Path, queue_root: Path) -> dict[str, Any]:
+    from scripts import agy_gemini_coordinator as coordinator
+
+    snapshot, brief, candidate = coordinator._disclosure_amendment_context(run_dir.resolve(), queue_root)
+    request = snapshot["new_request"]
+    validate_external_request(request)
+    expected = build_external_request(
+        namespace=request["namespace"], role="reviewer", model=request["model"],
+        prompt=pipeline._reviewer_prompt(brief, candidate, []), response_schema=pipeline.rewrite_external_review_schema(),
+    )
+    if request != expected:
+        raise ValueError("disclosure amendment reviewer request drift")
+    current_review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
+    result = {
+        "status": "complete", "run_id": brief["run_id"],
+        "approved_by_reviewer": sum(item["verdict"] == "APPROVE" for item in current_review["articles"]),
+        "candidate": str(run_dir / "candidate.json"), "review": str(run_dir / "review.md"),
+    }
+    evidence = json.loads((run_dir / "run-evidence.json").read_text(encoding="utf-8"))
+    known_path = _known_external_request_path(queue_root, request["job_id"])
+    if known_path is not None and _load_known_external_request(queue_root, request["job_id"]) != request:
+        raise ValueError("disclosure amendment persisted request drift")
+    if known_path is None and (
+        evidence.get("closure_reviewer_processes") == 1
+        or any((queue_root / directory / f"{request['job_id']}.json").exists() for directory in ("inbox", "failed"))
+    ):
+        raise ValueError("disclosure amendment response has no persisted request")
+    if evidence.get("closure_reviewer_processes") == 1:
+        external = json.loads((run_dir / "external-review-existing.json").read_text(encoding="utf-8"))
+        if evidence.get("external_review_sha256") != coordinator._disclosure_amendment_digest(external) or evidence.get("reviewer_request_sha256") != request["request_sha256"]:
+            raise ValueError("disclosure amendment consumed response drift")
+        return result
+    # 精確使用一筆既有 outbox request；不走模型路由、transport retry 或 replacement。
+    if failed_external_replacement_decision_path(queue_root, request["job_id"]).exists():
+        raise ValueError("disclosure amendment replacement is not authorized")
+    create_external_request(
+        queue_root, namespace=request["namespace"], role="reviewer", model=request["model"],
+        prompt=request["prompt"], response_schema=request["response_schema"],
+    )
+    external_review = consume_external_response(queue_root, request)
+    try:
+        review = pipeline.hydrate_rewrite_review(brief, candidate, external_review)
+        for item in review["articles"]:
+            item["hard_failure"] = False
+        quality, uniqueness = pipeline.rewrite_aggregate_findings(brief, candidate["articles"])
+        if quality or uniqueness:
+            review = pipeline.deterministic_review_payload(brief["run_id"], candidate["articles"], [*quality, *uniqueness])
+        pipeline.validate_review(review, candidate["articles"])
+    except (KeyError, TypeError, ValueError) as error:
+        review = pipeline.invalid_review_payload(brief["run_id"], candidate["articles"], f"invalid_reviewer_json:{type(error).__name__}")
+    atomic_write_json(run_dir / "external-review-existing.json", external_review)
+    evidence = coordinator._disclosure_amendment_evidence(snapshot, candidate, review, reviewed=True)
+    evidence.update(external_review_sha256=coordinator._disclosure_amendment_digest(external_review), reviewer_request_sha256=request["request_sha256"])
+    atomic_write_json(run_dir / "run-evidence.json", evidence)
+    atomic_write_json(run_dir / "review.json", review)
+    (run_dir / "review.md").write_text(pipeline.render_review_markdown(review, candidate["articles"]), encoding="utf-8")
+    return {
+        "status": "complete", "run_id": brief["run_id"],
+        "approved_by_reviewer": sum(item["verdict"] == "APPROVE" for item in review["articles"]),
+        "candidate": str(run_dir / "candidate.json"), "review": str(run_dir / "review.md"),
+    }
+
+
 def run_pipeline_tick(run_dir: Path, queue_root: Path) -> dict[str, Any]:
     brief = json.loads((run_dir / "brief.json").read_text(encoding="utf-8"))
     run_id = str(brief["run_id"])
     namespace = hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24]
     legacy_queue_root = queue_root.parent.parent if queue_root.parent.name == "lanes" else None
+    state_path = (legacy_queue_root or queue_root) / "runs" / f"{namespace}.json"
+    state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() and run_id == pipeline.DISCLOSURE_AMENDMENT_RUN_ID else {}
+    if state.get("disclosure_amendment") or (run_dir / pipeline.DISCLOSURE_AMENDMENT_FILE).exists() or (run_dir / "disclosure-amendment-review.json").exists():
+        return _run_disclosure_amendment_tick(run_dir, queue_root)
     route_config = pipeline.model_route_config_from_environment()
     client = OutboxGeminiClient(
         queue_root,

@@ -6187,8 +6187,173 @@ def cycle_once(
         return summary
 
 
+def _disclosure_amendment_digest(value: object) -> str:
+    return hashlib.sha256(pipeline.compact_json_bytes(value)).hexdigest()
+
+
+def _disclosure_amendment_plan(run_dir: Path, queue_root: Path, job_root: Path, state_root: Path) -> dict[str, Any]:
+    from scripts import agy_gemini_outbox as outbox
+
+    files = {name: (run_dir / name).read_text(encoding="utf-8") for name in (
+        "brief.json", "candidate.json", "review.json", "run-evidence.json",
+    )}
+    for name in ("review.md", "external-review-existing.json", "review-existing-operation.json"):
+        if (run_dir / name).exists():
+            files[name] = (run_dir / name).read_text(encoding="utf-8")
+    brief, candidate, review, evidence = (json.loads(files[name]) for name in (
+        "brief.json", "candidate.json", "review.json", "run-evidence.json",
+    ))
+    amended = pipeline.amended_disclosure_candidate(brief, candidate)
+    pipeline.validate_review(review, candidate["articles"])
+    registry_text = _state_path(brief["run_id"], queue_root).read_text(encoding="utf-8")
+    state = json.loads(registry_text)
+    if (
+        state.get("run_id") != brief["run_id"] or state.get("run_dir") != str(run_dir)
+        or state.get("status") != "complete" or state.get("last_job_id") != pipeline.DISCLOSURE_AMENDMENT_OLD_JOB_ID
+        or _validate_identity_envelope(state.get("identity_envelope")) != _identity_envelope_from_brief(brief)
+        or state.get("result", {}).get("candidate") != str(run_dir / "candidate.json")
+        or review.get("run_id") != brief["run_id"] or not publisher._review_is_clean_approve(review)
+        or evidence.get("run_id") != brief["run_id"]
+        or evidence.get("candidate_sha256") != _disclosure_amendment_digest(candidate)
+        or evidence.get("review_sha256") != _disclosure_amendment_digest(review)
+        or evidence.get("apply_executed") is not False or evidence.get("approval_created") is not False
+        or (run_dir / "approval.json").exists()
+    ):
+        raise ValueError("disclosure amendment original registry/review/evidence mismatch")
+    ledger_text = (state_root / "ledger.json").read_text(encoding="utf-8")
+    ledger = json.loads(ledger_text)
+    if ledger.get("schema_version") != publisher.SCHEMA_VERSION or any(
+        item.get("run_id") == brief["run_id"]
+        for key in ("published_runs", "rewrite_released_runs", "translation_published_runs")
+        for item in ledger[key]
+    ):
+        raise ValueError("disclosure amendment run is published or ledger is invalid")
+    request_path = job_root / "archive" / f"{state['last_job_id']}.json"
+    request_text = request_path.read_text(encoding="utf-8")
+    request = json.loads(request_text)
+    validate_external_request(request)
+    # 舊 request 採 archive 的真實 identity；JSON key order 不影響候選語意核對。
+    public_candidate = json.loads(request["prompt"].split("public candidate:\n", 1)[1].split("\npublic deterministic findings:", 1)[0])
+    if (
+        request["job_id"] != state["last_job_id"] or request["role"] != "reviewer"
+        or request["namespace"] != hashlib.sha256(brief["run_id"].encode()).hexdigest()[:24]
+        or request["model"] != evidence.get("reviewer_model")
+        or public_candidate != pipeline.public_model_candidate(brief, candidate)
+    ):
+        raise ValueError("disclosure amendment archived request identity mismatch")
+    quality, uniqueness = pipeline.rewrite_aggregate_findings(brief, amended["articles"])
+    if quality or uniqueness:
+        raise ValueError("disclosure amendment local findings are not empty")
+    new_request = outbox.build_external_request(
+        namespace=request["namespace"], role="reviewer", model=request["model"],
+        prompt=pipeline._reviewer_prompt(brief, amended, []), response_schema=pipeline.rewrite_external_review_schema(),
+    )
+    if new_request["job_id"] == request["job_id"]:
+        raise ValueError("disclosure amendment reviewer identity did not change")
+    return {
+        "files": files, "registry": registry_text, "old_request": request_text,
+        "queue_root": str(queue_root), "job_queue_root": str(job_root), "publisher_state_root": str(state_root),
+        "ledger_sha256": hashlib.sha256(ledger_text.encode()).hexdigest(), "new_request": new_request,
+    }
+
+
+def _disclosure_amendment_context(run_dir: Path, job_root: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """任何中斷或漂移均停止；不以重跑 Writer 或還原舊 APPROVE 自動修復。"""
+    snapshot = json.loads((run_dir / pipeline.DISCLOSURE_AMENDMENT_FILE).read_text(encoding="utf-8"))
+    state = json.loads(_state_path(pipeline.DISCLOSURE_AMENDMENT_RUN_ID, Path(snapshot["queue_root"])).read_text(encoding="utf-8"))
+    if (
+        state.get("disclosure_amendment") != _disclosure_amendment_digest(snapshot)
+        or state.get("last_job_id") != snapshot["new_request"]["job_id"]
+        or state.get("run_id") != pipeline.DISCLOSURE_AMENDMENT_RUN_ID or state.get("run_dir") != str(run_dir)
+        or job_root.resolve() != Path(snapshot["job_queue_root"])
+        or (run_dir / "brief.json").read_text(encoding="utf-8") != snapshot["files"]["brief.json"]
+        or (run_dir / "disclosure-amendment-review.json").read_text(encoding="utf-8") != snapshot["files"]["review.json"]
+        or (job_root / "archive" / f"{pipeline.DISCLOSURE_AMENDMENT_OLD_JOB_ID}.json").read_text(encoding="utf-8") != snapshot["old_request"]
+    ):
+        raise ValueError("disclosure amendment history/registry drift or interrupted apply")
+    brief = json.loads(snapshot["files"]["brief.json"])
+    amended = pipeline.amended_disclosure_candidate(brief, json.loads(snapshot["files"]["candidate.json"]))
+    candidate = json.loads((run_dir / "candidate.json").read_text(encoding="utf-8"))
+    review = json.loads((run_dir / "review.json").read_text(encoding="utf-8"))
+    evidence = json.loads((run_dir / "run-evidence.json").read_text(encoding="utf-8"))
+    pipeline.validate_review(review, amended["articles"])
+    if (
+        candidate != amended or review.get("run_id") != brief["run_id"]
+        or evidence.get("candidate_sha256") != _disclosure_amendment_digest(amended)
+        or evidence.get("review_sha256") != _disclosure_amendment_digest(review)
+        or evidence.get("disclosure_amendment") != state["disclosure_amendment"]
+    ):
+        raise ValueError("disclosure amendment candidate/review/evidence drift or interrupted write")
+    return snapshot, brief, amended
+
+
+def _disclosure_amendment_evidence(snapshot: dict[str, Any], candidate: dict[str, Any], review: dict[str, Any], *, reviewed: bool) -> dict[str, Any]:
+    evidence = json.loads(snapshot["files"]["run-evidence.json"])
+    evidence.update({
+        "candidate_sha256": _disclosure_amendment_digest(candidate), "review_sha256": _disclosure_amendment_digest(review),
+        "article_sha256": {pipeline.DISCLOSURE_AMENDMENT_ARTICLE_ID: pipeline.article_sha256(candidate["articles"][0])},
+        "reviewer_approved": sum(item["verdict"] == "APPROVE" for item in review["articles"]),
+        "disclosure_amendment": _disclosure_amendment_digest(snapshot),
+        "closure_writer_processes": 0, "closure_reviewer_processes": int(reviewed),
+        "reviewer_processes": int(evidence.get("reviewer_processes", 0)) + int(reviewed),
+        **pipeline.policy_validation_evidence(candidate, []),
+    })
+    return evidence
+
+
+def amend_disclosure_exact(
+    run_dir: Path, queue_root: Path, *, job_queue_root: Path, publisher_state_root: Path,
+    execute: bool = False, expected_plan_digest: str | None = None,
+) -> dict[str, Any]:
+    """單一 ASTRO-LOVE-01 的離線 operator 接點；預設 plan 無寫入。"""
+    run_dir, queue_root, job_root, state_root = (path.resolve() for path in (run_dir, queue_root, job_queue_root, publisher_state_root))
+    _validate_formal_runtime(queue_root)
+    marker = run_dir / pipeline.DISCLOSURE_AMENDMENT_FILE
+    if marker.exists() or (run_dir / "disclosure-amendment-review.json").exists():
+        snapshot, _, _ = _disclosure_amendment_context(run_dir, job_root)
+        digest = _disclosure_amendment_digest(snapshot)
+        if snapshot["queue_root"] != str(queue_root) or snapshot["publisher_state_root"] != str(state_root):
+            raise ValueError("disclosure amendment root identity mismatch")
+        if expected_plan_digest is not None and expected_plan_digest != digest:
+            raise ValueError("disclosure amendment plan CAS mismatch")
+        return {"status": "already_applied", "plan_digest": digest, "reviewer_job_id": snapshot["new_request"]["job_id"]}
+    snapshot = _disclosure_amendment_plan(run_dir, queue_root, job_root, state_root)
+    digest = _disclosure_amendment_digest(snapshot)
+    result = {"status": "planned", "plan_digest": digest, "reviewer_job_id": snapshot["new_request"]["job_id"]}
+    if not execute:
+        return result
+    if expected_plan_digest != digest:
+        raise ValueError("disclosure amendment plan CAS mismatch")
+    with (queue_root / "coordinator.lock").open("a+") as lock, publisher._retry_recovery_lock(state_root, dry_run=False):
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if marker.exists() or _disclosure_amendment_plan(run_dir, queue_root, job_root, state_root) != snapshot:
+            raise ValueError("disclosure amendment locked CAS mismatch")
+        # 第一個變更以 rename 保存舊 review 並關閉 publisher 的入口。
+        # 快照完成前，舊 candidate/evidence/request 仍留原處；禁止覆寫。
+        os.replace(run_dir / "review.json", run_dir / "disclosure-amendment-review.json")
+        atomic_write_json(marker, snapshot)
+        state = json.loads(snapshot["registry"])
+        state["status"] = "failed"
+        state.pop("result", None)
+        state.pop("last_job_id", None)
+        _write_state(queue_root, state)
+        brief = json.loads(snapshot["files"]["brief.json"])
+        candidate = pipeline.amended_disclosure_candidate(brief, json.loads(snapshot["files"]["candidate.json"]))
+        review = pipeline.invalid_review_payload(brief["run_id"], candidate["articles"], "disclosure_amendment_pending")
+        atomic_write_json(run_dir / "review.json", review)
+        atomic_write_json(run_dir / "candidate.json", candidate)
+        atomic_write_json(run_dir / "run-evidence.json", _disclosure_amendment_evidence(snapshot, candidate, review, reviewed=False))
+        (run_dir / "review.md").write_text(pipeline.render_review_markdown(review, candidate["articles"]), encoding="utf-8")
+        state.update(status="active", disclosure_amendment=digest, last_job_id=snapshot["new_request"]["job_id"])
+        _write_state(queue_root, state)
+    return {**result, "status": "applied"}
+
+
 def resume_run(run_dir: Path, queue_root: Path) -> dict[str, Any]:
     state = read_run_state(run_dir, queue_root)
+    if state.get("disclosure_amendment") or (run_dir / pipeline.DISCLOSURE_AMENDMENT_FILE).exists() or (run_dir / "disclosure-amendment-review.json").exists():
+        snapshot = json.loads((run_dir / pipeline.DISCLOSURE_AMENDMENT_FILE).read_text(encoding="utf-8"))
+        _disclosure_amendment_context(run_dir.resolve(), Path(snapshot["job_queue_root"]))
     if state.get("error_type") == "LocalePlanValidationError":
         state.pop("last_job_id", None)
     state["status"] = "active"
@@ -6507,6 +6672,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--legacy-max-new-runs-per-cycle", type=int, default=DEFAULT_LEGACY_MAX_NEW_RUNS_PER_CYCLE)
     parser.add_argument("--lane-mode", action="store_true")
     subparsers = parser.add_subparsers(dest="command", required=True)
+    amendment = subparsers.add_parser("amend-disclosure-exact")
+    amendment.add_argument("--run-dir", type=Path, required=True)
+    amendment.add_argument("--job-queue-root", type=Path, required=True)
+    amendment.add_argument("--publisher-state-root", type=Path, required=True)
+    amendment.add_argument("--execute", action="store_true")
+    amendment.add_argument("--expected-plan-digest")
     register = subparsers.add_parser("register")
     register.add_argument("run_dir", type=Path)
     resume = subparsers.add_parser("resume")
@@ -6647,6 +6818,12 @@ def main() -> int:
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
             print(json.dumps({"status": "rejected", "error": str(error)}, ensure_ascii=False))
             return 1
+    elif args.command == "amend-disclosure-exact":
+        result = amend_disclosure_exact(
+            args.run_dir, queue_root, job_queue_root=args.job_queue_root,
+            publisher_state_root=args.publisher_state_root, execute=args.execute,
+            expected_plan_digest=args.expected_plan_digest,
+        )
     elif args.command == "status":
         result = read_run_state(args.run_dir, queue_root)
     elif args.command == "terminalize-pending":

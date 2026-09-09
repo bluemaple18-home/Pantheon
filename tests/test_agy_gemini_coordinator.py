@@ -13021,3 +13021,387 @@ def test_installer_pool_opt_out_preserves_compatibility_without_pool_requirement
         assert "AGY_GEMINI_CREDENTIAL_POOL_FILE" not in variables
         assert "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE" not in variables
         assert variables["AGY_GEMINI_RATE_LIMIT_COOLDOWN_SECONDS"] == "300"
+
+
+def test_disclosure_amendment_has_bounded_offline_entrypoint() -> None:
+    assert callable(getattr(coordinator, "amend_disclosure_exact", None))
+
+
+@pytest.fixture
+def disclosure_case(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """完全合成的已完成 rewrite；僅測試替換精確 fixture 雜湊常數。"""
+    from scripts import agy_gemini_outbox as outbox
+    p = coordinator.pipeline
+    run_id = p.DISCLOSURE_AMENDMENT_RUN_ID
+    run = tmp_path / run_id
+    queue, jobs, state_root = tmp_path / "queue", tmp_path / "queue" / "lanes" / "rewrite", tmp_path / "publisher"
+    run.mkdir()
+    candidate = _valid_campaign_candidate({"run_id": run_id, "article_identity": {"id": p.DISCLOSURE_AMENDMENT_ARTICLE_ID}})
+    article = candidate["articles"][0]
+    article["publicationPolicy"]["evidence"]["disclosure"] = "合成的待修訂聲明。"
+    brief = _publisher_rewrite_brief(candidate)
+    review = _clean_review(brief, candidate)
+    request = outbox.build_external_request(
+        namespace=hashlib.sha256(run_id.encode()).hexdigest()[:24], role="reviewer", model="gemini-3.1-flash-lite",
+        prompt=p._reviewer_prompt(brief, candidate, []), response_schema=p.rewrite_external_review_schema(),
+    )
+    amended = json.loads(json.dumps(candidate))
+    amended["articles"][0]["publicationPolicy"]["evidence"]["disclosure"] = p.CREATE_EVIDENCE_DISCLOSURE
+    monkeypatch.setattr(p, "DISCLOSURE_AMENDMENT_OLD_ARTICLE_SHA", p.article_sha256(article))
+    monkeypatch.setattr(p, "DISCLOSURE_AMENDMENT_NEW_ARTICLE_SHA", p.article_sha256(amended["articles"][0]))
+    monkeypatch.setattr(p, "DISCLOSURE_AMENDMENT_OLD_TEXT_SHA", hashlib.sha256(article["publicationPolicy"]["evidence"]["disclosure"].encode()).hexdigest())
+    monkeypatch.setattr(p, "DISCLOSURE_AMENDMENT_OLD_JOB_ID", request["job_id"])
+    evidence = {
+        "run_id": run_id, "candidate_sha256": coordinator._disclosure_amendment_digest(candidate),
+        "review_sha256": coordinator._disclosure_amendment_digest(review), "reviewer_model": request["model"],
+        "writer_model": "gemini-3.5-flash", "writer_processes": 2, "reviewer_processes": 2,
+        "apply_executed": False, "approval_created": False,
+    }
+    for name, value in (("brief.json", brief), ("candidate.json", candidate), ("review.json", review), ("run-evidence.json", evidence)):
+        p.write_json(run / name, value)
+    p.write_json(jobs / "archive" / f"{request['job_id']}.json", request)
+    p.write_json(state_root / "ledger.json", {"schema_version": coordinator.publisher.SCHEMA_VERSION, "published_runs": [], "rewrite_released_runs": [], "translation_published_runs": []})
+    coordinator._write_state(queue, {
+        "schema_version": 1, "run_id": run_id, "run_dir": str(run), "status": "complete", "last_job_id": request["job_id"],
+        "identity_envelope": coordinator._identity_envelope_from_brief(brief), "lane": "rewrite", "mode": "rewrite_existing_body",
+        "result": {"candidate": str(run / "candidate.json"), "review": str(run / "review.md"), "approved_by_reviewer": 1},
+    })
+    def no_writer(*args, **kwargs):
+        pytest.fail("不得呼叫 Writer 或真實 provider")
+    monkeypatch.setattr(p.GeminiClient, "from_environment", no_writer)
+    monkeypatch.setattr(p, "run_writer_reviewer", no_writer)
+    return run, queue, jobs, state_root
+
+
+def _amend_case(case, **kwargs):
+    run, queue, jobs, state_root = case
+    return coordinator.amend_disclosure_exact(run, queue, job_queue_root=jobs, publisher_state_root=state_root, **kwargs)
+
+
+def _apply_amendment(case):
+    plan = _amend_case(case)
+    return _amend_case(case, execute=True, expected_plan_digest=plan["plan_digest"])
+
+
+def _synthetic_amendment_response(case, verdict="APPROVE"):
+    from scripts import agy_gemini_outbox as outbox
+    run, queue, jobs, _ = case
+    state = coordinator.read_run_state(run, queue)
+    assert coordinator._advance(queue, state, outbox.run_pipeline_tick, job_queue_root=jobs) == "pending"
+    requests = list((jobs / "outbox").glob("*.json"))
+    assert len(requests) == 1
+    request = json.loads(requests[0].read_text())
+    assert request["role"] == "reviewer"
+    result = {"articles": [{"slot": "article-01", "semantic_verdict": verdict, "semantic_findings": [] if verdict == "APPROVE" else [{"code": "depth", "message": "合成退件"}], "objective_observations": []}]}
+    coordinator.atomic_write_json(jobs / "inbox" / f"{request['job_id']}.json", {
+        "schema_version": 1, "job_id": request["job_id"], "request_sha256": request["request_sha256"],
+        "model": request["model"], "completed_at": "2026-09-09T00:00:00+00:00", "result": result,
+    })
+    return request
+
+
+def test_disclosure_amendment_plan_apply_and_reviewer_only_resume(disclosure_case):
+    from scripts import agy_gemini_outbox as outbox
+    run, queue, jobs, _ = disclosure_case
+    before = {str(p): p.read_bytes() for p in run.parent.rglob("*") if p.is_file()}
+    plan = _amend_case(disclosure_case)
+    assert plan["status"] == "planned"
+    assert before == {str(p): p.read_bytes() for p in run.parent.rglob("*") if p.is_file()}
+    old_candidate = json.loads((run / "candidate.json").read_text())
+    _amend_case(disclosure_case, execute=True, expected_plan_digest=plan["plan_digest"])
+    snapshot_bytes = (run / coordinator.pipeline.DISCLOSURE_AMENDMENT_FILE).read_bytes()
+    snapshot = json.loads(snapshot_bytes)
+    assert json.loads(snapshot["files"]["candidate.json"]) == old_candidate
+    assert (run / "disclosure-amendment-review.json").read_text() == snapshot["files"]["review.json"]
+    amended = json.loads((run / "candidate.json").read_text())
+    old_candidate["articles"][0]["publicationPolicy"]["evidence"]["disclosure"] = coordinator.pipeline.CREATE_EVIDENCE_DISCLOSURE
+    assert amended == old_candidate
+    assert not coordinator.publisher._review_is_clean_approve(json.loads((run / "review.json").read_text()))
+    request = _synthetic_amendment_response(disclosure_case)
+    state = coordinator.resume_run(run, queue)
+    assert coordinator._advance(queue, state, outbox.run_pipeline_tick, job_queue_root=jobs) == "complete"
+    review = json.loads((run / "review.json").read_text())
+    coordinator.pipeline.validate_review(review, amended["articles"])
+    assert coordinator.publisher._review_is_clean_approve(review)
+    evidence = json.loads((run / "run-evidence.json").read_text())
+    assert evidence["writer_processes"] == 2 and evidence["closure_writer_processes"] == 0
+    assert evidence["reviewer_processes"] == 3 and evidence["reviewer_approved"] == 1
+    assert evidence["review_sha256"] == coordinator._disclosure_amendment_digest(review)
+    assert coordinator.read_run_state(run, queue)["last_job_id"] == request["job_id"]
+    assert _amend_case(disclosure_case, execute=True)["status"] == "already_applied"
+    outbox.run_pipeline_tick(run, jobs)
+    assert json.loads((run / "run-evidence.json").read_text()) == evidence
+    assert (run / coordinator.pipeline.DISCLOSURE_AMENDMENT_FILE).read_bytes() == snapshot_bytes
+    assert len(list((jobs / "outbox").glob("*.json"))) == 1
+
+
+@pytest.mark.parametrize("verdict", ["REJECT", "INVALID"])
+def test_disclosure_amendment_nonapproval_stays_unpublishable(disclosure_case, verdict):
+    from scripts import agy_gemini_outbox as outbox
+    run, queue, jobs, _ = disclosure_case
+    _apply_amendment(disclosure_case)
+    _synthetic_amendment_response(disclosure_case, verdict)
+    state = coordinator.read_run_state(run, queue)
+    assert coordinator._advance(queue, state, outbox.run_pipeline_tick, job_queue_root=jobs) == "complete"
+    assert state["result"]["approved_by_reviewer"] == 0
+    assert not coordinator.publisher._review_is_clean_approve(json.loads((run / "review.json").read_text()))
+
+
+@pytest.mark.parametrize("target", ["candidate.json", "review.json", "run-evidence.json", "brief.json", "registry", "ledger", "request"])
+def test_disclosure_amendment_plan_cas_rejects_drift(disclosure_case, target):
+    run, queue, jobs, state_root = disclosure_case
+    plan = _amend_case(disclosure_case)
+    path = {"registry": coordinator._state_path(coordinator.pipeline.DISCLOSURE_AMENDMENT_RUN_ID, queue), "ledger": state_root / "ledger.json", "request": next((jobs / "archive").glob("*.json"))}.get(target, run / target)
+    path.write_text(path.read_text() + " ")
+    with pytest.raises(ValueError, match="CAS"):
+        _amend_case(disclosure_case, execute=True, expected_plan_digest=plan["plan_digest"])
+    assert not (run / coordinator.pipeline.DISCLOSURE_AMENDMENT_FILE).exists()
+
+
+def test_disclosure_amendment_publisher_lock_excludes_inflight_publish(disclosure_case):
+    import fcntl
+    _, _, _, state_root = disclosure_case
+    plan = _amend_case(disclosure_case)
+    with (state_root / "publisher.lock").open("a+") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(coordinator.publisher.PublishBlocked, match="busy"):
+            _amend_case(disclosure_case, execute=True, expected_plan_digest=plan["plan_digest"])
+    assert not (disclosure_case[0] / coordinator.pipeline.DISCLOSURE_AMENDMENT_FILE).exists()
+
+
+@pytest.mark.parametrize("target", ["candidate.json", "review.json", "run-evidence.json", "brief.json", "disclosure-amendment-review.json", "disclosure-amendment.json"])
+def test_disclosure_amendment_resume_rejects_drift(disclosure_case, target):
+    from scripts import agy_gemini_outbox as outbox
+    run, queue, jobs, _ = disclosure_case
+    _apply_amendment(disclosure_case)
+    if target == "review.json":
+        original = json.loads((run / coordinator.pipeline.DISCLOSURE_AMENDMENT_FILE).read_text())["files"]["review.json"]
+        (run / target).write_text(original)
+    else:
+        (run / target).write_text("{}")
+    with pytest.raises((ValueError, KeyError)):
+        coordinator.resume_run(run, queue)
+    with pytest.raises((ValueError, KeyError)):
+        outbox.run_pipeline_tick(run, jobs)
+    assert not (jobs / "outbox").exists()
+
+
+@pytest.mark.parametrize("write_number", range(1, 7))
+def test_disclosure_amendment_interrupted_apply_never_replays_writer(disclosure_case, monkeypatch, write_number):
+    from scripts import agy_gemini_outbox as outbox
+    run, queue, jobs, _ = disclosure_case
+    plan = _amend_case(disclosure_case)
+    original_write = coordinator.atomic_write_json
+    count = 0
+    def crash_after_write(path, value):
+        nonlocal count
+        original_write(path, value)
+        count += 1
+        if count == write_number:
+            raise InterruptedError("合成落盤中斷")
+    with monkeypatch.context() as scoped:
+        scoped.setattr(coordinator, "atomic_write_json", crash_after_write)
+        with pytest.raises(InterruptedError):
+            _amend_case(disclosure_case, execute=True, expected_plan_digest=plan["plan_digest"])
+    if write_number == 6:
+        assert _amend_case(disclosure_case)["status"] == "already_applied"
+        with pytest.raises(outbox.ExternalJobPending):
+            outbox.run_pipeline_tick(run, jobs)
+    else:
+        with pytest.raises((ValueError, KeyError, FileNotFoundError)):
+            coordinator.resume_run(run, queue)
+        with pytest.raises((ValueError, KeyError, FileNotFoundError)):
+            outbox.run_pipeline_tick(run, jobs)
+    state = coordinator.read_run_state(run, queue)
+    review_path = run / "review.json"
+    assert state["status"] != "complete" or not review_path.exists() or not coordinator.publisher._review_is_clean_approve(json.loads(review_path.read_text()))
+
+
+def test_disclosure_amendment_atomic_revocation_precedes_snapshot(disclosure_case, monkeypatch):
+    from scripts import agy_gemini_outbox as outbox
+    run, queue, jobs, _ = disclosure_case
+    plan = _amend_case(disclosure_case)
+    original_replace = coordinator.os.replace
+    def crash_after_revocation(source, destination):
+        original_replace(source, destination)
+        if Path(destination) == run / "disclosure-amendment-review.json":
+            raise InterruptedError("合成 rename 後、snapshot 前中斷")
+    with monkeypatch.context() as scoped:
+        scoped.setattr(coordinator.os, "replace", crash_after_revocation)
+        with pytest.raises(InterruptedError):
+            _amend_case(disclosure_case, execute=True, expected_plan_digest=plan["plan_digest"])
+    assert not (run / coordinator.pipeline.DISCLOSURE_AMENDMENT_FILE).exists()
+    assert json.loads((run / "disclosure-amendment-review.json").read_text())["articles"][0]["verdict"] == "APPROVE"
+    with pytest.raises(coordinator.publisher.PublishBlocked, match="missing"):
+        coordinator.publisher._load_completed_run(coordinator._state_path(coordinator.pipeline.DISCLOSURE_AMENDMENT_RUN_ID, queue))
+    for action in (lambda: coordinator.resume_run(run, queue), lambda: outbox.run_pipeline_tick(run, jobs), lambda: _amend_case(disclosure_case)):
+        with pytest.raises(FileNotFoundError):
+            action()
+    assert not (jobs / "outbox").exists()
+
+
+@pytest.mark.parametrize("phase", ["before", "after"])
+def test_disclosure_amendment_marker_write_failure_is_unpublishable(disclosure_case, monkeypatch, phase):
+    run, queue, _, _ = disclosure_case
+    plan = _amend_case(disclosure_case)
+    original_write = coordinator.atomic_write_json
+    def fail_marker(path, value):
+        if phase == "after":
+            original_write(path, value)
+        raise OSError("合成 snapshot 寫入故障")
+    monkeypatch.setattr(coordinator, "atomic_write_json", fail_marker)
+    with pytest.raises(OSError):
+        _amend_case(disclosure_case, execute=True, expected_plan_digest=plan["plan_digest"])
+    with pytest.raises(coordinator.publisher.PublishBlocked):
+        coordinator.publisher._load_completed_run(coordinator._state_path(coordinator.pipeline.DISCLOSURE_AMENDMENT_RUN_ID, queue))
+
+
+def test_disclosure_amendment_refuses_published_run(disclosure_case):
+    _, _, _, state_root = disclosure_case
+    ledger = json.loads((state_root / "ledger.json").read_text())
+    ledger["rewrite_released_runs"].append({"run_id": coordinator.pipeline.DISCLOSURE_AMENDMENT_RUN_ID})
+    coordinator.atomic_write_json(state_root / "ledger.json", ledger)
+    with pytest.raises(ValueError, match="published"):
+        _amend_case(disclosure_case)
+
+
+@pytest.mark.parametrize("bad_field", ["job_id", "request_sha256", "model"])
+def test_disclosure_amendment_rejects_old_response_identity(disclosure_case, bad_field):
+    from scripts import agy_gemini_outbox as outbox
+    run, queue, jobs, _ = disclosure_case
+    _apply_amendment(disclosure_case)
+    request = _synthetic_amendment_response(disclosure_case)
+    response_path = jobs / "inbox" / f"{request['job_id']}.json"
+    response = json.loads(response_path.read_text())
+    old_request = json.loads(json.loads((run / coordinator.pipeline.DISCLOSURE_AMENDMENT_FILE).read_text())["old_request"])
+    response[bad_field] = old_request[bad_field] if bad_field != "model" else "different-model"
+    coordinator.atomic_write_json(response_path, response)
+    assert coordinator._advance(queue, coordinator.read_run_state(run, queue), outbox.run_pipeline_tick, job_queue_root=jobs) == "failed"
+    assert not coordinator.publisher._review_is_clean_approve(json.loads((run / "review.json").read_text()))
+
+
+def test_disclosure_amendment_consumed_tick_is_read_only_and_never_resends(disclosure_case, monkeypatch):
+    from scripts import agy_gemini_outbox as outbox
+    run, queue, jobs, _ = disclosure_case
+    _apply_amendment(disclosure_case)
+    _synthetic_amendment_response(disclosure_case)
+    assert coordinator._advance(queue, coordinator.read_run_state(run, queue), outbox.run_pipeline_tick, job_queue_root=jobs) == "complete"
+    before = {str(p): (p.read_bytes(), p.stat().st_mtime_ns) for p in run.rglob("*") if p.is_file()}
+    def forbidden(*args, **kwargs):
+        pytest.fail("已消費的 Reviewer 不得再 enqueue/consume/write")
+    monkeypatch.setattr(outbox, "create_external_request", forbidden)
+    monkeypatch.setattr(outbox, "consume_external_response", forbidden)
+    monkeypatch.setattr(outbox, "atomic_write_json", forbidden)
+    assert outbox.run_pipeline_tick(run, jobs)["approved_by_reviewer"] == 1
+    assert before == {str(p): (p.read_bytes(), p.stat().st_mtime_ns) for p in run.rglob("*") if p.is_file()}
+
+
+@pytest.mark.parametrize("write_number", [1, 2, 3])
+def test_disclosure_amendment_interrupted_review_never_publishes(disclosure_case, monkeypatch, write_number):
+    from scripts import agy_gemini_outbox as outbox
+    run, queue, jobs, _ = disclosure_case
+    _apply_amendment(disclosure_case)
+    _synthetic_amendment_response(disclosure_case)
+    original_write = outbox.atomic_write_json
+    count = 0
+    def crash_after_write(path, value):
+        nonlocal count
+        original_write(path, value)
+        count += 1
+        if count == write_number:
+            raise InterruptedError("合成 Reviewer 寫入中斷")
+    with monkeypatch.context() as scoped:
+        scoped.setattr(outbox, "atomic_write_json", crash_after_write)
+        assert coordinator._advance(queue, coordinator.read_run_state(run, queue), outbox.run_pipeline_tick, job_queue_root=jobs) == "failed"
+    with pytest.raises(coordinator.publisher.PublishBlocked, match="not complete"):
+        coordinator.publisher._load_completed_run(coordinator._state_path(coordinator.pipeline.DISCLOSURE_AMENDMENT_RUN_ID, queue))
+    if write_number == 2:
+        with pytest.raises(ValueError, match="interrupted write"):
+            coordinator.resume_run(run, queue)
+    else:
+        coordinator.resume_run(run, queue)
+        assert coordinator._advance(queue, coordinator.read_run_state(run, queue), outbox.run_pipeline_tick, job_queue_root=jobs) == "complete"
+    assert len(list((jobs / "outbox").glob("*.json"))) == 1
+
+
+def test_disclosure_amendment_failed_job_does_not_create_retry(disclosure_case):
+    from scripts import agy_gemini_outbox as outbox
+    run, queue, jobs, _ = disclosure_case
+    _apply_amendment(disclosure_case)
+    request = _synthetic_amendment_response(disclosure_case)
+    coordinator.atomic_write_json(jobs / "failed" / f"{request['job_id']}.json", {})
+    for _ in range(2):
+        coordinator.resume_run(run, queue)
+        assert coordinator._advance(queue, coordinator.read_run_state(run, queue), outbox.run_pipeline_tick, job_queue_root=jobs) == "failed"
+    assert len(list((jobs / "outbox").glob("*.json"))) == 1
+    assert not coordinator.publisher._review_is_clean_approve(json.loads((run / "review.json").read_text()))
+
+
+@pytest.mark.parametrize("location", ["inbox-only", "archive-drift", "outbox-drift", "processing-drift", "ambiguous"])
+def test_disclosure_amendment_request_artifact_identity_is_required(disclosure_case, location):
+    from scripts import agy_gemini_outbox as outbox
+    run, queue, jobs, _ = disclosure_case
+    _apply_amendment(disclosure_case)
+    request = _synthetic_amendment_response(disclosure_case)
+    path = jobs / "outbox" / f"{request['job_id']}.json"
+    if location == "inbox-only":
+        path.unlink()
+    elif location == "ambiguous":
+        coordinator.atomic_write_json(jobs / "archive" / path.name, request)
+    else:
+        directory = location.split("-")[0]
+        path.unlink()
+        changed = {**request, "prompt": "漂移的 prompt"}
+        coordinator.atomic_write_json(jobs / directory / path.name, changed)
+    with pytest.raises(ValueError):
+        outbox.run_pipeline_tick(run, jobs)
+    assert not coordinator.publisher._review_is_clean_approve(json.loads((run / "review.json").read_text()))
+    if location == "inbox-only":
+        assert not path.exists()
+
+
+def test_disclosure_amendment_uses_archived_old_prompt_without_rehashing(disclosure_case):
+    run, _, jobs, _ = disclosure_case
+    p = coordinator.pipeline
+    old = json.loads(next((jobs / "archive").glob("*.json")).read_text())
+    brief = json.loads((run / "brief.json").read_text())
+    candidate = json.loads((run / "candidate.json").read_text())
+    rebuilt = p._reviewer_prompt(brief, candidate, [])
+    assert rebuilt != old["prompt"]
+    old_public = json.loads(old["prompt"].split("public candidate:\n", 1)[1].split("\npublic deterministic findings:", 1)[0])
+    assert old_public == p.public_model_candidate(brief, candidate)
+    assert _amend_case(disclosure_case)["status"] == "planned"
+
+
+@pytest.mark.parametrize("phase", ["response-ready", "consumed"])
+def test_disclosure_amendment_registry_job_drift_stops_before_consume_or_write(disclosure_case, monkeypatch, phase):
+    """兩階段舊 job 漂移都必須拒絕；不得重綁 registry 掩蓋錯誤。"""
+    from scripts import agy_gemini_outbox as outbox
+    run, queue, jobs, state_root = disclosure_case
+    _apply_amendment(disclosure_case)
+    request = _synthetic_amendment_response(disclosure_case)
+    if phase == "consumed":
+        assert coordinator._advance(queue, coordinator.read_run_state(run, queue), outbox.run_pipeline_tick, job_queue_root=jobs) == "complete"
+    state = coordinator.read_run_state(run, queue)
+    state["last_job_id"] = coordinator.pipeline.DISCLOSURE_AMENDMENT_OLD_JOB_ID
+    assert state["last_job_id"] != request["job_id"]
+    coordinator._write_state(queue, state)
+    before = {path: path.read_bytes() for path in run.parent.rglob("*") if path.is_file()}
+    def forbidden(*args, **kwargs):
+        pytest.fail("registry job 漂移不得 enqueue、consume 或寫 outcome")
+    monkeypatch.setattr(outbox, "create_external_request", forbidden)
+    monkeypatch.setattr(outbox, "consume_external_response", forbidden)
+    monkeypatch.setattr(outbox, "atomic_write_json", forbidden)
+    with pytest.raises(ValueError, match="registry drift"):
+        coordinator.resume_run(run, queue)
+    with pytest.raises(ValueError, match="registry drift"):
+        outbox.run_pipeline_tick(run, jobs)
+    assert before == {path: path.read_bytes() for path in run.parent.rglob("*") if path.is_file()}
+    assert coordinator._advance(queue, state, outbox.run_pipeline_tick, job_queue_root=jobs) == "failed"
+    observed = coordinator.read_run_state(run, queue)
+    assert observed["last_job_id"] == coordinator.pipeline.DISCLOSURE_AMENDMENT_OLD_JOB_ID
+    assert coordinator.publisher.collect_ready_rewrite_runs(
+        queue, state_root, allowed_article_ids={coordinator.pipeline.DISCLOSURE_AMENDMENT_ARTICLE_ID},
+    ) == []
+    registry_path = coordinator._state_path(coordinator.pipeline.DISCLOSURE_AMENDMENT_RUN_ID, queue)
+    assert all(path.read_bytes() == value for path, value in before.items() if path != registry_path)

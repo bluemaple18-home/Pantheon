@@ -5825,3 +5825,12 @@ def test_language_repair_keeps_reviewer_system_unchanged() -> None:
     assert calls[0]["systemInstruction"]["parts"][0]["text"] == (
         "你是獨立 Pantheon 文章 Reviewer。依規範嚴格審查，只輸出符合 schema 的 JSON；不得假設 Writer 對話內容。"
     )
+
+
+@pytest.mark.parametrize("history_name", ["disclosure-amendment.json", "disclosure-amendment-review.json"])
+@pytest.mark.parametrize("entrypoint", ["run_writer_reviewer", "review_existing_candidate"])
+def test_disclosure_amendment_blocks_direct_pipeline_replay(tmp_path: Path, history_name: str, entrypoint: str) -> None:
+    """即使只留下 rename 的歷史審查，也不能走不更新 registry 的舊入口。"""
+    (tmp_path / history_name).write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="reviewer-only"):
+        getattr(pipeline, entrypoint)(tmp_path, object())
