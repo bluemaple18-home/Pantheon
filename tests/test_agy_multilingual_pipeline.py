@@ -6035,3 +6035,54 @@ def test_enqueue_article_translations_does_not_overwrite_registered_source(tmp_p
             lane="i18n-new",
             source_loader=lambda _repo, _article_id: changed,
         )
+
+
+@pytest.mark.parametrize("locale,boundary_reject", [("en", True), ("ja", True), ("ko", True), ("ko", False)])
+def test_policy_scope_and_validated_outline_reach_reviewer(tmp_path: Path, locale: str, boundary_reject: bool) -> None:
+    """正式生成接點不得將原創五段 profile 套到多語四段 plan。"""
+    brief = non_tarot_translation_brief(locale)
+    source = brief["articles"][0]["source"]
+    source["publication_policy"] = source_article_with_policy()["publication_policy"]
+    brief["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
+    multilingual.pipeline.write_json(tmp_path / "brief.json", brief)
+    prompts = []
+    external_plan = external_locale_plan(brief)
+    outline = external_plan["articles"][0]["ordered_h2_outline"]
+
+    class Client:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def generate_json(self, role, prompt, schema):
+            prompts.append((role, prompt))
+            if "native_search_intent" in json.dumps(schema):
+                return external_plan
+            if role == "writer":
+                return non_tarot_external_candidate(outline)
+            return {"articles": [{"slot": "article-01", "verdict": "REJECT" if boundary_reject else "APPROVE", "findings": [
+                {"code": "MISSING_BOUNDARY", "message": "來源限制語意遺失"}
+            ] if boundary_reject else []}]}
+
+    candidate, review = multilingual.run_writer_reviewer(tmp_path, Client(), max_repairs=0)
+    assert len(prompts) == 3
+    for _, prompt in prompts:
+        assert "create/rewrite_existing_body 的 presentation profiles 與 writing_contract.section_flow 不適用 translate_existing" in prompt
+    reviewer = prompts[-1][1]
+    view = json.loads(reviewer.split("locale structure authority:\n")[1].split("\nprotected source constraint view:")[0])
+    assert view["articles"][0]["ordered_h2_outline"] == outline
+    assert view["authority"] == "validated_locale_plan"
+    public = json.loads(reviewer.split("public brief:\n")[1].split("\npublic candidate:")[0])
+    assert public["articles"][0]["source"] == source
+    if boundary_reject:
+        assert review["articles"][0]["verdict"] == "REJECT"
+        assert any(f["code"] == "MISSING_BOUNDARY" for f in review["articles"][0]["findings"])
+    else:
+        assert review["articles"][0]["verdict"] == "APPROVE"
+        assert review["articles"][0]["findings"] == []
+    plan = json.loads((tmp_path / "attempts/01/locale-plan.json").read_text())
+    candidate["articles"][0]["bodySections"].pop()
+    findings = multilingual._candidate_plan_findings(candidate, plan)
+    assert any(f["code"] == "LOCALE_PLAN_OUTLINE_MISMATCH" for f in findings)
+    approved = {"articles": [{"slot": "article-01", "verdict": "APPROVE", "findings": []}]}
+    closed = multilingual._review_generated_candidate(brief, candidate, approved, findings)
+    assert closed["articles"][0]["verdict"] == "REJECT"

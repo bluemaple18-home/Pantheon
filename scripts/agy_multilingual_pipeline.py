@@ -2367,6 +2367,10 @@ def _boundary_prompt(brief: dict[str, Any], legacy: str) -> str:
     instruction = (
         "對 publication_policy.contract_version=1 的來源：完整原文與 publication_policy 是約束依據。"
         "逐項覆蓋 facts，保留否定、條件、限制及承諾；global_policy 是適用規則，不能當成文章新增事實。"
+        "create/rewrite_existing_body 的 presentation profiles 與 writing_contract.section_flow 不適用 translate_existing；"
+        "多語正文採 4–5 個 H2，生成稿的段數、順序及標題以 validated locale plan 的 ordered_h2_outline 為準。"
+        "不得僅因未達原創／改寫的五段或未沿用其固定流程而 REJECT；缺少計畫指定段落仍須 REJECT。"
+        "此適用範圍只處理排版與結構，不豁免 evidence、disclosure、否定、條件、安全限制或禁止新增承諾。"
         "safety_boundary 僅供診斷，不以三分類或每欄 regex 作語意驗收。"
         "既有 Reviewer 必須對照全部原文與同一 policy 核對候選，語意遺失或新增承諾必須 REJECT；"
         "deterministic 只保證來源、identity 與 coverage 完整，不能代替語意審查。"
@@ -2642,6 +2646,8 @@ def _reviewer_prompt(
     brief: dict[str, Any],
     candidate: dict[str, Any],
     findings: list[dict[str, str]],
+    *,
+    plan: dict[str, Any] | None = None,
 ) -> str:
     public_candidate = {
         "articles": [
@@ -2661,6 +2667,19 @@ def _reviewer_prompt(
             json.dumps(_public_brief(brief), ensure_ascii=False),
             "public candidate:",
             json.dumps(public_candidate, ensure_ascii=False),
+            "locale structure authority:",
+            json.dumps(
+                {
+                    "mode": "translate_existing",
+                    "authority": "validated_locale_plan" if plan is not None else "editorial_candidate",
+                    "body_sections": {"minimum": 4, "maximum": 5},
+                    "articles": [
+                        {"slot": item["slot"], "ordered_h2_outline": item["ordered_h2_outline"]}
+                        for item in plan["articles"]
+                    ] if plan is not None else [],
+                },
+                ensure_ascii=False,
+            ),
             "protected source constraint view:",
             json.dumps(_ja_boundary_contracts_for_brief(brief), ensure_ascii=False),
             "deterministic findings:",
@@ -4164,7 +4183,7 @@ def _run_locale_generation(
     external_review = _load_or_generate_external(
         client,
         "reviewer",
-        _reviewer_prompt(brief, candidate, deterministic),
+        _reviewer_prompt(brief, candidate, deterministic, plan=plan),
         pipeline.external_review_schema(),
         generation_dir / "reviewer-operation.json",
         generation_dir / "external-review.json",
