@@ -6072,7 +6072,17 @@ def test_policy_scope_and_validated_outline_reach_reviewer(tmp_path: Path, local
     assert view["articles"][0]["ordered_h2_outline"] == outline
     assert view["authority"] == "validated_locale_plan"
     public = json.loads(reviewer.split("public brief:\n")[1].split("\npublic candidate:")[0])
-    assert public["articles"][0]["source"] == source
+    expected_source = json.loads(json.dumps(source))
+    global_policy = expected_source["publication_policy"]["global_policy"]
+    global_policy.pop("presentation_constraints")
+    global_policy["writing_contract"].pop("section_flow")
+    assert public["articles"][0]["source"] == expected_source
+    assert "presentation_constraints" in source["publication_policy"]["global_policy"]
+    assert "section_flow" in source["publication_policy"]["global_policy"]["writing_contract"]
+    for _, prompt in prompts:
+        assert '"presentation_constraints"' not in prompt
+        assert '"section_flow"' not in prompt
+        assert source["publication_policy"]["article_policy"]["evidence"]["disclosure"] in prompt
     if boundary_reject:
         assert review["articles"][0]["verdict"] == "REJECT"
         assert any(f["code"] == "MISSING_BOUNDARY" for f in review["articles"][0]["findings"])
@@ -6086,3 +6096,24 @@ def test_policy_scope_and_validated_outline_reach_reviewer(tmp_path: Path, local
     approved = {"articles": [{"slot": "article-01", "verdict": "APPROVE", "findings": []}]}
     closed = multilingual._review_generated_candidate(brief, candidate, approved, findings)
     assert closed["articles"][0]["verdict"] == "REJECT"
+
+
+def test_effective_policy_projection_keeps_full_snapshot_identity() -> None:
+    """排除的排版規則改版仍改變來源identity，不能誤用舊Reviewer結果。"""
+    brief = non_tarot_translation_brief("ja")
+    source = brief["articles"][0]["source"]
+    source["publication_policy"] = source_article_with_policy()["publication_policy"]
+    brief["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
+    before = json.loads(json.dumps(brief))
+    original_facts = multilingual._source_fact_package(brief)
+    public = multilingual._public_brief(brief)
+    assert brief == before
+    assert original_facts["articles"][0]["source"] == source
+    changed = json.loads(json.dumps(brief))
+    changed_source = changed["articles"][0]["source"]
+    changed_source["publication_policy"]["global_policy"]["presentation_constraints"]["profiles"]["create"]["body_sections"]["minimum"] += 1
+    changed["articles"][0]["source_sha256"] = multilingual.source_sha256(changed_source)
+    next_public = multilingual._public_brief(changed)
+    assert public["articles"][0]["source"] == next_public["articles"][0]["source"]
+    assert public["articles"][0]["source_sha256"] != next_public["articles"][0]["source_sha256"]
+    assert original_facts["articles"][0]["facts"] == multilingual._source_fact_package(changed)["articles"][0]["facts"]

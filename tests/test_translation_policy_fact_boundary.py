@@ -68,8 +68,13 @@ def test_policy_stays_in_source_but_outside_article_facts(locale, policy_part):
         m.validate_locale_plan(changed, broken)
 
     refs = m._request_local_source_ref_maps(changed, plan)
-    assert m._source_fact_package_for_prompt(changed, refs)["articles"][0]["source"] == changed_source
-    assert m._public_brief(changed)["articles"][0]["source"] == changed_source
+    expected_provider_source = copy.deepcopy(changed_source)
+    effective_global = expected_provider_source["publication_policy"]["global_policy"]
+    effective_global.pop("presentation_constraints")
+    effective_global["writing_contract"].pop("section_flow")
+    assert m._source_fact_package_for_prompt(changed, refs)["articles"][0]["source"] == expected_provider_source
+    assert m._public_brief(changed)["articles"][0]["source"] == expected_provider_source
+    assert m._public_brief(changed)["articles"][0]["source_sha256"] == changed["articles"][0]["source_sha256"]
     prompts = [
         m._plan_prompt(changed, generation=1, prior_plan=None, findings=[], rebuild_by_slot={"article-01": False}),
         m._article_prompt(changed, plan, []),

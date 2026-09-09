@@ -121,7 +121,7 @@ def test_global_policy_only_digest_and_legacy():
 
 
 @pytest.mark.parametrize("locale", ["en", "ja", "ko"])
-def test_every_source_leaf_reaches_every_consumer(locale):
+def test_every_applicable_source_leaf_reaches_every_consumer(locale):
     brief = new_brief(locale)
     source = brief["articles"][0]["source"]
     source["publication_policy"]["article_policy"]["evidence"]["mode"] = "sources"
@@ -130,14 +130,20 @@ def test_every_source_leaf_reaches_every_consumer(locale):
     plan = m._hydrate_locale_plan(brief, external_locale_plan(brief), generation=1, rebuild_by_slot={"article-01": False})
     public = m._public_brief(brief)["articles"][0]["source"]
     package = m._source_fact_package_for_prompt(brief, m._request_local_source_ref_maps(brief, plan))["articles"][0]
-    assert public == package["source"] == source
+    expected_source = json.loads(json.dumps(source))
+    policy = expected_source["publication_policy"]["global_policy"]
+    policy.pop("presentation_constraints")
+    policy["writing_contract"].pop("section_flow")
+    assert public == package["source"] == expected_source
+    assert m._source_fact_package(brief)["articles"][0]["source"] == source
+    assert m._public_brief(brief)["articles"][0]["source_sha256"] == m.source_sha256(source)
     def leaves(value):
         if isinstance(value, dict):
             return [text for child in value.values() for text in leaves(child)]
         if isinstance(value, list):
             return [text for child in value for text in leaves(child)]
         return [value]
-    expected = [text for key, value in source.items() if key not in {"article_id", "canonical_path"} for text in leaves(value)]
+    expected = [text for key, value in expected_source.items() if key not in {"article_id", "canonical_path"} for text in leaves(value)]
     article_expected = [text for key, value in source.items() if key not in {"article_id", "canonical_path", "publication_policy"} for text in leaves(value)]
     assert sorted(f["text"] for f in package["facts"]) == sorted(article_expected)
     assert all("field_path" in fact for fact in package["facts"])

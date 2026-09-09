@@ -1662,11 +1662,26 @@ def _strip_provider_identity(value: Any) -> Any:
     return value
 
 
+def _source_for_prompt(source: dict[str, Any]) -> dict[str, Any]:
+    """投影多語適用規則；原始 source/snapshot/hash 不變。"""
+    projected = copy.deepcopy(source)
+    policy = projected.get("publication_policy")
+    if policy is not None:
+        global_policy = policy["global_policy"]
+        # 此區僅含 create/rewrite profiles；多語結構由 locale plan 決定。
+        global_policy.pop("presentation_constraints", None)
+        global_policy["writing_contract"].pop("section_flow", None)
+    return projected
+
+
 def _source_fact_package_for_prompt(
     brief: dict[str, Any],
     source_ref_maps: dict[str, dict[str, str]],
 ) -> dict[str, Any]:
     package = copy.deepcopy(_source_fact_package(brief))
+    for article in package["articles"]:
+        if "source" in article:
+            article["source"] = _source_for_prompt(article["source"])
     if not source_ref_maps:
         return package
     for article in package["articles"]:
@@ -2365,7 +2380,7 @@ def _boundary_prompt(brief: dict[str, Any], legacy: str) -> str:
     if not new_targets:
         return legacy
     instruction = (
-        "對 publication_policy.contract_version=1 的來源：完整原文與 publication_policy 是約束依據。"
+        "對 publication_policy.contract_version=1 的來源：完整原文與多語適用的 publication_policy 投影是約束依據；完整 policy snapshot 留存在來源與 source identity。"
         "逐項覆蓋 facts，保留否定、條件、限制及承諾；global_policy 是適用規則，不能當成文章新增事實。"
         "create/rewrite_existing_body 的 presentation profiles 與 writing_contract.section_flow 不適用 translate_existing；"
         "多語正文採 4–5 個 H2，生成稿的段數、順序及標題以 validated locale plan 的 ordered_h2_outline 為準。"
@@ -2588,8 +2603,8 @@ def _public_brief(brief: dict[str, Any]) -> dict[str, Any]:
                 "locale": item["locale"],
                 "language": LOCALE_LABELS[item["locale"]],
                 "editorial_contract": LOCALE_EDITORIAL_CONTRACTS[item["locale"]],
-                "source": item["source"],
-                **({"facts": facts[index]["facts"]} if "publication_policy" in item["source"] else {}),
+                "source": _source_for_prompt(item["source"]),
+                **({"source_sha256": item["source_sha256"], "facts": facts[index]["facts"]} if "publication_policy" in item["source"] else {}),
             }
             for index, item in enumerate(brief["articles"])
         ],
