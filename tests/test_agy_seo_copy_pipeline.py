@@ -3094,7 +3094,7 @@ def test_rewrite_machine_length_repair_reviews_only_after_green(tmp_path: Path) 
     assert not (tmp_path / "attempts/03").exists()
 
 
-def test_rewrite_ignores_false_body_shape_review_without_spending_writer_repair(
+def test_rewrite_misplaced_body_shape_review_is_invalid_without_writer_repair(
     tmp_path: Path,
 ) -> None:
     brief = make_rewrite_brief("CHART-ZIWEI-11")
@@ -3208,8 +3208,9 @@ def test_rewrite_ignores_false_body_shape_review_without_spending_writer_repair(
 
     assert client.writer_calls == 1
     assert client.reviewer_calls == 1
-    assert review["articles"][0]["verdict"] == "APPROVE"
-    assert review["articles"][0]["findings"] == []
+    assert review["articles"][0]["verdict"] == "REJECT"
+    assert review["articles"][0]["hard_failure"] is True
+    assert review["articles"][0]["findings"][0]["code"] == "invalid_reviewer_json:ValueError"
     external_review = json.loads(
         (tmp_path / "attempts/01/external-review.json").read_text()
     )
@@ -3236,7 +3237,9 @@ def test_rewrite_review_schema_uses_canonical_objective_code_enum() -> None:
     assert "total_length_valid" not in objective_code_schema["enum"]
 
 
-def test_hydrate_rewrite_review_removes_only_machine_owned_semantic_findings() -> None:
+@pytest.mark.parametrize("code", sorted(pipeline.REWRITE_MACHINE_OWNED_REVIEW_CODES))
+@pytest.mark.parametrize("message", ["錯誤聲稱正文尺寸不合格", "第1節要求讀者自行停藥，缺少醫療專業判斷"])
+def test_hydrate_rewrite_review_rejects_machine_owned_semantic_fields(code: str, message: str) -> None:
     brief = make_rewrite_brief("MIXED-REWRITE-REVIEW")
     source = brief["articles"][0]
     article = {
@@ -3253,37 +3256,59 @@ def test_hydrate_rewrite_review_removes_only_machine_owned_semantic_findings() -
         "articles": [article],
     }
 
-    review = pipeline.hydrate_rewrite_review(
-        brief,
-        candidate,
-        {
-            "articles": [
-                {
-                    "slot": "article-01",
-                    "semantic_verdict": "REJECT",
-                    "semantic_findings": [
-                        {
-                            "code": "body_shape_violation",
-                            "message": "錯誤聲稱正文尺寸不合格",
-                        },
-                        {
-                            "code": "search_intent_mismatch",
-                            "message": "沒有回答搜尋者的核心問題",
-                        },
-                    ],
-                    "objective_observations": [],
-                }
-            ]
-        },
-    )
+    with pytest.raises(ValueError, match="rewrite semantic finding uses machine-owned code"):
+        pipeline.hydrate_rewrite_review(
+            brief,
+            candidate,
+            {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "semantic_verdict": "REJECT",
+                        "semantic_findings": [
+                            {
+                                "code": code,
+                                "message": message,
+                            },
+                            {
+                                "code": "search_intent_mismatch",
+                                "message": "沒有回答搜尋者的核心問題",
+                            },
+                        ],
+                        "objective_observations": [],
+                    }
+                ]
+            },
+        )
 
-    assert review["articles"][0]["verdict"] == "REJECT"
-    assert review["articles"][0]["findings"] == [
-        {
-            "code": "search_intent_mismatch",
-            "message": "沒有回答搜尋者的核心問題",
-        }
-    ]
+
+@pytest.mark.parametrize("semantic_verdict", ["APPROVE", "REJECT"])
+def test_hydrate_rewrite_review_objective_observations_do_not_decide_semantic(semantic_verdict: str) -> None:
+    brief = make_rewrite_brief("VALID-OBJECTIVE-CODE")
+    source = brief["articles"][0]
+    candidate = pipeline.hydrate_candidate(brief, {"articles": [{
+        "slot": "article-01",
+        "bodySections": make_rewrite_sections(),
+        "publicationPolicy": make_rewrite_publication_policy(source),
+    }]})
+    findings = [] if semantic_verdict == "APPROVE" else [{
+        "code": "insufficient_content_depth",
+        "message": "第1節只列行動，未說明判讀依據與衝突選項的比較步驟。",
+    }]
+    external = {"articles": [{
+        "slot": "article-01",
+        "semantic_verdict": semantic_verdict,
+        "semantic_findings": findings,
+        "objective_observations": [
+            {"code": code, "message": "客觀觀察由本機量測裁決。"}
+            for code in sorted(pipeline.REWRITE_MACHINE_OWNED_REVIEW_CODES)
+        ],
+    }]}
+    before = json.loads(json.dumps(external))
+    review = pipeline.hydrate_rewrite_review(brief, candidate, external)
+    assert review["articles"][0]["verdict"] == semantic_verdict
+    assert review["articles"][0]["findings"] == findings
+    assert external == before
 
 
 def test_hydrate_rewrite_review_requires_exact_objective_code() -> None:
@@ -3323,6 +3348,74 @@ def test_hydrate_rewrite_review_requires_exact_objective_code() -> None:
                 ]
             },
         )
+
+
+@pytest.mark.parametrize("change", ["paragraph", "title", "evidence"])
+def test_rewrite_reviewer_trusted_measurements_bind_candidate_and_request(change: str) -> None:
+    brief = make_rewrite_brief("REWRITE-MEASUREMENTS")
+    source = brief["articles"][0]
+    candidate = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "mode": "rewrite_existing_body",
+        "articles": [{
+            "article_id": source["article_id"],
+            "identity": dict(source["identity"]),
+            "current_body_sha256": source["current_body_sha256"],
+            "bodySections": make_rewrite_sections(variant="量測"),
+            "publicationPolicy": make_rewrite_publication_policy(source),
+        }],
+    }
+    original_brief = json.loads(json.dumps(brief))
+    original_public_brief = pipeline.public_model_brief(brief)
+    original_writer = pipeline._writer_prompt(brief)
+
+    def inspect(value: dict[str, object]) -> tuple[dict[str, object], dict[str, object]]:
+        prompt = pipeline._reviewer_prompt(brief, value, [])
+        effective = json.loads(prompt.split("public brief:\n", 1)[1].split("\npublic candidate:", 1)[0])
+        assert "bodyShape" not in effective["writingPolicy"]
+        assert effective["writingPolicy"]["opening"] == "開頭直接回答 primaryKeyword"
+        assert "硬性安全邊界" not in prompt
+        assert "字才是正文硬性邊界" not in prompt
+        assert "body shape internal constraint" not in prompt
+        assert "不得自行估算或重算字數" in prompt
+        assert "article-level evidence/disclosure" in prompt
+        assert "semantic_findings 非空時 semantic_verdict 必須為 REJECT" in prompt
+        measurements = json.loads(prompt.split("trusted local measurements:\n", 1)[1].split("\npublic brief:", 1)[0])
+        observed = measurements["articles"][0]
+        article = value["articles"][0]
+        assert observed["slot"] == "article-01"
+        assert observed["candidate_sha256"] == article_sha256(article)
+        assert observed["title_characters"] == len(article["identity"]["title"])
+        assert observed["section_count"] == len(article["bodySections"])
+        assert observed["paragraph_counts"] == [len(s["paragraphs"]) for s in article["bodySections"]]
+        assert observed["paragraph_characters"] == [[len(p) for p in s["paragraphs"]] for s in article["bodySections"]]
+        assert observed["body_characters"] == sum(sum(lengths) for lengths in observed["paragraph_characters"])
+        request = build_external_request(namespace="rewrite-measurements", role="reviewer", model="reviewer-test", prompt=prompt, response_schema=pipeline.rewrite_external_review_schema())
+        return observed, request
+
+    before, before_request = inspect(candidate)
+    changed = json.loads(json.dumps(candidate))
+    article = changed["articles"][0]
+    if change == "paragraph":
+        article["bodySections"][0]["paragraphs"][0] += "補充具體情境。"
+    elif change == "title":
+        article["identity"]["title"] += "與限制"
+    else:
+        article["publicationPolicy"]["evidence"]["disclosure"] += "僅供文化反思。"
+    after, after_request = inspect(changed)
+    assert before["candidate_sha256"] != after["candidate_sha256"]
+    assert before_request["request_sha256"] != after_request["request_sha256"]
+    assert before_request["job_id"] != after_request["job_id"]
+    if change == "paragraph":
+        assert before["body_characters"] != after["body_characters"]
+    elif change == "title":
+        assert before["title_characters"] != after["title_characters"]
+    else:
+        assert before["body_characters"] == after["body_characters"]
+    assert brief == original_brief
+    assert pipeline.public_model_brief(brief) == original_public_brief
+    assert pipeline._writer_prompt(brief) == original_writer
 
 
 def test_rewrite_reviewer_prompts_require_exact_review_contract() -> None:
@@ -3645,13 +3738,38 @@ def test_rewrite_cached_legacy_review_payload_fails_closed(
         pipeline.hydrate_rewrite_review(brief, candidate, cached_payload)
 
 
+@pytest.mark.parametrize("finding", [
+    {
+        "code": "BODY_SHAPE_VIOLATION",
+        "message": "文章完全誤解搜尋意圖，且把文化反思寫成個人定論",
+    },
+    {
+        "code": "insufficient_content_depth",
+        "message": "第1節第1段只說整理資訊與選擇的角度，未解釋判讀依據；第2節第2段只列支出與退出條件，未說明如何比較衝突選項。缺少推理步驟，並非字數不足。",
+    },
+    {
+        "code": "body_shape_violation",
+        "message": "第1節第1段要求正在服藥的讀者自行停掉療程，將文章步驟當作停藥依據，缺少醫療專業判斷。",
+    },
+    {
+        "code": "medical_advice",
+        "message": "第1節第1段要求正在服藥的讀者自行停掉療程，將文章步驟當作停藥依據，缺少醫療專業判斷。",
+    },
+])
 def test_rewrite_semantic_reject_survives_machine_owned_code_label(
     tmp_path: Path,
+    finding: dict[str, str],
 ) -> None:
     brief = make_rewrite_brief("HOSTILE-SEMANTIC-MISLABEL")
     pipeline.write_json(tmp_path / "brief.json", brief)
     source = brief["articles"][0]
     body = make_rewrite_sections(variant="誤標")
+    if finding["code"] in {"medical_advice", "body_shape_violation"}:
+        body[0]["paragraphs"][0] = (
+            "測試關鍵字先回答讀者眼前的疑問：它是一個整理資訊與選擇的角度，不能代替個人判斷。"
+            "在會議收到臨時任務時，先記錄期限與責任。"
+            "若你正在使用醫師開立的藥物，照這個步驟做就能停掉原本的療程。"
+        )
     candidate_article = {
         "article_id": source["article_id"],
         "identity": source["identity"],
@@ -3689,17 +3807,16 @@ def test_rewrite_semantic_reject_survives_machine_owned_code_label(
                     ]
                 }
             self.reviewer_calls += 1
+            measurements = json.loads(_prompt.split("trusted local measurements:\n", 1)[1].split("\npublic brief:", 1)[0])
+            assert measurements["articles"][0]["body_characters"] == sum(
+                len(paragraph) for section in body for paragraph in section["paragraphs"]
+            )
             return {
                 "articles": [
                     {
                         "slot": "article-01",
                         "semantic_verdict": "REJECT",
-                        "semantic_findings": [
-                            {
-                                "code": "BODY_SHAPE_VIOLATION",
-                                "message": "文章完全誤解搜尋意圖，且把文化反思寫成個人定論",
-                            }
-                        ],
+                        "semantic_findings": [finding],
                         "objective_observations": [],
                     }
                 ]
@@ -3715,13 +3832,14 @@ def test_rewrite_semantic_reject_survives_machine_owned_code_label(
     assert client.writer_calls == 1
     assert client.reviewer_calls == 1
     assert review["articles"][0]["verdict"] == "REJECT"
-    assert review["articles"][0]["hard_failure"] is False
-    assert review["articles"][0]["findings"] == [
-        {
-            "code": "BODY_SHAPE_VIOLATION",
-            "message": "文章完全誤解搜尋意圖，且把文化反思寫成個人定論",
-        }
-    ]
+    if finding["code"] in pipeline.REWRITE_MACHINE_OWNED_REVIEW_CODES:
+        assert review["articles"][0]["hard_failure"] is True
+        assert review["articles"][0]["findings"][0]["code"] == "invalid_reviewer_json:ValueError"
+    else:
+        assert review["articles"][0]["hard_failure"] is False
+        assert review["articles"][0]["findings"] == [finding]
+    external = json.loads((tmp_path / "attempts/01/external-review.json").read_text())
+    assert external["articles"][0]["semantic_findings"] == [finding]
 
 
 def test_rewrite_malformed_machine_owned_finding_fails_closed(
@@ -4310,7 +4428,8 @@ def test_rewrite_repair_machine_reject_skips_reviewer_until_green(
     assert all(item["verdict"] == "APPROVE" for item in review["articles"])
 
 
-def test_batch_002_isolated_runner_uses_five_single_article_writers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("misplaced_semantic", [False, True], ids=["legal-objective", "invalid-semantic"])
+def test_batch_002_isolated_runner_uses_five_single_article_writers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, misplaced_semantic: bool) -> None:
     brief = make_batch_002_brief()
     pipeline.write_json(tmp_path / "brief.json", brief)
     pipeline.write_json(
@@ -4356,7 +4475,7 @@ def test_batch_002_isolated_runner_uses_five_single_article_writers(tmp_path: Pa
                     {
                         "slot": f"article-{index:02d}",
                         "semantic_verdict": (
-                            "REJECT" if index == 1 else "APPROVE"
+                            "REJECT" if misplaced_semantic and index == 1 else "APPROVE"
                         ),
                         "semantic_findings": (
                             [
@@ -4365,23 +4484,41 @@ def test_batch_002_isolated_runner_uses_five_single_article_writers(tmp_path: Pa
                                     "message": "錯誤聲稱正文尺寸不合格",
                                 }
                             ]
-                            if index == 1
+                            if misplaced_semantic and index == 1
                             else []
                         ),
-                        "objective_observations": [],
+                        "objective_observations": (
+                            [{"code": "body_shape_violation", "message": "客觀尺寸觀察交由本機量測判定。"}]
+                            if not misplaced_semantic and index == 1
+                            else []
+                        ),
                     }
                     for index in range(1, 6)
                 ]
             }
 
     client = RecordingClient()
+    if misplaced_semantic:
+        candidate = pipeline.hydrate_candidate(brief, {"articles": [
+            {
+                "slot": f"article-{index:02d}",
+                "bodySections": make_rewrite_sections(str(source["identity"]["primaryKeyword"]), f"稿{index}"),
+                "publicationPolicy": make_rewrite_publication_policy(source),
+            }
+            for index, source in enumerate(brief["articles"], 1)
+        ]})
+        external = client.generate_json("reviewer", "", pipeline.rewrite_external_review_schema())
+        with pytest.raises(ValueError, match="rewrite semantic finding uses machine-owned code"):
+            pipeline.hydrate_rewrite_review(brief, candidate, external)
+        return
+
     candidate, review = pipeline.run_rewrite_repair(tmp_path, client)
 
     assert len(client.writer_prompts) == 5
     assert client.reviewer_calls == 1
     assert all(prompt.count('"currentBody"') == 1 for prompt in client.writer_prompts)
     assert [article["article_id"] for article in candidate["articles"]] == [item[1] for item in pipeline.REWRITE_BATCH_002_ARTICLES]
-    assert all(item["verdict"] == "APPROVE" for item in review["articles"])
+    assert all(item["verdict"] == "APPROVE" and item["findings"] == [] for item in review["articles"])
     evidence = json.loads((tmp_path / "run-evidence.json").read_text())
     assert evidence["internal_repairs_used"] == 0
 
@@ -4735,7 +4872,7 @@ def test_review_existing_reuses_candidate_without_writer_call(tmp_path: Path, mo
     assert json.loads((tmp_path / "candidate.json").read_text()) == candidate
 
 
-def test_review_existing_rewrite_reconciles_misplaced_machine_finding(
+def test_review_existing_rewrite_rejects_misplaced_machine_finding(
     tmp_path: Path,
 ) -> None:
     brief = make_rewrite_brief("EXISTING-REWRITE-001")
@@ -4785,8 +4922,9 @@ def test_review_existing_rewrite_reconciles_misplaced_machine_finding(
 
     review = pipeline.review_existing_candidate(tmp_path, ReviewerOnly())
 
-    assert review["articles"][0]["verdict"] == "APPROVE"
-    assert review["articles"][0]["findings"] == []
+    assert review["articles"][0]["verdict"] == "REJECT"
+    assert review["articles"][0]["hard_failure"] is True
+    assert review["articles"][0]["findings"][0]["code"] == "invalid_reviewer_json:ValueError"
     assert json.loads((tmp_path / "candidate.json").read_text()) == candidate
 
 

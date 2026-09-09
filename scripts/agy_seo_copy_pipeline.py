@@ -3721,28 +3721,34 @@ def public_model_findings(brief: dict[str, Any], findings: list[dict[str, Any]])
     ]
 
 
+def _body_measurements(article: dict[str, Any]) -> dict[str, Any]:
+    """沿用本地字數定義，供不同輸入形狀共用正文量測。"""
+    return {
+        "body_characters": len(
+            "".join(
+                str(paragraph)
+                for section in article["bodySections"]
+                for paragraph in section["paragraphs"]
+            )
+        ),
+        "section_count": len(article["bodySections"]),
+        "paragraph_counts": [
+            len(section["paragraphs"]) for section in article["bodySections"]
+        ],
+        "paragraph_characters": [
+            [len(str(paragraph)) for paragraph in section["paragraphs"]]
+            for section in article["bodySections"]
+        ],
+    }
+
+
 def _create_repair_measurements(candidate: dict[str, Any]) -> dict[str, Any]:
     return {
         "articles": [
             {
                 "slot": _slot(index),
                 "description_characters": len(str(article["description"])),
-                "body_characters": len(
-                    "".join(
-                        str(paragraph)
-                        for section in article["bodySections"]
-                        for paragraph in section["paragraphs"]
-                    )
-                ),
-                "section_count": len(article["bodySections"]),
-                "paragraph_counts": [
-                    len(section["paragraphs"])
-                    for section in article["bodySections"]
-                ],
-                "paragraph_characters": [
-                    [len(str(paragraph)) for paragraph in section["paragraphs"]]
-                    for section in article["bodySections"]
-                ],
+                **_body_measurements(article),
             }
             for index, article in enumerate(candidate["articles"])
         ]
@@ -4093,11 +4099,11 @@ def hydrate_rewrite_review(
             }
         )
     review = hydrate_review(brief, candidate, semantic_external)
-    return reconcile_external_review_with_machine_gate(
-        review,
-        REWRITE_MACHINE_OWNED_REVIEW_CODES,
-        exact_codes=True,
-    )
+    for article in review["articles"]:
+        for finding in article["findings"]:
+            if finding["code"] in REWRITE_MACHINE_OWNED_REVIEW_CODES:
+                raise ValueError("rewrite semantic finding uses machine-owned code")
+    return review
 
 
 def reconcile_external_review_with_machine_gate(
@@ -4280,6 +4286,24 @@ def _rewrite_reviewer_objective_contract() -> str:
 
 
 def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], deterministic_findings: list[dict[str, str]]) -> str:
+    effective_brief = public_model_brief(brief)
+    rewrite = brief.get("mode") == "rewrite_existing_body"
+    measurements = []
+    if rewrite:
+        effective_brief["writingPolicy"].pop("bodyShape")
+        effective_brief["writingPolicy"]["opening"] = "開頭直接回答 primaryKeyword"
+        measurements = [
+            "trusted local measurements:",
+            json.dumps({"articles": [
+                {
+                    "slot": _slot(index),
+                    "candidate_sha256": article_sha256(article),
+                    "title_characters": len(str(article["identity"]["title"])),
+                    **_body_measurements(article),
+                }
+                for index, article in enumerate(candidate["articles"])
+            ]}, ensure_ascii=False),
+        ]
     create_profile = publication_presentation_profile("create")
     title_minimum, title_maximum = _range_bounds(
         create_profile,
@@ -4312,6 +4336,9 @@ def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], determini
         )
     elif brief.get("mode") == "rewrite_existing_body":
         machine_gate_instruction = (
+            "字數與結構數量以綁定 slot、candidate_sha256 的 trusted local measurements 為準；"
+            "不得自行估算或重算字數、標題或正文長度、section／paragraph 數量與長度，"
+            "是否符合數字範圍由本機 deterministic gate 唯一判定。"
             "semantic_verdict 只能表示語意審查結論；semantic_findings 只能放搜尋意圖、語意品質、"
             "場景、動詞、限制、安全邊界、錯別字與模板感。section／paragraph 數量與長度、正文總長、"
             "immutable identity、candidate hash 等客觀觀察只能放 objective_observations。"
@@ -4324,17 +4351,20 @@ def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], determini
         "獨立審查候選稿是否符合 public brief 與發布規範；slot 必須逐字複製。",
         "檢查：搜尋意圖、具體生活場景、可觀察動詞、反例、限制、繁體中文、英文殘字與錯別字、禁詞、模板句、醫療/法律/財務邊界。",
         *([_create_writing_instruction()] if brief.get("mode") == "create" else []),
-        f"{title_minimum} 到 {title_maximum} 字才是標題硬性安全邊界；"
-        f"{title_preferred_minimum} 到 {title_preferred_maximum} 字只是偏好，"
-        "不得只因未落在偏好區間而退件。",
-        f"{body_minimum} 到 {body_maximum} 字才是正文硬性邊界；"
-        f"{body_preferred_minimum} 到 {body_preferred_maximum} 字只是生成目標，"
-        "不得只因正文未落在生成目標區間而退件。",
-        f"body shape internal constraint：{publication_presentation_instruction(presentation_mode)}。",
+        *([] if rewrite else [
+            f"{title_minimum} 到 {title_maximum} 字才是標題硬性安全邊界；"
+            f"{title_preferred_minimum} 到 {title_preferred_maximum} 字只是偏好，"
+            "不得只因未落在偏好區間而退件。",
+            f"{body_minimum} 到 {body_maximum} 字才是正文硬性邊界；"
+            f"{body_preferred_minimum} 到 {body_preferred_maximum} 字只是生成目標，"
+            "不得只因正文未落在生成目標區間而退件。",
+            f"body shape internal constraint：{publication_presentation_instruction(presentation_mode)}。",
+        ]),
         "禁詞必須依語境判斷；不一定、不能保證、不是注定等否定邊界句不得當成承諾禁詞。",
         machine_gate_instruction,
         "deterministic findings 必須保留為 REJECT，不得自行忽略。",
-        "public brief:", json.dumps(public_model_brief(brief), ensure_ascii=False),
+        *measurements,
+        "public brief:", json.dumps(effective_brief, ensure_ascii=False),
         "public candidate:", json.dumps(public_model_candidate(brief, candidate), ensure_ascii=False),
         "public deterministic findings:", json.dumps(public_model_findings(brief, deterministic_findings), ensure_ascii=False),
     ])
