@@ -1,7 +1,8 @@
 # Pantheon Security / Exposure Backlog
 
-更新：2026-09-08
+更新：2026-09-09
 狀態：`ACTIVE / SECURITY HARDENING`
+定位：本檔為 Pantheon 目前最新的 cross-cutting security backlog；不取代 `docs/content_expansion_backlog.md` 的內容產品主線，也不改寫既有 publishing priority。
 用途：記錄公開 repo 與 production-facing surface 的防護缺口。此檔只保存修補目標與驗收條件，不保存 exploit payload、真實 secret、production credential、攻擊步驟或可直接重現的濫用細節。
 
 ## P0 — Network trust boundary hardening
