@@ -643,7 +643,8 @@ def _service_rss_bytes(
                 and identity is not None
                 and identity["states"] == ["not running"]
                 and identity["paths"] == [expected_plist]
-                and identity["last_exit_codes"] in ([], [0])
+                # 已結束工作的退出碼不代表目前仍有程序占用記憶體。
+                and len(identity["last_exit_codes"]) <= 1
             ):
                 idle.append({"label": label, "topology": "loaded-but-idle"})
                 continue
@@ -670,7 +671,7 @@ def _service_rss_bytes(
                     if (
                         retry_identity is None
                         or retry_identity["paths"] != [expected_plist]
-                        or retry_identity["last_exit_codes"] not in ([], [0])
+                        or len(retry_identity["last_exit_codes"]) > 1
                     ):
                         break
                     match = re.search(
@@ -682,6 +683,8 @@ def _service_rss_bytes(
                         break
                     if retry_identity["states"] == ["not running"]:
                         idle.append({"label": label, "topology": "loaded-but-idle"})
+                        break
+                    if retry_identity["last_exit_codes"] not in ([], [0]):
                         break
                     if retry_identity["states"] not in (
                         ["running"],

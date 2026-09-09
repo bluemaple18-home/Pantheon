@@ -2307,7 +2307,62 @@ def test_normal_scheduled_service_rechecks_transient_state_without_pid(
     assert calls == 4
 
 
-@pytest.mark.parametrize("last_exit_code", [0, 78])
+@pytest.mark.parametrize("last_exit_code", [0, 1, 78, -15])
+@pytest.mark.parametrize("transient_first", [False, True])
+def test_normal_failed_job_settles_to_zero_rss(
+    monkeypatch: pytest.MonkeyPatch,
+    last_exit_code: int,
+    transient_first: bool,
+) -> None:
+    label = "com.pantheon.agy-gemini-i18n-rewrite"
+    target = f"gui/{os.getuid()}/{label}"
+    plist = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(strict=True) / "Library" / "LaunchAgents" / f"{label}.plist"
+    calls = 0
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        if command == ["launchctl", "print", target]:
+            calls += 1
+            transient = transient_first and calls == 1
+            state = "running" if transient else "not running"
+            code = 0 if transient else last_exit_code
+            return _completed(0, f"{target} = {{\n\tpath = {plist}\n\tstate = {state}\n\tlast exit code = {code}\n}}\n")
+        if command[:2] == ["launchctl", "print"]:
+            return _completed(113)
+        raise AssertionError(command)
+
+    monkeypatch.setattr(guard.time, "sleep", lambda _seconds: None)
+    result = guard._service_rss_bytes(runner, expected_idle_labels=frozenset({label}))
+    assert result["available"] is True
+    assert result["value"] == 0
+    assert result["identity"]["idle_labels"] == [{"label": label, "topology": "loaded-but-idle"}]
+    assert calls == (2 if transient_first else 1)
+
+
+@pytest.mark.parametrize("invalid", ["path", "target", "duplicate_exit", "untrusted_label"])
+def test_normal_failed_job_requires_unambiguous_trusted_identity(invalid: str) -> None:
+    label = "com.pantheon.agy-gemini-i18n-rewrite"
+    target = f"gui/{os.getuid()}/{label}"
+    plist = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(strict=True) / "Library" / "LaunchAgents" / f"{label}.plist"
+    path = str(plist) + (".wrong" if invalid == "path" else "")
+    output_target = target + (".wrong" if invalid == "target" else "")
+    extra = "\tlast exit code = 1\n" if invalid == "duplicate_exit" else ""
+    output = f"{output_target} = {{\n\tpath = {path}\n\tstate = not running\n\tlast exit code = 1\n{extra}}}\n"
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        if command == ["launchctl", "print", target]:
+            return _completed(0, output)
+        if command[:2] == ["launchctl", "print"]:
+            return _completed(113)
+        raise AssertionError(command)
+
+    expected = frozenset() if invalid == "untrusted_label" else frozenset({label})
+    result = guard._service_rss_bytes(runner, expected_idle_labels=expected)
+    assert result["available"] is False
+    assert result["value"] is None
+
+
+@pytest.mark.parametrize("last_exit_code", [0, 1, 78])
 def test_normal_scheduled_service_persistent_pid_gap_fails_closed(
     monkeypatch: pytest.MonkeyPatch,
     last_exit_code: int,
