@@ -55,13 +55,13 @@ def test_missing_allocator_state_initializes_provider_count_as_int(
     assert fresh_state.daily_provider_admission_count == 0
 
 
-def test_provider_admission_cap_allows_102_and_denies_103(
+def test_provider_admission_cap_allows_1200_and_denies_1201(
     tmp_path: Path,
 ) -> None:
     state = tmp_path / "allocator-state.json"
     now = datetime(2026, 9, 2, 12, tzinfo=ZoneInfo("Asia/Taipei")).timestamp()
 
-    for index in range(102):
+    for index in range(1200):
         assert _cap_allocate(state, now)[0] == index + 1
 
     with allocator.production_slot_admission(
@@ -76,7 +76,43 @@ def test_provider_admission_cap_allows_102_and_denies_103(
 
     payload = json.loads(state.read_text(encoding="utf-8"))
     assert payload["cost_date"] == "2026-09-02"
-    assert payload["daily_provider_admission_count"] == 102
+    assert payload["daily_provider_admission_count"] == 1200
+
+
+def test_provider_admission_preserves_existing_102_count_and_continues_to_103(
+    tmp_path: Path,
+) -> None:
+    state = tmp_path / "allocator-state.json"
+    now = datetime(2026, 9, 2, 12, tzinfo=ZoneInfo("Asia/Taipei")).timestamp()
+    for _index in range(102):
+        _cap_allocate(state, now)
+
+    assert _cap_allocate(state, now)[0] == 103
+    payload = json.loads(state.read_text(encoding="utf-8"))
+    assert payload["cost_date"] == "2026-09-02"
+    assert payload["daily_provider_admission_count"] == 103
+
+
+def test_provider_admission_count_above_old_102_cap_fails_closed_after_rollback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = tmp_path / "allocator-state.json"
+    now = datetime(2026, 9, 2, 12, tzinfo=ZoneInfo("Asia/Taipei")).timestamp()
+    for _index in range(103):
+        _cap_allocate(state, now)
+
+    monkeypatch.setattr(allocator, "DAILY_PROVIDER_ADMISSION_CAP", 102)
+    with pytest.raises(ValueError, match="state schema"):
+        with allocator.production_slot_admission(
+            state,
+            pool_id=POOL_ID,
+            manifest_sha256=MANIFEST_SHA256,
+            provider_admission=True,
+            clock=lambda: now,
+        ):
+            pass
+    assert json.loads(state.read_text(encoding="utf-8"))["daily_provider_admission_count"] == 103
 
 
 def test_provider_admission_cap_resets_at_asia_taipei_midnight_and_rejects_future_state(
@@ -119,7 +155,7 @@ def test_provider_admission_cap_resets_at_asia_taipei_midnight_and_rejects_futur
             pass
 
 
-@pytest.mark.parametrize("bad_count", [-1, "1", 103])
+@pytest.mark.parametrize("bad_count", [-1, "1", 1201])
 def test_provider_admission_state_rejects_malformed_count(
     tmp_path: Path,
     bad_count: object,

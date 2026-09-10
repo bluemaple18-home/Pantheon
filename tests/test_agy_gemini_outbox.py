@@ -59,7 +59,7 @@ NORMALIZED_TRACE_KEYS = frozenset(
 
 @pytest.fixture(autouse=True)
 def _provider_admission_cap(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP", "102")
+    monkeypatch.setenv("AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP", "1200")
 
 
 def _assert_normalized_trace_schema(trace: dict[str, object]) -> None:
@@ -2584,8 +2584,8 @@ def test_production_provider_admission_cap_denies_before_provider_call(
     )
     assert missing_cap["error_type"] == "ValueError"
     assert (queue_root / "outbox" / f"{request['job_id']}.json").is_file()
-    monkeypatch.setenv("AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP", "102")
-    for index in range(102):
+    monkeypatch.setenv("AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP", "1200")
+    for index in range(1200):
         with allocator.production_slot_admission(
             state,
             pool_id="pantheon-production-v1",
@@ -2611,7 +2611,7 @@ def test_production_provider_admission_cap_denies_before_provider_call(
     assert not (queue_root / "processing" / f"{request['job_id']}.json").exists()
 
 
-def test_v4_broker_with_production_pool_denies_103_before_broker_call(
+def test_v4_broker_with_production_pool_denies_1201_before_broker_call(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2628,7 +2628,7 @@ def test_v4_broker_with_production_pool_denies_103_before_broker_call(
     state = tmp_path / "round-robin-state.json"
     now = 1_788_220_800.0
     pool_payload, manifest_sha256 = runner._read_production_pool(manifest)
-    for _index in range(102):
+    for _index in range(1200):
         with allocator.production_slot_admission(
             state,
             pool_id=str(pool_payload["pool_id"]),
@@ -2720,7 +2720,7 @@ def test_four_lanes_compete_for_last_provider_admission(
     pool_payload, manifest_sha256 = runner._read_production_pool(manifest)
     state = tmp_path / "round-robin-state.json"
     now = 1_788_220_800.0
-    for _index in range(101):
+    for _index in range(1199):
         with allocator.production_slot_admission(
             state,
             pool_id=str(pool_payload["pool_id"]),
@@ -2756,7 +2756,7 @@ def test_four_lanes_compete_for_last_provider_admission(
     environment = os.environ.copy()
     environment["AGY_GEMINI_CREDENTIAL_POOL_FILE"] = str(manifest)
     environment["AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE"] = str(state)
-    environment["AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP"] = "102"
+    environment["AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP"] = "1200"
     environment.pop("AGY_GEMINI_V4_BROKER", None)
     processes = [
         subprocess.Popen(
@@ -2777,7 +2777,7 @@ def test_four_lanes_compete_for_last_provider_admission(
 
     assert [result["status"] for result in results].count("processed") == 1
     assert [result["status"] for result in results].count("provider_admission_cap") == 3
-    assert json.loads(state.read_text(encoding="utf-8"))["daily_provider_admission_count"] == 102
+    assert json.loads(state.read_text(encoding="utf-8"))["daily_provider_admission_count"] == 1200
 
 
 @pytest.mark.parametrize(

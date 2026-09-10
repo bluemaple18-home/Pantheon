@@ -38,7 +38,7 @@ def test_formal_operator_rejects_coordinator_as_lane_service(tmp_path: Path) -> 
         )
 
 
-@pytest.mark.parametrize("value", [None, "one-oh-two", "101"])
+@pytest.mark.parametrize("value", [None, "twelve-hundred", "1199"])
 def test_production_provider_admission_cap_configuration_fails_closed(
     monkeypatch: pytest.MonkeyPatch,
     value: str | None,
