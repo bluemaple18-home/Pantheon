@@ -3376,15 +3376,24 @@ def _rewrite_provider_body_sections_schema() -> dict[str, Any]:
     return body_sections
 
 
+def _provider_shape_schema(value: Any) -> Any:
+    """複製 provider schema，只保留結構約束並移除本機內容長度 gate。"""
+    if isinstance(value, dict):
+        return {
+            key: _provider_shape_schema(child)
+            for key, child in value.items()
+            if key not in {"minLength", "maxLength"}
+        }
+    if isinstance(value, list):
+        return [_provider_shape_schema(child) for child in value]
+    return value
+
+
 def _create_provider_body_sections_schema() -> dict[str, Any]:
     """保留 create 結構約束；段落字數交給 canonical 本機 gate 與 repair。"""
-    body_sections = _article_json_schema()["properties"]["bodySections"]
-    paragraph_items = body_sections["items"]["properties"]["paragraphs"][
-        "items"
-    ]
-    paragraph_items.pop("minLength", None)
-    paragraph_items.pop("maxLength", None)
-    return body_sections
+    return _provider_shape_schema(
+        _article_json_schema()["properties"]["bodySections"]
+    )
 
 
 def external_candidate_schema(mode: str) -> dict[str, Any]:
@@ -3414,19 +3423,10 @@ def external_candidate_schema(mode: str) -> dict[str, Any]:
         }
     else:
         full = _article_json_schema()
-        provider_description = dict(full["properties"]["description"])
-        provider_description.pop("minLength", None)
-        provider_description.pop("maxLength", None)
         properties = {"slot": {"type": "string"}}
         properties.update(
             {
-                field: (
-                    _create_provider_body_sections_schema()
-                    if field == "bodySections"
-                    else provider_description
-                    if field == "description"
-                    else full["properties"][field]
-                )
+                field: _provider_shape_schema(full["properties"][field])
                 for field in sorted(EXTERNAL_CREATE_FIELDS)
             }
         )
@@ -3929,7 +3929,10 @@ def external_create_repair_schema(
         "additionalProperties": False,
         "properties": {
             "slot": {"type": "string"},
-            **{field: full["properties"][field] for field in fields},
+            **{
+                field: _provider_shape_schema(full["properties"][field])
+                for field in fields
+            },
         },
         "required": ["slot", *fields] if len(contract) == 1 else ["slot"],
     }
