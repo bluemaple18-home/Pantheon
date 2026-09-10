@@ -150,7 +150,7 @@ def test_all_transports_obey_authority_before_attempt(tmp_path, monkeypatch, tra
         manifest, _ = _write_production_pool(tmp_path)
         monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", str(manifest))
         monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE", str(allocator))
-        monkeypatch.setenv("AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP", "102")
+        monkeypatch.setenv("AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP", "1200")
     if transport == "direct":
         class Client:
             def __init__(self, *_args, **_kwargs):
