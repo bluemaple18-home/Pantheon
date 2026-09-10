@@ -31,6 +31,7 @@ from scripts.agy_gemini_outbox import (
     OUTBOX_MAX_TRANSPORT_RETRIES,
     SHA256_PATTERN,
     atomic_write_json,
+    build_external_request,
     build_external_replacement_request,
     classify_external_failure,
     consume_external_response,
@@ -2134,6 +2135,20 @@ def _provider_attempt_zero_invalid_receipt(
     )
 
 
+def _pending_writer_lite_retry_lineage_id(
+    source_request: Mapping[str, Any],
+    *,
+    authority_digest: str,
+    target_model: str,
+) -> str:
+    return hashlib.sha256(
+        (
+            f"{source_request['job_id']}:{source_request['request_sha256']}:"
+            f"{authority_digest}:pending_writer_lite_retry:{target_model}"
+        ).encode("ascii")
+    ).hexdigest()
+
+
 def replace_failed_external_job(
     run_dir: Path,
     queue_root: Path,
@@ -2145,9 +2160,10 @@ def replace_failed_external_job(
     request_sha256: str,
     namespace: str,
     correlation_id: str,
-    failure_category: str,
-    error_code: str,
+    failure_category: str | None = None,
+    error_code: str | None = None,
     authority_digest: str,
+    pending_writer_lite_retry: bool = False,
     resume_replacement: bool = False,
     local_preflight_reason: str | None = None,
     execute: bool = False,
@@ -2168,12 +2184,17 @@ def replace_failed_external_job(
         raise ValueError("failed external replacement namespace is invalid")
     if not correlation_id or correlation_id.strip() != correlation_id:
         raise ValueError("failed external replacement correlation id is invalid")
-    if not failure_category or failure_category.strip() != failure_category:
-        raise ValueError("failed external replacement failure category is invalid")
-    if not error_code or error_code.strip() != error_code:
-        raise ValueError("failed external replacement error code is invalid")
+    if pending_writer_lite_retry and (failure_category is not None or error_code is not None):
+        raise ValueError("pending writer lite retry must not use failure identity")
+    if not pending_writer_lite_retry:
+        if not failure_category or failure_category.strip() != failure_category:
+            raise ValueError("failed external replacement failure category is invalid")
+        if not error_code or error_code.strip() != error_code:
+            raise ValueError("failed external replacement error code is invalid")
     if resume_replacement != (local_preflight_reason is not None):
         raise ValueError("failed external replacement resume requires closed local reason")
+    if pending_writer_lite_retry and resume_replacement:
+        raise ValueError("pending writer lite retry cannot resume failed replacement")
 
     state_root = queue_root.resolve()
     job_root = (job_queue_root or state_root).resolve()
@@ -2213,6 +2234,250 @@ def replace_failed_external_job(
         if "result" in state:
             raise ValueError("failed external replacement rejects existing success result")
         identity_envelope = _validate_identity_envelope(state.get("identity_envelope"))
+
+        if pending_writer_lite_retry:
+            route_config = pipeline.model_route_config_from_environment()
+            target_model = route_config.routes["writer"][0]
+            if target_model != pipeline.OFFICIAL_LITE_API_MODEL_ROUTES["writer"]:
+                raise ValueError("pending writer lite retry requires Lite writer route")
+            source_outbox_path = job_root / "outbox" / f"{source_job_id}.json"
+            source_archive_path = job_root / "archive" / f"{source_job_id}.json"
+            if (
+                (job_root / "processing" / f"{source_job_id}.json").exists()
+                or (job_root / "outbox" / f"{source_job_id}.json.terminalizing").exists()
+            ):
+                raise ValueError("pending writer lite retry rejects claimed source job")
+            if (job_root / "inbox" / f"{source_job_id}.json").exists() or (
+                job_root / "failed" / f"{source_job_id}.json"
+            ).exists():
+                raise ValueError("pending writer lite retry rejects source provider outcome")
+            if (job_root / "production-attempts" / f"{source_job_id}.attempt").exists():
+                raise ValueError("pending writer lite retry rejects production attempt evidence")
+
+            decision_path = failed_external_replacement_decision_path(job_root, source_job_id)
+            source_locations = _known_request_locations(job_root, source_job_id)
+            if decision_path.exists():
+                if source_locations != [("archive", source_archive_path)]:
+                    raise ValueError("pending writer lite retry source archive identity mismatch")
+            elif source_locations != [("outbox", source_outbox_path)]:
+                raise ValueError("pending writer lite retry requires pending outbox source")
+            source_request_path = source_archive_path if decision_path.exists() else source_outbox_path
+            source_request = read_closed_json_artifact(
+                source_request_path,
+                max_bytes=512 * 1024,
+                label="pending writer lite retry source request",
+            )
+            validate_external_request(source_request)
+            if (
+                source_request.get("job_id") != source_job_id
+                or source_request.get("request_sha256") != request_sha256
+                or source_request.get("namespace") != namespace
+                or source_request.get("role") != "writer"
+            ):
+                raise ValueError("pending writer lite retry request identity mismatch")
+            if source_request.get("model") == target_model:
+                raise ValueError("pending writer lite retry source already uses Lite")
+            if not decision_path.exists() and state.get("last_job_id") != source_job_id:
+                raise ValueError("pending writer lite retry last job mismatch")
+
+            replacement_request = build_external_request(
+                namespace=namespace,
+                role="writer",
+                model=target_model,
+                prompt=str(source_request["prompt"]),
+                response_schema=source_request["response_schema"],
+            )
+            replacement_job_id = str(replacement_request["job_id"])
+            replacement_lineage_id = _pending_writer_lite_retry_lineage_id(
+                source_request,
+                authority_digest=authority_digest,
+                target_model=target_model,
+            )
+            replacement_request_sha256 = _canonical_json_file_sha256(replacement_request)
+            decision_relative = str(decision_path.relative_to(state_root))
+            identity_receipt_path = (
+                state_root / "identity-replacement-receipts" / f"{source_job_id}.json"
+            )
+            identity_receipt_relative = str(identity_receipt_path.relative_to(state_root))
+            identity_receipt = {
+                "schema_version": 1,
+                "run_id": expected_run_id,
+                "source_job_id": source_job_id,
+                "request_sha256": request_sha256,
+                "decision": decision_relative,
+                "identity_envelope": identity_envelope,
+            }
+            state_receipt = {
+                "decision": decision_relative,
+                "source_job_id": source_job_id,
+                "replacement_job_id": replacement_job_id,
+                "request_sha256": request_sha256,
+                "namespace": namespace,
+                "lane": lane,
+                "correlation_id": state.get("correlation_id"),
+                "authority_digest": authority_digest,
+                "replacement_lineage_id": replacement_lineage_id,
+            }
+            stable_decision = {
+                "schema_version": 1,
+                "status": "replacement_created",
+                "action": "pending_writer_lite_retry",
+                "run_id": expected_run_id,
+                "lane": lane,
+                "correlation_id": state.get("correlation_id"),
+                "namespace": namespace,
+                "source_job_id": source_job_id,
+                "replacement_job_id": replacement_job_id,
+                "request_sha256": request_sha256,
+                "model": target_model,
+                "role": "writer",
+                "source_transport_attempt": source_request.get("transport_attempt", 0),
+                "authority_digest": authority_digest,
+                "replacement_lineage_id": replacement_lineage_id,
+                "request_file_sha256": replacement_request_sha256,
+                "from": "outbox",
+                "to": "archive+outbox",
+            }
+            result = {
+                "status": "plan_only",
+                "action": "pending_writer_lite_retry",
+                "run_id": expected_run_id,
+                "lane": lane,
+                "correlation_id": state.get("correlation_id"),
+                "namespace": namespace,
+                "source_job_id": source_job_id,
+                "replacement_job_id": replacement_job_id,
+                "request_sha256": request_sha256,
+                "source_model": source_request["model"],
+                "model": target_model,
+                "role": "writer",
+                "source_transport_attempt": source_request.get("transport_attempt", 0),
+                "authority_digest": authority_digest,
+                "replacement_lineage_id": replacement_lineage_id,
+                "from": "outbox",
+                "to": "archive+outbox",
+            }
+            outbox_path = job_root / "outbox" / f"{replacement_job_id}.json"
+            staging_path = _failed_replacement_staging_path(
+                job_root,
+                source_job_id,
+                replacement_job_id,
+            )
+
+            def validate_staged_request() -> None:
+                staged = read_closed_json_artifact(
+                    staging_path,
+                    max_bytes=512 * 1024,
+                    label="pending writer lite retry staged request",
+                )
+                validate_external_request(staged)
+                if staged != replacement_request:
+                    raise ValueError("pending writer lite retry staged request identity mismatch")
+
+            def persist_identity_receipt() -> None:
+                if identity_receipt_path.exists():
+                    existing = json.loads(identity_receipt_path.read_text(encoding="utf-8"))
+                    if existing != identity_receipt:
+                        raise ValueError("pending writer lite retry identity receipt mismatch")
+                    return
+                atomic_write_json(identity_receipt_path, identity_receipt)
+
+            def archive_source() -> None:
+                if source_archive_path.exists():
+                    archived = read_closed_json_artifact(
+                        source_archive_path,
+                        max_bytes=512 * 1024,
+                        label="pending writer lite retry archived source",
+                    )
+                    validate_external_request(archived)
+                    if archived != source_request:
+                        raise ValueError("pending writer lite retry archived source mismatch")
+                    return
+                if not source_outbox_path.exists():
+                    raise ValueError("pending writer lite retry source disappeared")
+                source_archive_path.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(source_outbox_path, source_archive_path)
+
+            def publish_replacement() -> None:
+                locations = _known_request_locations(job_root, replacement_job_id)
+                if locations:
+                    if locations != [("outbox", outbox_path)]:
+                        raise ValueError("pending writer lite retry request location is not publishable")
+                    existing = read_closed_json_artifact(
+                        outbox_path,
+                        max_bytes=512 * 1024,
+                        label="pending writer lite retry published request",
+                    )
+                    validate_external_request(existing)
+                    if existing != replacement_request:
+                        raise ValueError("pending writer lite retry published request identity mismatch")
+                    return
+                validate_staged_request()
+                outbox_path.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(staging_path, outbox_path)
+
+            if decision_path.exists():
+                existing_decision = json.loads(decision_path.read_text(encoding="utf-8"))
+                if (
+                    type(existing_decision) is not dict
+                    or _failed_replacement_stable_identity(existing_decision) != stable_decision
+                ):
+                    raise ValueError("pending writer lite retry decision identity mismatch")
+                locations = _known_request_locations(job_root, replacement_job_id)
+                if len(locations) > 1:
+                    raise ValueError("pending writer lite retry request location is ambiguous")
+                if state.get("last_job_id") == source_job_id and state.get("failed_external_job_replacement") is None:
+                    validate_staged_request()
+                    archive_source()
+                    persist_identity_receipt()
+                    state["status"] = "active"
+                    state["last_job_id"] = replacement_job_id
+                    state["failed_external_job_replacement"] = state_receipt
+                    state["identity_replacement_receipt"] = identity_receipt_relative
+                    state.pop("error_type", None)
+                    state.pop("error_code", None)
+                    state.pop("failure_category", None)
+                    state.pop("transport_attempts", None)
+                    state.pop("result", None)
+                    _write_state(state_root, state)
+                    publish_replacement()
+                    return {**result, "status": "replacement_created", "decision": decision_relative}
+                if state.get("last_job_id") != replacement_job_id or state.get("failed_external_job_replacement") != state_receipt:
+                    raise ValueError("pending writer lite retry evidence is incomplete")
+                publish_replacement()
+                return {**result, "status": "already_replaced", "decision": decision_relative}
+
+            if state.get("last_job_id") != source_job_id:
+                raise ValueError("pending writer lite retry last job mismatch")
+            if _known_request_locations(job_root, replacement_job_id):
+                raise ValueError("pending writer lite retry request already exists without decision")
+            if (job_root / "inbox" / f"{replacement_job_id}.json").exists() or (
+                job_root / "failed" / f"{replacement_job_id}.json"
+            ).exists():
+                raise ValueError("pending writer lite retry already has provider outcome")
+            if not execute:
+                return result
+
+            decision = {**stable_decision, "created_at": _now()}
+            atomic_write_json(staging_path, replacement_request)
+            validate_staged_request()
+            if hashlib.sha256(staging_path.read_bytes()).hexdigest() != replacement_request_sha256:
+                raise ValueError("pending writer lite retry request write drift")
+            atomic_write_json(decision_path, decision)
+            archive_source()
+            persist_identity_receipt()
+            state["status"] = "active"
+            state["last_job_id"] = replacement_job_id
+            state["failed_external_job_replacement"] = state_receipt
+            state["identity_replacement_receipt"] = identity_receipt_relative
+            state.pop("error_type", None)
+            state.pop("error_code", None)
+            state.pop("failure_category", None)
+            state.pop("transport_attempts", None)
+            state.pop("result", None)
+            _write_state(state_root, state)
+            publish_replacement()
+            return {**result, "status": "replacement_created", "decision": decision_relative}
 
         source_archive_path = job_root / "archive" / f"{source_job_id}.json"
         if (
@@ -6752,9 +7017,10 @@ def parse_args() -> argparse.Namespace:
     replacement.add_argument("--request-sha256", required=True)
     replacement.add_argument("--namespace", required=True)
     replacement.add_argument("--correlation-id", required=True)
-    replacement.add_argument("--failure-category", required=True)
-    replacement.add_argument("--error-code", required=True)
+    replacement.add_argument("--failure-category")
+    replacement.add_argument("--error-code")
     replacement.add_argument("--authority-digest", required=True)
+    replacement.add_argument("--pending-writer-lite-retry", action="store_true")
     replacement.add_argument("--resume-replacement", action="store_true")
     replacement.add_argument(
         "--local-preflight-reason",
@@ -6897,6 +7163,7 @@ def main() -> int:
                 failure_category=args.failure_category,
                 error_code=args.error_code,
                 authority_digest=args.authority_digest,
+                pending_writer_lite_retry=args.pending_writer_lite_retry,
                 resume_replacement=args.resume_replacement,
                 local_preflight_reason=args.local_preflight_reason,
                 plan_only=args.plan_only,
