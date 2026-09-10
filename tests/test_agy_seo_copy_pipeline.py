@@ -321,6 +321,15 @@ def make_external_create_article(article: dict[str, object]) -> dict[str, object
     }
 
 
+def make_external_description_repair_parts() -> dict[str, str]:
+    return {
+        "readerProblem": "遇到反覆配合他人而感到疲憊時",
+        "concreteSituation": "先看訊息往來與拒絕後的實際反應",
+        "observableAction": "記錄對方是否停手以及自己是否能說不",
+        "nextStep": "再依持續互動調整下一步與界線",
+    }
+
+
 def make_deterministic_green_create_article(
     article_id: str = "DETERMINISTIC-GREEN",
 ) -> dict[str, object]:
@@ -1932,6 +1941,7 @@ def test_create_repair_prompt_includes_measured_targets_for_lite_writer() -> Non
     }
     findings = [
         {"article_id": article["id"], "code": "description_length", "message": "meta description 必須為 70 到 95 字"},
+        {"article_id": article["id"], "code": "answer_length", "message": "answer 必須在 50 字內"},
         {"article_id": article["id"], "code": "body_length", "message": "正文不足"},
         {"article_id": article["id"], "code": "paragraph_length", "message": "段落不足"},
         {"article_id": article["id"], "code": "banned_phrase", "message": "命中禁詞：保證"},
@@ -1943,7 +1953,17 @@ def test_create_repair_prompt_includes_measured_targets_for_lite_writer() -> Non
     assert '"body_characters":' in prompt
     assert '"section_count":' in prompt
     assert '"paragraph_characters":' in prompt
-    assert "description 修復目標為 80 到 90 字" in prompt
+    assert "description 修復目標為 85 到 90 個 Unicode 字元" in prompt
+    assert "article-01 本機實測 description 為" in prompt
+    assert "讀者困擾、具體情境、可觀察行動、限制或不適用情況" in prompt
+    assert "readerProblem、concreteSituation、observableAction、nextStep" in prompt
+    assert "固定 boundary 句由本機附加" in prompt
+    assert "本文只提供通用理解，不能替個人下結論。" in prompt
+    assert "provider parts 不得自行重複 boundary" in prompt
+    assert "不要只在 prior 內容尾端補短語" in prompt
+    assert "answer 修復目標為 35 到 45 個 Unicode 字元" in prompt
+    assert "有 active finding 的欄位不得逐字沿用 prior public candidate" in prompt
+    assert prompt.rfind("有 active finding 的欄位不得逐字沿用 prior public candidate") > prompt.rfind("逐項遵守 public brief 的 writingPolicy.writingContract。")
     assert "正文修復目標為 5 節、每節 3 段、每段 95 到 110 字" in prompt
     assert "逐一移除 findings 指出的禁詞" in prompt
     assert pipeline.publication_presentation_instruction("create") in prompt
@@ -1962,6 +1982,30 @@ def test_create_repair_prompt_includes_measured_targets_for_lite_writer() -> Non
     context_tail = prompt.rfind("bounded repair contract:")
     assert prompt.rfind("title 硬範圍為 20 到 45 字") > context_tail
     assert prompt.rfind("description 硬範圍為 70 到 95 字") > context_tail
+
+
+def test_create_repair_directives_cover_description_boundary_without_length_finding() -> None:
+    article = make_article("DESCRIPTION-BOUNDARY-ONLY")
+    candidate = {
+        "schema_version": 1,
+        "run_id": "description-boundary-only",
+        "mode": "create",
+        "articles": [article],
+    }
+    directives = pipeline._create_repair_directives(
+        [
+            {
+                "article_id": article["id"],
+                "code": "description_boundary",
+                "message": "meta description 本身必須包含明確限制",
+            }
+        ],
+        candidate=candidate,
+        repair_contract={"article-01": ("description",)},
+    )
+
+    assert "本文只提供通用理解，不能替個人下結論。" in directives
+    assert "provider parts 不得自行重複 boundary" in directives
 
 
 def test_rewrite_initial_and_repair_prompts_include_generation_contract() -> None:
@@ -2054,6 +2098,198 @@ def test_single_slot_create_repair_schema_requires_contract_fields_and_hydrates(
         {"articles": [complete]},
         contract,
     ) == candidate
+
+
+def test_description_repair_provider_uses_structured_parts_then_hydrates_to_canonical_string() -> None:
+    article = make_deterministic_green_create_article("DESCRIPTION-STRUCTURED-REPAIR")
+    candidate = {
+        "schema_version": 1,
+        "run_id": "description-structured-repair",
+        "mode": "create",
+        "articles": [article],
+    }
+    contract = {"article-01": ("description",)}
+    schema = pipeline.external_create_repair_schema(contract)["properties"][
+        "articles"
+    ]["items"]["properties"]["description"]
+    parts = make_external_description_repair_parts()
+    external = {
+        "articles": [
+            {
+                "slot": "article-01",
+                "description": parts,
+            }
+        ]
+    }
+
+    assert schema["type"] == "object"
+    assert schema["additionalProperties"] is False
+    assert schema["required"] == [
+        "readerProblem",
+        "concreteSituation",
+        "observableAction",
+        "nextStep",
+    ]
+    assert set(schema["properties"]) == set(schema["required"])
+    assert gemini_broker._validate_json_schema(
+        external,
+        pipeline.external_create_repair_schema(contract),
+    )
+
+    repaired = pipeline.hydrate_create_repair(
+        candidate,
+        external,
+        contract,
+        enforce_policy=False,
+    )
+    expected = (
+        "；".join(parts[field] for field in schema["required"])
+        + "。本文只提供通用理解，不能替個人下結論。"
+    )
+    assert repaired["articles"][0]["description"] == expected
+    assert not {
+        "description_length",
+        "description_boundary",
+        "description_context_and_limit",
+    } & {
+        finding["code"]
+        for finding in pipeline.quality_findings(repaired["articles"])
+    }
+
+
+def test_description_repair_hydration_deterministically_trims_overlong_parts() -> None:
+    article = make_deterministic_green_create_article("DESCRIPTION-STRUCTURED-TRIM")
+    candidate = {
+        "schema_version": 1,
+        "run_id": "description-structured-trim",
+        "mode": "create",
+        "articles": [article],
+    }
+    contract = {"article-01": ("description",)}
+    parts = {
+        "readerProblem": "不知道如何在人際交往中拿捏分寸與確認互動邊界",
+        "concreteSituation": "在人際互動中面對對方冷淡回應或拒絕邀約的情境",
+        "observableAction": "記錄對方的回訊息頻率、肢體距離與話題深入程度",
+        "nextStep": "將觀察範圍縮小到最近三次具體互動並記錄行為模式",
+    }
+
+    repaired = pipeline.hydrate_create_repair(
+        candidate,
+        {"articles": [{"slot": "article-01", "description": parts}]},
+        contract,
+        enforce_policy=False,
+    )
+    description = repaired["articles"][0]["description"]
+
+    assert 70 <= len(description) <= 90
+    assert description.endswith("本文只提供通用理解，不能替個人下結論。")
+    assert all(part[:8] in description for part in parts.values())
+    assert not {
+        "description_length",
+        "description_boundary",
+        "description_context_and_limit",
+    } & {
+        finding["code"]
+        for finding in pipeline.quality_findings(repaired["articles"])
+    }
+
+
+def test_description_repair_hydration_does_not_pad_insufficient_parts() -> None:
+    article = make_deterministic_green_create_article("DESCRIPTION-STRUCTURED-SHORT")
+    candidate = {
+        "schema_version": 1,
+        "run_id": "description-structured-short",
+        "mode": "create",
+        "articles": [article],
+    }
+    contract = {"article-01": ("description",)}
+    parts = {
+        "readerProblem": "困擾",
+        "concreteSituation": "情境",
+        "observableAction": "行動",
+        "nextStep": "下一步",
+    }
+
+    repaired = pipeline.hydrate_create_repair(
+        candidate,
+        {"articles": [{"slot": "article-01", "description": parts}]},
+        contract,
+        enforce_policy=False,
+    )
+    description = repaired["articles"][0]["description"]
+    codes = {
+        finding["code"]
+        for finding in pipeline.quality_findings(repaired["articles"])
+    }
+
+    assert "description_length" in codes
+    assert "困擾" in description
+    assert "情境" in description
+    assert "行動" in description
+    assert "下一步" in description
+
+
+def test_create_repair_hydration_reflows_paragraphs_without_changing_body_text() -> None:
+    article = make_deterministic_green_create_article("CREATE-REPAIR-REFLOW")
+    candidate = {
+        "schema_version": 1,
+        "run_id": "create-repair-reflow",
+        "mode": "create",
+        "articles": [article],
+    }
+    contract = {"article-01": ("bodySections",)}
+    body = json.loads(json.dumps(article["bodySections"], ensure_ascii=False))
+    first = body[0]
+    combined = "".join(first["paragraphs"])
+    first["paragraphs"] = [combined[:70], combined[70:170], combined[170:]]
+    external_text = ["".join(section["paragraphs"]) for section in body]
+
+    repaired = pipeline.hydrate_create_repair(
+        candidate,
+        {"articles": [{"slot": "article-01", "bodySections": body}]},
+        contract,
+        enforce_policy=False,
+    )
+    repaired_body = repaired["articles"][0]["bodySections"]
+
+    assert ["".join(section["paragraphs"]) for section in repaired_body] == external_text
+    assert all(
+        80 <= len(paragraph) <= 160
+        for section in repaired_body
+        for paragraph in section["paragraphs"]
+    )
+    assert not {
+        finding["code"]
+        for finding in pipeline.quality_findings(repaired["articles"])
+    } & {"paragraph_length", "paragraph_count"}
+
+
+def test_create_repair_hydration_does_not_invent_missing_body_text() -> None:
+    article = make_deterministic_green_create_article("CREATE-REPAIR-REFLOW-SHORT")
+    candidate = {
+        "schema_version": 1,
+        "run_id": "create-repair-reflow-short",
+        "mode": "create",
+        "articles": [article],
+    }
+    contract = {"article-01": ("bodySections",)}
+    body = json.loads(json.dumps(article["bodySections"], ensure_ascii=False))
+    body[0]["paragraphs"] = ["太短", "仍然太短"]
+
+    repaired = pipeline.hydrate_create_repair(
+        candidate,
+        {"articles": [{"slot": "article-01", "bodySections": body}]},
+        contract,
+        enforce_policy=False,
+    )
+    repaired_first = repaired["articles"][0]["bodySections"][0]["paragraphs"]
+    codes = {
+        finding["code"]
+        for finding in pipeline.quality_findings(repaired["articles"])
+    }
+
+    assert repaired_first == ["太短", "仍然太短"]
+    assert "paragraph_length" in codes
 
 
 def test_multi_slot_create_repair_schema_preserves_slot_only_required() -> None:
@@ -2551,7 +2787,11 @@ def test_create_machine_length_repair_is_field_bounded_and_reviews_only_after_gr
         for section in article["bodySections"]
         for paragraph in section["paragraphs"]
     ) == 2104
-    repaired_description = sized_description(84)
+    repaired_description_parts = make_external_description_repair_parts()
+    repaired_description = (
+        "；".join(repaired_description_parts.values())
+        + "。本文只提供通用理解，不能替個人下結論。"
+    )
     repaired_body = [
         {
             "heading": f"測試關鍵字的修復觀察 {section + 1}",
@@ -2640,7 +2880,7 @@ def test_create_machine_length_repair_is_field_bounded_and_reviews_only_after_gr
                     "articles": [
                         {
                             "slot": "article-01",
-                            "description": repaired_description,
+                            "description": repaired_description_parts,
                             "bodySections": repaired_body,
                         }
                     ]
@@ -2935,7 +3175,7 @@ def test_create_provider_transport_accepts_invalid_lengths_then_local_gate_flags
     assert {"title_length", "description_length", "answer_length", "paragraph_length"} <= codes
 
 
-def test_create_repair_transport_accepts_invalid_lengths_then_local_gate_flags_them() -> None:
+def test_create_repair_transport_defers_lengths_to_local_hydration_and_gate() -> None:
     article = make_deterministic_green_create_article("CREATE-REPAIR-LENGTH-BOUNDARY")
     candidate = {
         "schema_version": 1,
@@ -2953,7 +3193,12 @@ def test_create_repair_transport_accepts_invalid_lengths_then_local_gate_flags_t
             {
                 "slot": "article-01",
                 "title": "太短",
-                "description": "太短",
+                "description": {
+                    "readerProblem": "短",
+                    "concreteSituation": "短",
+                    "observableAction": "短",
+                    "nextStep": "短",
+                },
                 "answer": "超" * 60,
                 "bodySections": repaired_body,
             }
@@ -2974,7 +3219,8 @@ def test_create_repair_transport_accepts_invalid_lengths_then_local_gate_flags_t
         finding["code"]
         for finding in pipeline.quality_findings(repaired["articles"])
     }
-    assert {"title_length", "description_length", "answer_length", "paragraph_length"} <= codes
+    assert {"title_length", "description_length", "answer_length"} <= codes
+    assert "paragraph_length" not in codes
 
 
 def test_create_transport_short_paragraph_reaches_local_repair_gate() -> None:
@@ -4978,6 +5224,8 @@ def test_run_writer_reviewer_ignores_false_machine_check_from_external_reviewer(
                         "verdict": "REJECT",
                         "findings": [
                             {"code": "body_length_insufficient", "message": "錯誤聲稱正文不足 1300 字"},
+                            {"code": "description_length_violation", "message": "錯誤聲稱 description 超過 95 字"},
+                            {"code": "paragraph_length_insufficient", "message": "錯誤聲稱段落不足 80 字"},
                             {"code": "paragraph_length_violation", "message": "錯誤聲稱段落不足 80 字"},
                             {
                                 "code": "banned_phrase_usage",
