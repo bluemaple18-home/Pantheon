@@ -2140,7 +2140,7 @@ def test_expansion_50c_adds_parallel_card_articles() -> None:
 import {{ EXPANSION_50C_MBTI_ARTICLE_RECORDS, EXPANSION_50C_MBTI_ARTICLE_BODY_LIBRARY }} from "./app/web/static/article-expansion-50c-mbti.js";
 import {{ EXPANSION_50C_ASTRO_ARTICLE_RECORDS, EXPANSION_50C_ASTRO_ARTICLE_BODY_LIBRARY }} from "./app/web/static/article-expansion-50c-astro.js";
 import {{ EXPANSION_50C_FORTUNE_ARTICLE_RECORDS, EXPANSION_50C_FORTUNE_ARTICLE_BODY_LIBRARY }} from "./app/web/static/article-expansion-50c-fortune.js";
-import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
+import {{ buildArticleContent, getActiveArticleBodyOverride }} from "./app/web/static/article-meta.js";
 import {{ getArticlePath, listArticleRecords }} from "./app/web/static/article-registry.js";
 
 const expectedPaths = new Set({json.dumps(EXPANSION_50C_PUBLIC_ARTICLE_PATHS)});
@@ -2167,13 +2167,17 @@ const expansion = allArticles.filter((article) => expectedPaths.has(getArticlePa
 const rendered = expansion.map((article) => {{
   const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com");
   const bodyText = content.bodySections.flatMap((section) => section.paragraphs).join("");
+  const rewrite = getActiveArticleBodyOverride(article);
   return {{
     path: getArticlePath(article),
     bodyLength: [...bodyText].length,
     sectionCount: content.bodySections.length,
+    expectedSectionCount: rewrite?.length || 4,
+    bodyMatchesRewrite: !rewrite || JSON.stringify(content.bodySections) === JSON.stringify(rewrite),
     faqCount: content.faq.length,
     published: content.published,
     updated: content.updated,
+    registryUpdated: article.updated,
     hasBoundary: /不|不能|無法/.test(`${{article.description}}${{article.answer}}${{bodyText}}`),
   }};
 }});
@@ -2212,10 +2216,12 @@ console.log(JSON.stringify({{
     assert data["forbiddenTemplates"] == []
     for article in data["rendered"]:
         assert article["bodyLength"] >= 650, article
-        assert article["sectionCount"] == 4, article
+        assert article["sectionCount"] == article["expectedSectionCount"], article
+        assert article["bodyMatchesRewrite"], article
         assert 3 <= article["faqCount"] <= 5, article
         assert article["published"] == ARTICLE_TAROT_COMPLETION_DATE, article
-        assert article["updated"] == ARTICLE_TAROT_COMPLETION_DATE, article
+        assert article["updated"] == article["registryUpdated"], article
+        assert article["updated"] >= article["published"], article
         assert article["hasBoundary"], article
 
 
