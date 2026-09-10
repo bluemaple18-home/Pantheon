@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -38,11 +40,46 @@ def test_unregistered_translation_is_rejected_before_provider(tmp_path: Path, mo
     assert not (lane_queue / "inbox" / f"{request['job_id']}.json").exists()
 
 
+def _publish_source(tmp_path, source):
+    """離線發布 fixture：真 Git 與 ledger，不替換來源 loader／authority。"""
+    from scripts import agy_multilingual_pipeline as multilingual
+    actor = tmp_path / "actor"
+    static = actor / "app/web/static"
+    static.mkdir(parents=True, exist_ok=True)
+    def git(*args):
+        return subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-c", "user.name=fixture",
+                               "-c", "user.email=fixture@example.invalid", *args], cwd=actor,
+                              check=True, capture_output=True, text=True).stdout.strip()
+    if not (actor / ".git").exists():
+        git("init", "--quiet")
+    (actor / "package.json").write_text('{"type":"module"}')
+    (static / "article-registry.js").write_text(
+        "export const getArticlePath = () => " + json.dumps(source["canonical_path"])
+        + "; export const listArticleRecords = () => "
+        + json.dumps([{"id": source["article_id"], "publicationPolicy": source["publication_policy"]["article_policy"]}]) + ";")
+    (static / "article-meta.js").write_text("export const buildArticleContent = () => ("
+        + json.dumps({**source, "displayTags": source["tags"]}) + ");")
+    policy = actor / multilingual.pipeline.POLICY_V2_PATH
+    policy.parent.mkdir(parents=True, exist_ok=True)
+    policy.write_text(json.dumps(source["publication_policy"]["global_policy"]))
+    git("add", ".")
+    git("commit", "--quiet", "--allow-empty", "-m", "離線已發布來源")
+    sha = git("rev-parse", "HEAD")
+    git("update-ref", "refs/remotes/origin/main", sha)
+    state_root = tmp_path / "publisher-state"
+    state_root.mkdir(exist_ok=True)
+    (state_root / "ledger.json").write_text(json.dumps({"schema_version": 1, "published_runs": [],
+        "rewrite_released_runs": [{"run_id": "published-source-01", "article_ids": [source["article_id"]],
+            "commit_sha": sha, "translation_run_ids": [multilingual.translation_run_id("published-source-01", source["article_id"], "en")]}]}))
+    return actor, state_root
+
+
 def _registered_job(tmp_path, monkeypatch):
     import copy
     import json
     from scripts import agy_multilingual_pipeline as multilingual
     from scripts import agy_seo_copy_pipeline as pipeline
+    from scripts import agy_gemini_coordinator as coordinator
     from tests.test_agy_multilingual_pipeline import source_article
 
     source = source_article()
@@ -64,23 +101,20 @@ def _registered_job(tmp_path, monkeypatch):
     lane = "i18n-rewrite"
     run_id = "translate-dispatch-authority-ja"
     namespace = hashlib.sha256(run_id.encode()).hexdigest()[:24]
-    run_dir = queue / "translation-runs" / run_id
-    run_dir.mkdir(parents=True)
-    brief = {"schema_version": 1, "mode": "translate_existing", "run_id": run_id,
-             "articles": [{"translation_id": "TEST-001:ja", "locale": "ja", "source_article_id": "TEST-001",
-                           "source_path": source["canonical_path"], "source": source,
-                           "source_sha256": multilingual.source_sha256(source)}]}
-    state = {"schema_version": 1, "run_id": run_id, "run_dir": str(run_dir), "status": "active", "lane": lane,
-             "identity_envelope": multilingual.translation_identity_envelope("TEST-001", lane)}
-    state_path = queue / "runs" / f"{namespace}.json"
-    state_path.parent.mkdir()
-    state_path.write_text(json.dumps(state))
-    (run_dir / "brief.json").write_text(json.dumps(brief))
     for name in ("AGY_GEMINI_CREDENTIAL_POOL_FILE", "AGY_GEMINI_V4_BROKER", "PANTHEON_RUNTIME_SERVICE_LABEL", "AGY_GEMINI_NEW_ONLY"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("PANTHEON_FORMAL_RUNTIME", "0")
     monkeypatch.setenv("PANTHEON_RUNTIME_QUEUE_ROOT", str(queue))
-    monkeypatch.setattr(multilingual, "load_source_article", lambda *_args: copy.deepcopy(source))
+    actor, publisher_state = _publish_source(tmp_path, source)
+    monkeypatch.setenv("PANTHEON_RUNTIME_ACTOR_ROOT", str(actor))
+    monkeypatch.setenv("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT", str(publisher_state))
+    path = multilingual.prepare_translation_run(actor, run_id, source["article_id"], ["ja"], queue / "translation-runs")
+    brief = json.loads(path.read_text())
+    brief["lane"] = lane
+    path.write_text(json.dumps(brief))
+    run_dir = path.parent
+    state = coordinator.register_run(run_dir, queue)
+    state_path = queue / "runs" / f"{namespace}.json"
     request = create_external_request(queue / "lanes" / lane, namespace=namespace, role="reviewer", model="fake-model",
                                       prompt="離線新契約", response_schema={"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"], "additionalProperties": False})
     return queue / "lanes" / lane, request, source, brief, state, state_path, run_dir
@@ -120,6 +154,8 @@ def test_invalid_registered_contract_never_consumes_admission(tmp_path, monkeypa
     # 改當前來源時保持封存 brief 不變；其餘 case 寫入受測的失配。
     if mutation not in {"body", "disclosure", "global"}:
         (run_dir / "brief.json").write_text(json.dumps(brief))
+    else:
+        _publish_source(tmp_path, source)
     if mutation in {"missing_brief", "symlink_brief"}:
         (run_dir / "brief.json").unlink()
         if mutation == "symlink_brief":
@@ -172,6 +208,7 @@ def test_all_transports_obey_authority_before_attempt(tmp_path, monkeypatch, tra
         monkeypatch.setattr(runner, "run_single_shot", fake_broker)
     if drift:
         source["publication_policy"]["article_policy"]["evidence"]["disclosure"] += "新增限制。"
+        _publish_source(tmp_path, source)
     result = runner.process_once(lane_queue, generate_json=lambda *_args: calls.append("injected") or {"ok": True})
     if drift:
         assert result["status"] == "failed", result
@@ -189,6 +226,8 @@ def test_source_change_during_claim_is_rechecked(tmp_path, monkeypatch):
     def claim_then_drift(*args):
         claimed = original(*args)
         source["description"] += "新的限制條件。"
+        # claim 前已固定 SHA；新增發布 ledger 使舊 SHA 落後，重驗仍須拒絕。
+        _publish_source(tmp_path, source)
         return claimed
     monkeypatch.setattr(runner, "_claim_next", claim_then_drift)
     calls = []
