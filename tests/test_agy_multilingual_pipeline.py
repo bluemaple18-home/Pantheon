@@ -1932,12 +1932,12 @@ def test_ja_continuation_schema_uses_request_local_refs_not_fact_ids() -> None:
     assert "safety_boundary" not in prompt
     assert "source_sha256" not in item_schema["properties"]
     assert "source_sha256" not in item_schema["required"]
-    assert "source_fact_id" not in coverage["items"]["properties"]
-    assert "safety_boundary" not in coverage["items"]["properties"]
-    assert "safety_boundary" not in coverage["items"]["required"]
-    assert coverage["items"]["properties"]["source_ref"]["enum"] == [
+    assert list(coverage["properties"]) == coverage["required"] == [
         f"source_ref_{index + 1:02d}" for index in range(22)
     ]
+    for value in coverage["properties"].values():
+        assert set(value["properties"]) == {"planned_h2_slot", "coverage_note"}
+
 
 
 def test_ja_continuation_current_ref_response_hydrates_to_current_ids() -> None:
@@ -3543,18 +3543,13 @@ def test_external_locale_plan_schema_locks_current_brief_coverage() -> None:
     assert item_schema["properties"]["source_sha256"]["enum"] == [
         brief["articles"][0]["source_sha256"]
     ]
-    assert coverage_schema["minItems"] == coverage_schema["maxItems"] == len(facts)
-    assert coverage_schema["items"]["properties"]["source_fact_id"]["enum"] == [
-        fact["fact_id"] for fact in facts
+    assert coverage_schema["type"] == "object"
+    assert list(coverage_schema["properties"]) == coverage_schema["required"] == [
+        f"source_ref_{index + 1:02d}" for index in range(len(facts))
     ]
-    assert "safety_boundary" not in coverage_schema["items"]["properties"]
-    assert "safety_boundary" not in coverage_schema["items"]["required"]
-    assert coverage_schema["items"]["properties"]["planned_h2_slot"]["enum"] == [
-        "h2-1",
-        "h2-2",
-        "h2-3",
-        "h2-4",
-    ]
+    for value in coverage_schema["properties"].values():
+        assert set(value["properties"]) == set(value["required"]) == {"planned_h2_slot", "coverage_note"}
+        assert value["properties"]["planned_h2_slot"]["enum"] == ["h2-1", "h2-2", "h2-3", "h2-4"]
     assert item_schema["properties"]["ordered_h2_outline"]["minItems"] == 4
     assert item_schema["properties"]["ordered_h2_outline"]["maxItems"] == 4
 
@@ -6375,3 +6370,369 @@ def test_native_approved_stage_continuation_residue_is_closed(tmp_path, monkeypa
         with pytest.raises((ValueError, OSError)):
             multilingual.plan_approved_edited_candidate_stage(**fixture['kwargs'])
     assert protected_stage_snapshot(fixture) == before
+
+
+@pytest.mark.parametrize("model", ["gemini-3.5-flash", "gemini-3.5-flash-lite"])
+def test_fixed_coverage_provider_boundary(model: str) -> None:
+    brief = non_tarot_translation_brief("ja")
+    source = brief["articles"][0]["source"]
+    initial_count = len(multilingual._source_fact_package(brief)["articles"][0]["facts"])
+    source["bodySections"][0]["paragraphs"].extend(
+        f"第{index}項觀察需要依情境確認。" for index in range(41 - initial_count)
+    )
+    brief["articles"][0]["source_sha256"] = multilingual.source_sha256(source)
+    facts = multilingual._source_fact_package(brief)["articles"][0]["facts"]
+    assert len(facts) == 41
+    old = external_locale_plan(brief)
+    kwargs = {"generation": 1, "rebuild_by_slot": {"article-01": False}}
+    assert multilingual._hydrate_locale_plan(brief, fixed_coverage_response(old), **kwargs) == multilingual._hydrate_locale_plan(brief, old, **kwargs)
+    old_identity = {"type": "string", "enum": [fact["fact_id"] for fact in facts]}
+    assert "enum" not in multilingual.pipeline._response_schema_for_model(model, old_identity)
+    schema = multilingual._external_locale_plan_schema(brief)
+    projected = multilingual.pipeline._response_schema_for_model(model, schema)
+    coverage = projected["properties"]["articles"]["items"]["properties"]["coverage_mapping"]
+    assert coverage["type"] == "object"
+    refs = [f"source_ref_{index + 1:02d}" for index in range(len(facts))]
+    assert list(coverage["properties"]) == coverage["required"] == refs
+    assert coverage["additionalProperties"] is False
+    assert coverage == schema["properties"]["articles"]["items"]["properties"]["coverage_mapping"]
+    for value in coverage["properties"].values():
+        assert set(value["properties"]) == set(value["required"]) == {"planned_h2_slot", "coverage_note"}
+        assert value["additionalProperties"] is False
+
+
+def fixed_coverage_response(external: dict[str, object]) -> dict[str, object]:
+    """把歷史成功回應的語意值原樣移入固定物件，保留外層 authority。"""
+    result = json.loads(json.dumps(external))
+    offset = 0
+    for article in result["articles"]:
+        article["coverage_mapping"] = {
+            f"source_ref_{offset + index + 1:02d}": {
+                field: mapping[field] for field in ("planned_h2_slot", "coverage_note")
+            }
+            for index, mapping in enumerate(article["coverage_mapping"])
+        }
+        offset += len(article["coverage_mapping"])
+    return result
+
+
+@pytest.mark.parametrize("locale", ["en", "ja", "ko"])
+def test_fixed_coverage_lossless_hydration_and_language(locale: str) -> None:
+    brief = non_tarot_translation_brief(locale)
+    old = external_locale_plan(brief)
+    fixed = fixed_coverage_response(old)
+    snapshot = json.dumps(fixed)
+    kwargs = {"generation": 1, "rebuild_by_slot": {"article-01": False}}
+    assert multilingual._hydrate_locale_plan(brief, fixed, **kwargs) == multilingual._hydrate_locale_plan(brief, old, **kwargs)
+    assert json.dumps(fixed) == snapshot
+    schema = multilingual._external_locale_plan_schema(brief)
+    properties = schema["properties"]["articles"]["items"]["properties"]
+    language = {"en": "English", "ja": "日本語", "ko": "한국어"}[locale]
+    for field in ("native_search_intent", "native_query_phrasings", "article_angle", "ordered_h2_outline", "source_structure_not_copied"):
+        assert language in properties[field]["description"]
+    assert language in properties["coverage_mapping"]["properties"]["source_ref_01"]["properties"]["coverage_note"]["description"]
+    fixed["articles"][0]["coverage_mapping"]["source_ref_01"]["coverage_note"] = "來源標題與標籤不可直接照抄中文"
+    with pytest.raises(ValueError, match="native locale language"):
+        multilingual._hydrate_locale_plan(brief, fixed, **kwargs)
+
+
+@pytest.mark.parametrize("mutation", ["missing", "unknown", "extra_ref", "extra_field", "not_object", "hash", "stale_source"])
+def test_fixed_coverage_rejects_invalid_authority(mutation: str) -> None:
+    brief = non_tarot_translation_brief("ja")
+    fixed = fixed_coverage_response(external_locale_plan(brief))
+    item = fixed["articles"][0]
+    coverage = item["coverage_mapping"]
+    if mutation == "missing":
+        coverage.pop("source_ref_01")
+    elif mutation == "unknown":
+        coverage["source_ref_999"] = coverage.pop("source_ref_01")
+    elif mutation == "extra_ref":
+        coverage["source_ref_999"] = dict(coverage["source_ref_01"])
+    elif mutation == "extra_field":
+        coverage["source_ref_01"]["source_fact_id"] = "forged"
+    elif mutation == "not_object":
+        coverage["source_ref_01"] = []
+    elif mutation == "hash":
+        item["source_sha256"] = "0" * 64
+    else:
+        brief["articles"][0]["source"]["title"] += "變更"
+    with pytest.raises(ValueError):
+        multilingual._hydrate_locale_plan(brief, fixed, generation=1, rebuild_by_slot={"article-01": False})
+
+
+def test_fixed_coverage_ja_continuation_preserves_rebuild_and_map() -> None:
+    brief = load_ja_plan_authority_fixture("brief.json")
+    prior = load_ja_plan_authority_fixture("attempt_03_locale_plan.json")
+    old = fresh_ja_plan_authority_fixture("fixed_current_ref_external_plan.json")
+    # 歷史回應可能採不同輸出順序；固定物件必須依 ref 本身綁定。
+    fixed = json.loads(json.dumps(old))
+    fixed["articles"][0]["coverage_mapping"] = {
+        mapping["source_ref"]: {key: mapping[key] for key in ("planned_h2_slot", "coverage_note")}
+        for mapping in old["articles"][0]["coverage_mapping"]
+    }
+    maps = multilingual._request_local_source_ref_maps(brief, prior)
+    kwargs = {"generation": 4, "rebuild_by_slot": {"article-01": True}, "prior_plan": prior, "source_ref_maps": maps}
+    assert multilingual._hydrate_locale_plan(brief, fixed, **kwargs) == multilingual._hydrate_locale_plan(brief, old, **kwargs)
+    maps["article-01"]["source_ref_01"] = "forged"
+    with pytest.raises(ValueError, match="current fact coverage"):
+        multilingual._hydrate_locale_plan(brief, fixed, **kwargs)
+
+
+def test_fixed_coverage_cached_legacy_list_stays_read_only(tmp_path: Path) -> None:
+    brief = non_tarot_translation_brief("ko")
+    old = external_locale_plan(brief)
+    path = tmp_path / "external-plan.json"
+    path.write_text(json.dumps(old), encoding="utf-8")
+    before = path.read_bytes()
+    class NoProvider:
+        def generate_json(self, *args, **kwargs):
+            pytest.fail("不得重送已存 planning")
+    loaded, safety = multilingual._load_or_generate_external_locale_plan(
+        NoProvider(), "", multilingual._external_locale_plan_schema(brief), tmp_path / "receipt.json", path,
+        brief=brief, prior_plan=None, source_ref_maps={},
+    )
+    assert loaded == old and safety is False
+    multilingual._hydrate_locale_plan(brief, loaded, generation=1, rebuild_by_slot={"article-01": False})
+    assert path.read_bytes() == before
+    assert not (tmp_path / "receipt.json").exists()
+
+
+def test_fixed_coverage_multiple_packages_do_not_share_schema_authority() -> None:
+    japanese = non_tarot_translation_brief("ja")
+    korean = translation_brief("ko")
+    brief = {**japanese, "articles": [japanese["articles"][0], korean["articles"][0]]}
+    external = {"articles": [external_locale_plan(japanese)["articles"][0], external_locale_plan(korean)["articles"][0]]}
+    external["articles"][1]["slot"] = "article-02"
+    fixed = fixed_coverage_response(external)
+    kwargs = {"generation": 1, "rebuild_by_slot": {"article-01": False, "article-02": False}}
+    assert multilingual._hydrate_locale_plan(brief, fixed, **kwargs) == multilingual._hydrate_locale_plan(brief, external, **kwargs)
+    schema = multilingual._external_locale_plan_schema(brief)
+    assert schema == multilingual._legacy_external_locale_plan_schema(brief)
+    assert schema["properties"]["articles"]["items"]["properties"]["coverage_mapping"]["type"] == "array"
+    fixed["articles"][0]["coverage_mapping"], fixed["articles"][1]["coverage_mapping"] = fixed["articles"][1]["coverage_mapping"], fixed["articles"][0]["coverage_mapping"]
+    with pytest.raises(ValueError, match="source ref coverage"):
+        multilingual._hydrate_locale_plan(brief, fixed, **kwargs)
+
+
+@pytest.mark.parametrize("locale", ["en", "ja", "ko"])
+def test_fixed_coverage_native_generation_entrypoint(tmp_path: Path, locale: str) -> None:
+    from scripts import agy_gemini_v4_broker as broker
+
+    brief = non_tarot_translation_brief(locale)
+    external = fixed_coverage_response(external_locale_plan(brief))
+    class StopBeforeArticle(BaseException):
+        pass
+    class PlanningOnlyClient:
+        calls = 0
+        def generate_json(self, role, prompt, schema):
+            self.calls += 1
+            if self.calls == 2:
+                raise StopBeforeArticle()
+            assert role == "writer"
+            assert "coverage_note" in prompt and "目標語言" in prompt
+            package_text = prompt.split("source fact package:\n", 1)[1].split("\nsource structure to avoid:", 1)[0]
+            package = json.loads(package_text)
+            refs = [fact["source_ref"] for fact in package["articles"][0]["facts"]]
+            projected = multilingual.pipeline._response_schema_for_model("gemini-3.5-flash-lite", schema)
+            assert projected["properties"]["articles"]["items"]["properties"]["coverage_mapping"]["required"] == refs
+            assert broker._diagnose_json_schema(external, schema) == ()
+            assert broker._diagnose_json_schema(external, projected) == ()
+            return external
+    client = PlanningOnlyClient()
+    with pytest.raises(StopBeforeArticle):
+        multilingual._run_locale_generation(
+            brief, client, generation=1, generation_dir=tmp_path,
+            findings=[], history=[], prior_plan=None,
+        )
+    assert client.calls == 2
+    result = json.loads((tmp_path / "planning-result.json").read_text())
+    assert result["planning_contract_status"] == "PASS"
+    plan = json.loads((tmp_path / "locale-plan.json").read_text())
+    multilingual.validate_locale_plan(brief, plan)
+    assert plan == multilingual._hydrate_locale_plan(brief, external, generation=1, rebuild_by_slot={"article-01": False})
+
+
+def test_fixed_coverage_multi_ja_continuation_legacy_map_scope() -> None:
+    first = non_tarot_translation_brief("ja")
+    second = translation_brief("ja")
+    brief = {**first, "articles": [first["articles"][0], second["articles"][0]]}
+    old = {"articles": [external_locale_plan(first)["articles"][0], external_locale_plan(second)["articles"][0]]}
+    old["articles"][1]["slot"] = "article-02"
+    authority = {"article-01": False, "article-02": False}
+    prior = multilingual._hydrate_locale_plan(brief, old, generation=1, rebuild_by_slot=authority)
+    fixed = fixed_coverage_response(old)
+    maps = multilingual._request_local_source_ref_maps(brief, prior)
+    for article in old["articles"]:
+        article.pop("source_sha256")
+        inverse = {fact: ref for ref, fact in maps[article["slot"]].items()}
+        for mapping in article["coverage_mapping"]:
+            mapping["source_ref"] = inverse[mapping.pop("source_fact_id")]
+    for article in fixed["articles"]:
+        article.pop("source_sha256")
+    kwargs = {"generation": 2, "rebuild_by_slot": authority, "prior_plan": prior, "source_ref_maps": maps}
+    assert multilingual._hydrate_locale_plan(brief, fixed, **kwargs) == multilingual._hydrate_locale_plan(brief, old, **kwargs)
+    prompt = multilingual._plan_prompt(brief, generation=2, prior_plan=prior, findings=[], rebuild_by_slot=authority, source_ref_maps=maps)
+    topology = json.loads(prompt.split("rebuild topology constraints:\n")[1].split("\ngeneration:")[0])
+    expected = set(maps["article-02"])
+    assert {entry["source_ref"] for entry in topology["articles"][1]["prior_ref_to_h2_slot"]} == expected
+    assert "property object" not in prompt
+    assert list(maps["article-02"])[0] == "source_ref_01"
+
+
+@pytest.mark.parametrize("locale", ["en", "ja", "ko"])
+def test_fixed_coverage_persisted_map_pins_fact_authority(tmp_path: Path, locale: str) -> None:
+    brief = non_tarot_translation_brief(locale)
+    path = tmp_path / "source-ref-map.json"
+    external_path = tmp_path / "external-plan.json"
+    kwargs = {"generation": 1, "external_plan_path": external_path}
+    assert multilingual._load_or_create_source_ref_maps(path, brief, None, **kwargs) == {}
+    payload = json.loads(path.read_text())
+    multilingual._validate_source_ref_maps_against_current_package(
+        brief, multilingual._source_ref_maps_from_artifact(payload, generation=1),
+    )
+    external_path.write_text(json.dumps(fixed_coverage_response(external_locale_plan(brief))))
+    payload["articles"][0]["refs"][0]["source_fact_id"] = "stale"
+    path.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="current fact coverage"):
+        multilingual._load_or_create_source_ref_maps(path, brief, None, **kwargs)
+    path.unlink()
+    with pytest.raises(ValueError, match="source ref map missing"):
+        multilingual._load_or_create_source_ref_maps(path, brief, None, **kwargs)
+    external_path.write_text(json.dumps(external_locale_plan(brief)))
+    assert multilingual._load_or_create_source_ref_maps(path, brief, None, **kwargs) == {}
+    assert not path.exists()
+
+
+@pytest.mark.parametrize("locale", ["en", "ja", "ko"])
+def test_fixed_coverage_rejects_old_pending_identity_without_resubmission(tmp_path: Path, locale: str) -> None:
+    brief = non_tarot_translation_brief(locale)
+    receipt_path = tmp_path / "plan-operation.json"
+    old_schema = multilingual._legacy_external_locale_plan_schema(brief)
+    old_receipt = {
+        "status": "pending", "role": "writer", "transport": "_outbox_transport",
+        "prompt_sha256": hashlib.sha256(b"legacy planning prompt").hexdigest(),
+        "schema_sha256": multilingual._json_sha256(old_schema),
+    }
+    receipt_path.write_text(json.dumps(old_receipt))
+    before = receipt_path.read_bytes()
+    class NoResubmission:
+        def _outbox_transport(self):
+            pytest.fail("不得呼叫 transport")
+        transport = _outbox_transport
+        def generate_json(self, *args, **kwargs):
+            pytest.fail("不得重建 pending job")
+    with pytest.raises(multilingual.LocalePlanValidationError, match="pending migration is not supported"):
+        multilingual._run_locale_generation(
+            brief, NoResubmission(), generation=1, generation_dir=tmp_path,
+            findings=[], history=[], prior_plan=None,
+        )
+    assert receipt_path.read_bytes() == before
+    assert not (tmp_path / "external-plan.json").exists()
+    assert not (tmp_path / "locale-plan.json").exists()
+    result = json.loads((tmp_path / "planning-result.json").read_text())
+    assert result["planning_contract_status"] == "PLANNING_CONTRACT_FAILURE"
+
+
+def multi_legacy_planning_case(ja_continuation: bool):
+    first = non_tarot_translation_brief("ja")
+    second = translation_brief("ja" if ja_continuation else "ko")
+    brief = {**first, "articles": [first["articles"][0], second["articles"][0]]}
+    external = {"articles": [external_locale_plan(first)["articles"][0], external_locale_plan(second)["articles"][0]]}
+    external["articles"][1]["slot"] = "article-02"
+    authority = {"article-01": False, "article-02": False}
+    prior = None
+    if ja_continuation:
+        prior = multilingual._hydrate_locale_plan(brief, external, generation=1, rebuild_by_slot=authority)
+        maps = multilingual._request_local_source_ref_maps(brief, prior)
+        for article in external["articles"]:
+            article.pop("source_sha256")
+            inverse = {fact: ref for ref, fact in maps[article["slot"]].items()}
+            for mapping in article["coverage_mapping"]:
+                mapping["source_ref"] = inverse[mapping.pop("source_fact_id")]
+    return brief, external, prior, authority
+
+
+@pytest.mark.parametrize("ja_continuation", [False, True])
+@pytest.mark.parametrize("pending", [False, True])
+def test_multi_legacy_planning_actual_broker_runner(tmp_path: Path, ja_continuation: bool, pending: bool) -> None:
+    from scripts import agy_gemini_v4_broker as broker
+
+    brief, external, prior, authority = multi_legacy_planning_case(ja_continuation)
+    # 5d1a 完整原始 module 組裝所得的 digest；多篇 pending 不得換 identity。
+    expected_prompt_sha256 = (
+        "eaf40c59a84e367e6790722ad050c419cdcbab98b4c1eeadddec29fa8db75a32"
+        if ja_continuation else
+        "b653149a6bf197f909d855c4cc8912922cd5d8af3dec68ca49d03c4b40c96d35"
+    )
+    if pending:
+        (tmp_path / "plan-operation.json").write_text(json.dumps({
+            "status": "pending", "role": "writer", "transport": "_outbox_transport",
+            "prompt_sha256": expected_prompt_sha256,
+            "schema_sha256": multilingual._json_sha256(multilingual._legacy_external_locale_plan_schema(brief, prior_plan=prior)),
+        }))
+    class StopBeforeArticle(BaseException):
+        pass
+    class BrokerCheckedClient:
+        calls = 0
+        def _outbox_transport(self):
+            pytest.fail("不得呼叫真實 transport")
+        transport = _outbox_transport
+        def generate_json(self, role, prompt, schema):
+            self.calls += 1
+            if self.calls == 2:
+                raise StopBeforeArticle()
+            assert broker._diagnose_json_schema(external, schema) == ()
+            assert schema == multilingual._legacy_external_locale_plan_schema(brief, prior_plan=prior)
+            assert "property object" not in prompt
+            assert hashlib.sha256(prompt.encode()).hexdigest() == expected_prompt_sha256
+            return external
+    client = BrokerCheckedClient()
+    with pytest.raises(StopBeforeArticle):
+        multilingual._run_locale_generation(
+            brief, client, generation=2 if prior else 1, generation_dir=tmp_path,
+            findings=[], history=[], prior_plan=prior,
+        )
+    assert client.calls == 2
+    result = json.loads((tmp_path / "planning-result.json").read_text())
+    assert result["planning_contract_status"] == "PASS"
+    plan = json.loads((tmp_path / "locale-plan.json").read_text())
+    multilingual.validate_locale_plan(brief, plan, prior_plan=prior)
+
+
+@pytest.mark.parametrize("mutation", ["slot", "locale", "digest", "fact"])
+def test_multi_legacy_broker_runner_rejects_cross_article_authority(tmp_path: Path, mutation: str) -> None:
+    from scripts import agy_gemini_v4_broker as broker
+
+    brief, external, prior, authority = multi_legacy_planning_case(False)
+    first, second = external["articles"]
+    if mutation == "fact":
+        first, second = first["coverage_mapping"][0], second["coverage_mapping"][0]
+        field = "source_fact_id"
+    else:
+        field = {"slot": "slot", "locale": "locale", "digest": "source_sha256"}[mutation]
+    first[field], second[field] = second[field], first[field]
+    class BrokerCheckedClient:
+        calls = 0
+        def generate_json(self, role, prompt, schema):
+            self.calls += 1
+            assert self.calls == 1
+            # 舊 schema 的集合容許值不能取代 hydration 的逐篇 authority。
+            assert broker._diagnose_json_schema(external, schema) == ()
+            return external
+    client = BrokerCheckedClient()
+    reason = {
+        "slot": "slots differ from brief order",
+        "locale": "locale identity differs",
+        "digest": "source hash differs",
+        "fact": "source fact coverage differs",
+    }[mutation]
+    with pytest.raises(multilingual.LocalePlanValidationError, match=reason):
+        multilingual._run_locale_generation(
+            brief, client, generation=1, generation_dir=tmp_path,
+            findings=[], history=[], prior_plan=None,
+        )
+    assert client.calls == 1
+    assert not (tmp_path / "locale-plan.json").exists()
+    assert not (tmp_path / "source-ref-map.json").exists()
+    result = json.loads((tmp_path / "planning-result.json").read_text())
+    assert result["planning_contract_status"] == "PLANNING_CONTRACT_FAILURE"
