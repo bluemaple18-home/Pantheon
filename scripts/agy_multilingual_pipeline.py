@@ -1523,7 +1523,8 @@ def _load_or_create_source_ref_maps(
     generation: int,
     external_plan_path: Path,
 ) -> dict[str, dict[str, str]]:
-    if not _uses_request_local_source_refs(brief, prior_plan):
+    uses_legacy_refs = _uses_request_local_source_refs(brief, prior_plan)
+    if not _uses_fixed_coverage(brief) and not uses_legacy_refs:
         return {}
     if path.is_file():
         maps = _source_ref_maps_from_artifact(
@@ -1531,13 +1532,25 @@ def _load_or_create_source_ref_maps(
             generation=generation,
         )
         _validate_source_ref_maps_against_current_package(brief, maps)
-        return maps
+        return maps if uses_legacy_refs else {}
     if external_plan_path.is_file():
-        raise ValueError("source ref map missing for persisted external locale plan")
-    maps = _request_local_source_ref_maps(brief, prior_plan)
+        external = json.loads(external_plan_path.read_text(encoding="utf-8"))
+        has_fixed_coverage = isinstance(external, dict) and any(
+            isinstance(item, dict) and isinstance(item.get("coverage_mapping"), dict)
+            for item in external.get("articles", [])
+        )
+        if uses_legacy_refs or has_fixed_coverage:
+            raise ValueError("source ref map missing for persisted external locale plan")
+        return {}
+    # 新 request 全部保存本機 fact 順序；檔案仍用既有 article-local map 格式。
+    # 僅 JA continuation 回傳舊 map，避免改變其他階段既有 identity 分支。
+    maps = {
+        slot: {f"source_ref_{index + 1:02d}": fact_id for index, fact_id in enumerate(refs.values())}
+        for slot, refs in _fixed_coverage_source_ref_maps(brief).items()
+    }
     _validate_source_ref_maps_against_current_package(brief, maps)
     _atomic_write_json(path, _source_ref_map_artifact(maps, generation=generation))
-    return maps
+    return maps if uses_legacy_refs else {}
 
 
 def _stable_legacy_source_provenance(mappings: object) -> bool:
@@ -1751,7 +1764,73 @@ def _source_structure_to_avoid(brief: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _uses_fixed_coverage(brief: dict[str, Any]) -> bool:
+    """本輪固定 property 契約僅適用單篇；多篇維持既有 list 契約。"""
+    return len(brief["articles"]) == 1
+
+
+def _fixed_coverage_source_ref_maps(brief: dict[str, Any]) -> dict[str, dict[str, str]]:
+    """新 request 依 article／fact 順序編唯一 ref；不改舊持久化 map 契約。"""
+    maps = {}
+    offset = 0
+    for article in _source_fact_package(brief)["articles"]:
+        maps[str(article["slot"])] = {
+            f"source_ref_{offset + index + 1:02d}": str(fact["fact_id"])
+            for index, fact in enumerate(article["facts"])
+        }
+        offset += len(article["facts"])
+    return maps
+
+
 def _external_locale_plan_schema(
+    brief: dict[str, Any],
+    *,
+    prior_plan: dict[str, Any] | None = None,
+    source_ref_maps: dict[str, dict[str, str]] | None = None,
+    include_provider_safety_boundary: bool = False,
+) -> dict[str, Any]:
+    """單篇新 request 使用固定 properties；多篇與舊 receipt schema 保持原樣。"""
+    schema = _legacy_external_locale_plan_schema(
+        brief, prior_plan=prior_plan, source_ref_maps=source_ref_maps,
+        include_provider_safety_boundary=include_provider_safety_boundary,
+    )
+    if include_provider_safety_boundary or not _uses_fixed_coverage(brief):
+        return schema
+    if source_ref_maps:
+        _validate_source_ref_maps_against_current_package(brief, source_ref_maps)
+    maps = _fixed_coverage_source_ref_maps(brief)
+    articles = schema["properties"]["articles"]
+    target = brief["articles"][0]
+    slot = "article-01"
+    item = articles["items"]
+    properties = item["properties"]
+    properties["slot"]["enum"] = [slot]
+    properties["locale"]["enum"] = [target["locale"]]
+    if "source_sha256" in properties:
+        properties["source_sha256"]["enum"] = [target["source_sha256"]]
+    language = {"en": "English", "ja": "日本語", "ko": "한국어"}[target["locale"]]
+    guidance = f"必須使用目標語言 {language}；來源標題、標籤須以此語言概述，不可照抄來源語言。"
+    for field in ("native_search_intent", "native_query_phrasings", "article_angle", "ordered_h2_outline", "source_structure_not_copied"):
+        properties[field]["description"] = guidance
+        if "items" in properties[field]:
+            properties[field]["items"]["description"] = guidance
+    value = {
+        "type": "object", "additionalProperties": False,
+        "properties": {
+            "planned_h2_slot": {"type": "string", "enum": ["h2-1", "h2-2", "h2-3", "h2-4"]},
+            "coverage_note": {"type": "string", "description": guidance},
+        },
+        "required": ["planned_h2_slot", "coverage_note"],
+    }
+    properties["coverage_mapping"] = {
+        "type": "object", "additionalProperties": False,
+        "properties": {ref: copy.deepcopy(value) for ref in maps[slot]},
+        "required": list(maps[slot]),
+    }
+    return schema
+
+
+def _legacy_external_locale_plan_schema(
     brief: dict[str, Any],
     *,
     prior_plan: dict[str, Any] | None = None,
@@ -2207,6 +2286,7 @@ def _hydrate_locale_plan(
     source_ref_maps: dict[str, dict[str, str]] | None = None,
     allow_provider_safety_boundary: bool = False,
 ) -> dict[str, Any]:
+    validate_translation_brief(brief)
     if set(external) != {"articles"} or not isinstance(external["articles"], list):
         raise ValueError("external locale plan fields are strict")
     expected_slots = [
@@ -2249,9 +2329,23 @@ def _hydrate_locale_plan(
             external_required.add("source_sha256")
         if not isinstance(external_item, dict) or set(external_item) != external_required:
             raise ValueError(f"external locale plan article fields are strict for {slot}")
+        mappings = external_item.get("coverage_mapping")
+        if isinstance(mappings, dict):
+            refs = _fixed_coverage_source_ref_maps(brief)[slot]
+            if set(mappings) != set(refs):
+                raise ValueError(f"external locale plan source ref coverage differs for {slot}")
+            identity_field = "source_ref" if slot in source_ref_maps else "source_fact_id"
+            fact_to_legacy_ref = {fact_id: ref for ref, fact_id in source_ref_maps.get(slot, {}).items()}
+            converted = []
+            for ref, fact_id in refs.items():
+                value = mappings[ref]
+                if not isinstance(value, dict) or set(value) != {"planned_h2_slot", "coverage_note"}:
+                    raise ValueError(f"external locale plan coverage fields are strict for {slot}")
+                converted.append({identity_field: fact_to_legacy_ref[fact_id] if slot in source_ref_maps else fact_id, **value})
+            mappings = converted
         external_mappings = _canonicalize_external_coverage_mappings(
             fact_articles[index]["facts"],
-            external_item.get("coverage_mapping"),
+            mappings,
             slot=slot,
             source_ref_map=source_ref_maps.get(slot),
             allow_provider_safety_boundary=allow_provider_safety_boundary,
@@ -2411,13 +2505,35 @@ def _plan_prompt(
 ) -> str:
     if source_ref_maps is None:
         source_ref_maps = _request_local_source_ref_maps(brief, prior_plan)
-    legacy_authority = _legacy_plan_authority(brief, prior_plan, source_ref_maps)
-    source_identity = "source_ref" if source_ref_maps else "source_fact_id"
+    fixed_coverage = _uses_fixed_coverage(brief)
+    request_maps = _fixed_coverage_source_ref_maps(brief) if fixed_coverage else source_ref_maps
+    legacy_authority = _legacy_plan_authority(
+        brief, prior_plan, request_maps if source_ref_maps else {},
+    )
+    topology = _rebuild_topology_constraints(
+        brief, prior_plan, rebuild_by_slot,
+        source_ref_maps=source_ref_maps, legacy_authority=legacy_authority,
+    )
+    for article in topology["articles"] if fixed_coverage else []:
+        fact_to_ref = {fact_id: ref for ref, fact_id in request_maps[article["slot"]].items()}
+        if "prior_fact_to_h2_slot" in article:
+            article["prior_ref_to_h2_slot"] = [
+                {"source_ref": fact_to_ref[mapping["source_fact_id"]], "planned_h2_slot": mapping["planned_h2_slot"]}
+                for mapping in article.pop("prior_fact_to_h2_slot")
+                if mapping["source_fact_id"] in fact_to_ref
+            ]
+    source_identity = "source_ref" if request_maps else "source_fact_id"
     return "\n".join(
         [
             "你是 Pantheon 的目標語言內容規劃主編。只輸出 locale plan，不寫文章。",
             "topic、native search intent、query phrasing 與 H2 必須完全由本次 source fact package 產生，不得套用任何預設題材。",
-            f"coverage_mapping 必須逐一覆蓋 source fact，且每筆只能輸出 {source_identity}、planned_h2_slot 與 coverage_note。",
+            *([
+                "coverage_mapping 必須是固定 source_ref_01…NN property object，逐一覆蓋該 article slot 的 source fact；每個 value 只能填 planned_h2_slot 與 coverage_note，不另填 identity。",
+                "每篇的 native_search_intent（搜尋意圖）、article_angle（角度）、native_query_phrasings（每條查詢）、ordered_h2_outline（每個 H2）、coverage_mapping 每個 coverage_note、source_structure_not_copied 都必須使用該篇 locale 的目標語言：en=English、ja=日本語、ko=한국어。來源 title/tags 若需引用，必須以目標語言概述，不得直接抄寫中文標題或標籤。",
+                "source_ref 依同一 request 的 article／fact 順序唯一編號，綁定該 article slot 的 deterministic source fact package；不得移用其他文章或 locale 的 ref。",
+            ] if fixed_coverage else [
+                f"coverage_mapping 必須逐一覆蓋 source fact，且每筆只能輸出 {source_identity}、planned_h2_slot 與 coverage_note。",
+            ]),
             _boundary_prompt(brief, "不得輸出 schema 未列欄位；限制保留由 pipeline 的本機 source fact authority 在 hydrate 時處理。"),
             _boundary_prompt(brief, "JA protected_constraints 是 boundary coverage authority；boundary source spans 只供 provenance trace，不得逐段重現為獨立 safety requirement。"),
             "ordered_h2_outline 必須恰好有 4 個 H2；coverage_mapping.planned_h2_slot 必須使用 h2-1、h2-2、h2-3 或 h2-4，不得另寫或改寫 H2 文字。",
@@ -2457,28 +2573,23 @@ def _plan_prompt(
                 }
             ),
             "rebuild topology constraints:",
-            _canonical_json(
-                _rebuild_topology_constraints(
-                    brief,
-                    prior_plan,
-                    rebuild_by_slot,
-                    source_ref_maps=source_ref_maps,
-                    legacy_authority=legacy_authority,
-                )
-            ),
+            _canonical_json(topology),
             "generation:",
             str(generation),
             "locale contracts:",
             _canonical_json(LOCALE_EDITORIAL_CONTRACTS),
             "source fact package:",
-            _canonical_json(_source_fact_package_for_prompt(brief, source_ref_maps)),
+            _canonical_json(_source_fact_package_for_prompt(brief, request_maps)),
             "source structure to avoid:",
             _canonical_json(_source_structure_to_avoid(brief)),
             "prior plan:",
             _canonical_json(
                 {"articles": list(legacy_authority.values())}
                 if source_ref_maps
-                else prior_plan
+                else (({"articles": [
+                    _locale_plan_for_prompt(item, request_maps.get(str(item["slot"])))
+                    for item in prior_plan["articles"]
+                ]} if prior_plan else None) if fixed_coverage else prior_plan)
             ),
             "findings:",
             _canonical_json(findings),
@@ -2806,6 +2917,13 @@ def _load_or_generate_external_locale_plan(
                 source_ref_maps,
             )
         return payload, has_provider_safety
+    if receipt_path.is_file():
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        if receipt.get("status") in {"pending", "success"} and (
+            receipt.get("prompt_sha256") != hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+            or receipt.get("schema_sha256") != _json_sha256(schema)
+        ):
+            raise ValueError("persisted locale planning operation identity differs; pending migration is not supported")
     payload = pipeline._generate_with_receipt(client, "writer", prompt, schema, receipt_path)
     pipeline.write_json(output_path, payload)
     return payload, False
