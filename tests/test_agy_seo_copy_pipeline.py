@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 import scripts.agy_seo_copy_pipeline as pipeline
+import scripts.agy_gemini_v4_broker as gemini_broker
 
 from scripts.agy_gemini_outbox import ExternalWriterSchemaInvalid, build_external_request
 from scripts.agy_seo_copy_pipeline import (
@@ -2824,6 +2825,156 @@ def test_rewrite_provider_schema_removes_only_string_length_keywords() -> None:
         pipeline.publication_presentation_profile("create"),
         "paragraph_characters",
     )
+
+
+def test_all_provider_bound_content_schemas_defer_string_lengths_to_local_gate() -> None:
+    """Provider 只守結構；字串長度必須留給 canonical 本機驗證。"""
+
+    def string_length_paths(value: object, path: str = "$.") -> list[str]:
+        found: list[str] = []
+        if isinstance(value, dict):
+            for key, child in value.items():
+                child_path = f"{path}{key}"
+                if key in {"minLength", "maxLength"}:
+                    found.append(child_path)
+                found.extend(string_length_paths(child, f"{child_path}."))
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                found.extend(string_length_paths(child, f"{path}[{index}]."))
+        return found
+
+    provider_schemas = {
+        "create-initial": pipeline.external_candidate_schema("create"),
+        "rewrite-initial": pipeline.external_candidate_schema("rewrite_existing_body"),
+        "optimize-initial": pipeline.external_candidate_schema("optimize"),
+        "create-repair-title": pipeline.external_create_repair_schema(
+            {"article-01": ("title",)}
+        ),
+        "create-repair-description": pipeline.external_create_repair_schema(
+            {"article-01": ("description",)}
+        ),
+        "create-repair-answer": pipeline.external_create_repair_schema(
+            {"article-01": ("answer",)}
+        ),
+        "create-repair-body": pipeline.external_create_repair_schema(
+            {"article-01": ("bodySections",)}
+        ),
+        "review": pipeline.external_review_schema(),
+        "rewrite-review": pipeline.rewrite_external_review_schema(),
+    }
+
+    assert {
+        name: string_length_paths(schema)
+        for name, schema in provider_schemas.items()
+    } == {name: [] for name in provider_schemas}
+
+    canonical = pipeline.candidate_schema("create")["properties"]["articles"][
+        "items"
+    ]["properties"]
+    assert canonical["title"]["minLength"] == 20
+    assert canonical["title"]["maxLength"] == 45
+    assert canonical["description"]["minLength"] == 70
+    assert canonical["description"]["maxLength"] == 95
+    assert canonical["answer"]["maxLength"] == 50
+    assert canonical["bodySections"]["items"]["properties"]["paragraphs"][
+        "items"
+    ]["minLength"] > 0
+    assert canonical["bodySections"]["items"]["properties"]["paragraphs"][
+        "items"
+    ]["maxLength"] > 0
+
+
+def test_create_provider_transport_accepts_invalid_lengths_then_local_gate_flags_them() -> None:
+    target = make_deterministic_green_create_article("CREATE-PROVIDER-LENGTH-BOUNDARY")
+    external = {"articles": [make_external_create_article(target)]}
+    generated = external["articles"][0]
+    generated["title"] = "太短"
+    generated["description"] = "太短"
+    generated["answer"] = "超" * 60
+    generated["bodySections"][0]["paragraphs"][0] = "太短"
+    brief = {
+        "schema_version": 1,
+        "run_id": "create-provider-length-boundary",
+        "mode": "create",
+        "articles": [
+            {
+                "matrix": {
+                    "id": target["id"],
+                    "primaryKeyword": target["primaryKeyword"],
+                    "title": target["title"],
+                    "intent": "公開搜尋意圖",
+                },
+                "target": {
+                    field: target[field]
+                    for field in [
+                        "id",
+                        "section",
+                        "product",
+                        "slug",
+                        "serial",
+                        "urlSlug",
+                        "primaryKeyword",
+                        "published",
+                        "updated",
+                    ]
+                },
+                "policy": pipeline.compact_publication_policy(),
+            }
+        ],
+    }
+
+    assert gemini_broker._validate_json_schema(
+        external,
+        pipeline.external_candidate_schema("create"),
+    )
+    candidate = pipeline.hydrate_candidate(brief, external, enforce_policy=False)
+    codes = {
+        finding["code"]
+        for finding in pipeline.quality_findings(candidate["articles"])
+    }
+    assert {"title_length", "description_length", "answer_length", "paragraph_length"} <= codes
+
+
+def test_create_repair_transport_accepts_invalid_lengths_then_local_gate_flags_them() -> None:
+    article = make_deterministic_green_create_article("CREATE-REPAIR-LENGTH-BOUNDARY")
+    candidate = {
+        "schema_version": 1,
+        "run_id": "create-repair-length-boundary",
+        "mode": "create",
+        "articles": [article],
+    }
+    contract = {
+        "article-01": ("answer", "bodySections", "description", "title"),
+    }
+    repaired_body = json.loads(json.dumps(article["bodySections"], ensure_ascii=False))
+    repaired_body[0]["paragraphs"][0] = "太短"
+    external = {
+        "articles": [
+            {
+                "slot": "article-01",
+                "title": "太短",
+                "description": "太短",
+                "answer": "超" * 60,
+                "bodySections": repaired_body,
+            }
+        ]
+    }
+
+    assert gemini_broker._validate_json_schema(
+        external,
+        pipeline.external_create_repair_schema(contract),
+    )
+    repaired = pipeline.hydrate_create_repair(
+        candidate,
+        external,
+        contract,
+        enforce_policy=False,
+    )
+    codes = {
+        finding["code"]
+        for finding in pipeline.quality_findings(repaired["articles"])
+    }
+    assert {"title_length", "description_length", "answer_length", "paragraph_length"} <= codes
 
 
 def test_create_transport_short_paragraph_reaches_local_repair_gate() -> None:
