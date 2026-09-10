@@ -3012,7 +3012,9 @@ class GeminiClient:
             # 數值限制仍由本地驗證；欄位說明只提供模型可讀的生成指引。
             provider_schema = json.loads(json.dumps(generation_config["responseJsonSchema"]))
             fields = provider_schema["properties"]["articles"]["items"]["properties"]
-            source_fields = schema["properties"]["articles"]["items"]["properties"]
+            source_fields = candidate_schema("create")["properties"]["articles"][
+                "items"
+            ]["properties"]
             for field in ("title", "description"):
                 lower = source_fields[field]["minLength"]
                 upper = source_fields[field]["maxLength"]
@@ -3412,12 +3414,17 @@ def external_candidate_schema(mode: str) -> dict[str, Any]:
         }
     else:
         full = _article_json_schema()
+        provider_description = dict(full["properties"]["description"])
+        provider_description.pop("minLength", None)
+        provider_description.pop("maxLength", None)
         properties = {"slot": {"type": "string"}}
         properties.update(
             {
                 field: (
                     _create_provider_body_sections_schema()
                     if field == "bodySections"
+                    else provider_description
+                    if field == "description"
                     else full["properties"][field]
                 )
                 for field in sorted(EXTERNAL_CREATE_FIELDS)
