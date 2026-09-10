@@ -3,6 +3,8 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -10,6 +12,8 @@ import pytest
 
 from scripts import agy_multilingual_pipeline as m
 from scripts import agy_gemini_coordinator as c
+from scripts import agy_gemini_runner as runner
+from scripts.agy_gemini_outbox import create_external_request
 from test_agy_multilingual_pipeline import source_article, translation_brief, external_locale_plan, translation_candidate
 
 
@@ -307,3 +311,326 @@ def test_handoff_unknown_article_policy_is_not_upgraded(version):
     with pytest.raises(ValueError, match='unsupported source publication policy version'):
         m.validate_source_contract(source)
     assert m.pipeline.compact_json_bytes(source) == raw
+
+
+@pytest.fixture
+def published_dispatch(tmp_path, monkeypatch):
+    """真實本地 Git／Node，只有 provider 使用無網路替身。"""
+    for key in list(os.environ):
+        if key.startswith(("AGY_GEMINI_", "PANTHEON_RUNTIME_", "PANTHEON_FORMAL_")):
+            monkeypatch.delenv(key)
+
+    def build(lane="i18n-new", historical=False):
+        actor = tmp_path / "actor"
+        actor.mkdir()
+        queue = tmp_path / "queue"
+        state_root = tmp_path / "state"
+        state_root.mkdir()
+        source = copy.deepcopy(new_brief("en")["articles"][0]["source"])
+        static = actor / "app/web/static"
+        static.mkdir(parents=True)
+        policy_path = actor / m.pipeline.POLICY_V2_PATH
+        policy_path.parent.mkdir(parents=True)
+        policy_path.write_text(json.dumps(source["publication_policy"]["global_policy"]))
+        (actor / "package.json").write_text('{"type":"module"}')
+
+        def git(*args):
+            return subprocess.run(
+                ["git", "-c", "core.hooksPath=/dev/null", "-c", "user.name=測試",
+                 "-c", "user.email=fixture@example.invalid", *args],
+                cwd=actor, check=True, capture_output=True, text=True,
+            ).stdout.strip()
+
+        def write_source(value, *, present=True, policy=True):
+            records = [{"id": value["article_id"]}]
+            if policy:
+                records[0]["publicationPolicy"] = value["publication_policy"]["article_policy"]
+            (static / "article-registry.js").write_text(
+                "export const getArticlePath = () => " + json.dumps(value["canonical_path"])
+                + "; export const listArticleRecords = () => "
+                + json.dumps(records if present else []) + ";"
+            )
+            (static / "article-meta.js").write_text(
+                "export const buildArticleContent = () => ("
+                + json.dumps({**value, "displayTags": value["tags"]}) + ");"
+            )
+            policy_path.write_text(json.dumps(value["publication_policy"]["global_policy"]))
+
+        def commit():
+            git("add", ".")
+            git("commit", "--quiet", "--allow-empty", "-m", "來源 fixture")
+            return git("rev-parse", "HEAD")
+
+        git("init", "--quiet")
+        write_source(source, present=lane != "i18n-new", policy=False)
+        old = commit()
+        write_source(source)
+        published = commit()
+        git("update-ref", "refs/remotes/origin/main", published)
+        source_run = "published-source-01"
+        run = m.enqueue_article_translations(
+            actor, queue, source_run_id=source_run, article_id=source["article_id"],
+            locales=["en"], lane=lane,
+        )[0]
+        namespace = hashlib.sha256(run["run_id"].encode()).hexdigest()[:24]
+        job_root = queue / "lanes" / lane
+        request = create_external_request(
+            job_root, namespace=namespace, role="writer", model="gemini-3.5-flash-lite",
+            prompt="離線來源驗證", response_schema={"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]},
+        )
+        key = "published_runs" if lane == "i18n-new" else "rewrite_released_runs"
+        entry = {"run_id": source_run, "article_ids": [source["article_id"]],
+                 "translation_run_ids": [run["run_id"]], "commit_sha": published,
+                 "version": "0.3.396", "published_at": "2026-09-10T16:37:33+08:00"}
+        ledger = {"schema_version": 1, "published_runs": [], "rewrite_released_runs": []}
+        ledger[key].append(entry)
+
+        def save_ledger():
+            (state_root / "ledger.json").write_text(json.dumps(ledger))
+
+        save_ledger()
+        base = published if historical else old
+        git("checkout", "--quiet", "--detach", base)
+        monkeypatch.setenv("PANTHEON_RUNTIME_ACTOR_ROOT", str(actor))
+        monkeypatch.setenv("PANTHEON_RUNTIME_QUEUE_ROOT", str(queue))
+        monkeypatch.setenv("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT", str(state_root))
+        loaded_paths = []
+        original_loader = m.load_source_article
+
+        def observe(root, article):
+            loaded_paths.append(root)
+            return original_loader(root, article)
+
+        monkeypatch.setattr(m, "load_source_article", observe)
+        calls = []
+
+        def dispatch():
+            before = (git("rev-parse", "HEAD"), git("status", "--porcelain"), (actor / ".git/index").read_bytes())
+            result = runner.process_once(job_root, lane=lane, generate_json=lambda *args: calls.append(args) or {"ok": True})
+            assert (git("rev-parse", "HEAD"), git("status", "--porcelain"), (actor / ".git/index").read_bytes()) == before
+            assert all(not path.exists() for path in loaded_paths if path != actor)
+            return result
+
+        def advance(value):
+            git("checkout", "--quiet", "--detach", published)
+            write_source(value)
+            tip = commit()
+            git("update-ref", "refs/remotes/origin/main", tip)
+            git("checkout", "--quiet", "--detach", base)
+            return tip
+
+        return SimpleNamespace(**locals())
+
+    return build
+
+
+@pytest.mark.parametrize("lane", ["i18n-new", "i18n-rewrite"])
+@pytest.mark.parametrize("historical", [False, True])
+def test_published_dispatch_reads_committed_source(published_dispatch, lane, historical):
+    f = published_dispatch(lane, historical)
+    assert f.dispatch()["status"] == "processed"
+    assert len(f.calls) == 1
+    assert f.loaded_paths and all(path != f.actor for path in f.loaded_paths)
+
+
+@pytest.mark.parametrize("field", ["body", "policy", "global_policy"])
+def test_published_dispatch_rejects_later_source_drift(published_dispatch, field):
+    f = published_dispatch(historical=True)
+    changed = copy.deepcopy(f.source)
+    if field == "body":
+        changed["bodySections"][0]["paragraphs"][0] += "發布後更新。"
+    elif field == "policy":
+        changed["publication_policy"]["article_policy"]["evidence"]["disclosure"] += "新增限制。"
+    else:
+        changed["publication_policy"]["global_policy"]["levels"]["required"] += "新增限制。"
+    f.advance(changed)
+    assert f.dispatch()["status"] == "failed"
+    assert not f.calls
+
+
+@pytest.mark.parametrize("fault", [None, "no_ledger", "unpublished", "wrong_lane", "wrong_article",
+                                   "missing_commit", "lagging", "body", "policy", "auto_id", "replacement", "later_release"])
+def test_native_registered_published_rewrite_without_auto_ledger_id(published_dispatch, fault):
+    """原生註冊不回填 publisher 的 auto run 清單，仍須讀取已發布來源。"""
+    f = published_dispatch("i18n-rewrite", historical=True)
+    run_id = "registered-published-rewrite-ja"
+    if fault == "auto_id":
+        run_id = "auto-i18n-ja-" + "0" * 20
+    path = m.prepare_translation_run(f.actor, run_id, f.source["article_id"], ["ja"], f.queue / "translation-runs")
+    brief = json.loads(path.read_text())
+    brief["lane"] = "i18n-rewrite"
+    path.write_text(json.dumps(brief))
+    state = c.register_run(path.parent, f.queue)
+    assert state["status"] == "active"
+    assert run_id not in f.entry["translation_run_ids"]
+    (f.job_root / "outbox" / (f.request["job_id"] + ".json")).unlink()
+    create_external_request(f.job_root, namespace=hashlib.sha256(run_id.encode()).hexdigest()[:24],
+                            role="reviewer", model="fake-model", prompt="原生已發布來源",
+                            response_schema=f.request["response_schema"])
+    if fault in {"body", "policy"}:
+        changed = copy.deepcopy(f.source)
+        if fault == "body":
+            changed["bodySections"][0]["paragraphs"][0] += "已發布更新。"
+        else:
+            changed["publication_policy"]["article_policy"]["evidence"]["disclosure"] += "政策更新。"
+        f.advance(changed)
+    elif fault == "lagging":
+        f.git("update-ref", "refs/remotes/origin/main", f.old)
+    elif fault == "replacement":
+        state["replacement_of"] = f.run["run_id"]
+        (f.queue / "runs" / (hashlib.sha256(run_id.encode()).hexdigest()[:24] + ".json")).write_text(json.dumps(state))
+    elif fault == "unpublished":
+        f.ledger[f.key] = []
+    elif fault == "wrong_lane":
+        f.ledger["published_runs"] = f.ledger.pop(f.key)
+        f.ledger[f.key] = []
+    elif fault == "wrong_article":
+        f.entry["article_ids"] = ["OTHER"]
+    elif fault == "missing_commit":
+        f.entry["commit_sha"] = "f" * 40
+    elif fault == "later_release":
+        f.ledger[f.key].append({**f.entry, "run_id": "later-published-source", "translation_run_ids": []})
+    f.save_ledger()
+    ledger_path = f.state_root / "ledger.json"
+    if fault == "no_ledger":
+        ledger_path.unlink()
+    ledger_before = ledger_path.read_bytes() if ledger_path.exists() else None
+    f.loaded_paths.clear()
+    accepted = fault in {None, "later_release"}
+    assert f.dispatch()["status"] == ("processed" if accepted else "failed")
+    assert len(f.calls) == (1 if accepted else 0)
+    assert (ledger_path.read_bytes() if ledger_path.exists() else None) == ledger_before
+
+
+@pytest.mark.parametrize("fault", ["lagging", "missing", "nonancestor", "unpublished", "wrong_lane", "wrong_article", "later_ledger", "no_ref", "no_ledger", "duplicate"])
+def test_published_dispatch_requires_published_ancestry(published_dispatch, fault):
+    f = published_dispatch(historical=True)
+    if fault == "lagging":
+        f.git("update-ref", "refs/remotes/origin/main", f.old)
+    elif fault == "missing":
+        f.entry["commit_sha"] = "f" * 40
+    elif fault in {"nonancestor", "later_ledger"}:
+        unrelated = f.git("commit-tree", f.git("rev-parse", "HEAD^{tree}"), "-m", "未合併來源")
+        if fault == "nonancestor":
+            f.entry["commit_sha"] = unrelated
+        else:
+            f.ledger["rewrite_released_runs"].append({**f.entry, "run_id": "later-source", "translation_run_ids": [], "commit_sha": unrelated})
+    elif fault == "unpublished":
+        f.entry["translation_run_ids"] = []
+    elif fault == "no_ref":
+        f.git("update-ref", "-d", "refs/remotes/origin/main")
+    elif fault == "no_ledger":
+        (f.state_root / "ledger.json").unlink()
+    elif fault == "duplicate":
+        f.ledger[f.key].append(copy.deepcopy(f.entry))
+    elif fault == "wrong_lane":
+        f.ledger["rewrite_released_runs"] = f.ledger.pop("published_runs")
+        f.ledger["published_runs"] = []
+    else:
+        f.entry["article_ids"] = ["OTHER"]
+    if fault != "no_ledger":
+        f.save_ledger()
+    assert f.dispatch()["status"] == "failed"
+    assert not f.calls
+
+
+@pytest.mark.parametrize("broken", [False, True])
+def test_published_dispatch_checks_replacement_lineage(published_dispatch, broken):
+    f = published_dispatch(historical=True)
+    parent_path = f.queue / "runs" / (f.namespace + ".json")
+    parent = json.loads(parent_path.read_text())
+    parent["status"] = "failed"
+    parent_path.write_text(json.dumps(parent))
+    replacement = m.enqueue_translation_replacement(
+        f.actor, f.queue, terminal_state=parent,
+        recovery_reason=next(iter(m.TRANSLATION_REPLACEMENT_REASONS)),
+    )
+    namespace = hashlib.sha256(replacement["run_id"].encode()).hexdigest()[:24]
+    (f.job_root / "outbox" / (f.request["job_id"] + ".json")).unlink()
+    create_external_request(f.job_root, namespace=namespace, role="writer", model="gemini-3.5-flash-lite", prompt="替換來源", response_schema=f.request["response_schema"])
+    if broken:
+        parent["identity_envelope"] = m.translation_identity_envelope("OTHER", f.lane)
+        parent_path.write_text(json.dumps(parent))
+    f.loaded_paths.clear()
+    result = f.dispatch()
+    assert result["status"] == ("failed" if broken else "processed")
+    assert len(f.calls) == (0 if broken else 1)
+
+
+def test_published_dispatch_pins_ref_for_entire_provider_admission(published_dispatch, monkeypatch):
+    f = published_dispatch()
+    bad = copy.deepcopy(f.source)
+    bad["bodySections"][0]["paragraphs"][0] += "下一版不同內容。"
+    newer = f.advance(bad)
+    f.git("update-ref", "refs/remotes/origin/main", f.published)
+    original = subprocess.run
+    resolutions = []
+    commands = []
+
+    def moving_ref(args, *a, **kw):
+        if args[0] == "git":
+            commands.append(args)
+        result = original(args, *a, **kw)
+        if args[0] == "git" and "rev-parse" in args and any("origin/main" in arg for arg in args):
+            resolutions.append(args)
+            original(["git", "update-ref", "refs/remotes/origin/main", newer], cwd=f.actor, check=True, capture_output=True)
+        return result
+
+    monkeypatch.setattr(subprocess, "run", moving_ref)
+    assert f.dispatch()["status"] == "processed"
+    assert len(resolutions) == 1
+    assert len(f.calls) == 1
+    assert not any(command in args for args in commands for command in ("fetch", "checkout", "worktree", "update-ref"))
+
+
+@pytest.mark.parametrize("fault", ["dependency", "symlink", "oversize"])
+def test_published_dispatch_snapshot_failure_cleans_up(published_dispatch, fault):
+    f = published_dispatch(historical=True)
+    f.git("checkout", "--quiet", "--detach", f.published)
+    if fault == "dependency":
+        (f.static / "article-meta.js").write_text('import "./missing.js"; export const buildArticleContent = () => ({});')
+    elif fault == "symlink":
+        path = f.static / "article-meta.js"
+        path.unlink()
+        path.symlink_to("../../../../outside.js")
+    else:
+        (f.static / "large.js").write_bytes(b" " * (17 * 1024 * 1024))
+    bad = f.commit()
+    f.git("update-ref", "refs/remotes/origin/main", bad)
+    f.git("checkout", "--quiet", "--detach", f.base)
+    assert f.dispatch()["status"] == "failed"
+    assert not f.calls
+
+
+def test_published_dispatch_projection_rejects_path_escape(published_dispatch, monkeypatch):
+    f = published_dispatch(historical=True)
+    original = subprocess.run
+
+    def corrupt_listing(args, *a, **kw):
+        result = original(args, *a, **kw)
+        if args[0] == "git" and "ls-tree" in args:
+            row = result.stdout.split(b"\0")[0].split(b"\t")[0]
+            result.stdout += row + b"\tapp/web/static/../../../escaped.js\0"
+        return result
+
+    monkeypatch.setattr(subprocess, "run", corrupt_listing)
+    assert f.dispatch()["status"] == "failed"
+    assert not f.calls and not f.loaded_paths
+
+
+def test_published_dispatch_projection_write_error_cleans_up(published_dispatch, monkeypatch):
+    f = published_dispatch(historical=True)
+    original = Path.open
+    snapshots = []
+
+    def fail_second_file(path, mode="r", *args, **kwargs):
+        if mode == "xb" and any(part.startswith("agy-translation-source-") for part in path.parts):
+            snapshots.extend(parent for parent in path.parents if parent.name.startswith("agy-translation-source-"))
+            if len(snapshots) == 2:
+                raise OSError("離線模擬投影寫入失敗")
+        return original(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", fail_second_file)
+    assert f.dispatch()["status"] == "failed"
+    assert snapshots and all(not path.exists() for path in snapshots)
+    assert not f.calls
