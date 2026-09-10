@@ -2873,6 +2873,73 @@ def test_create_transport_short_paragraph_reaches_local_repair_gate() -> None:
     ]["bodySections"]["items"]["properties"]["paragraphs"]["items"]["minLength"] > 0
 
 
+def test_create_transport_short_description_reaches_local_repair_gate() -> None:
+    target = make_deterministic_green_create_article("CREATE-SHORT-DESCRIPTION")
+    canonical_description = pipeline.candidate_schema("create")["properties"][
+        "articles"
+    ]["items"]["properties"]["description"]
+    provider_description = pipeline.external_candidate_schema("create")["properties"][
+        "articles"
+    ]["items"]["properties"]["description"]
+    external = {"articles": [make_external_create_article(target)]}
+    external["articles"][0]["description"] = "這段摘要太短，只用來驗證本機修復入口。"
+    brief = {
+        "schema_version": 1,
+        "run_id": "create-short-description-transport",
+        "mode": "create",
+        "articles": [
+            {
+                "matrix": {
+                    "id": target["id"],
+                    "primaryKeyword": target["primaryKeyword"],
+                    "title": target["title"],
+                    "intent": "公開搜尋意圖",
+                },
+                "target": {
+                    field: target[field]
+                    for field in [
+                        "id", "section", "product", "slug", "serial",
+                        "urlSlug", "primaryKeyword", "published", "updated",
+                    ]
+                },
+                "policy": pipeline.compact_publication_policy(),
+            }
+        ],
+    }
+
+    candidate = pipeline.hydrate_candidate(brief, external, enforce_policy=False)
+    findings = pipeline.quality_findings(candidate["articles"])
+
+    assert canonical_description["minLength"] == 70
+    assert canonical_description["maxLength"] == 95
+    assert "minLength" not in provider_description
+    assert "maxLength" not in provider_description
+    assert any(finding["code"] == "description_length" for finding in findings)
+    assert pipeline._create_repair_fields(candidate["articles"][0], findings) == {
+        "description"
+    }
+
+    captured: dict[str, object] = {}
+
+    def transport(model: str, payload: dict[str, object]) -> dict[str, object]:
+        captured.update(payload)
+        return external
+
+    client = pipeline.GeminiClient(
+        writer_model="gemini-3.5-flash-lite",
+        transport=transport,
+    )
+    assert client.generate_json(
+        "writer", "測試", pipeline.external_candidate_schema("create")
+    ) == external
+    transmitted_description = captured["generationConfig"]["responseJsonSchema"][
+        "properties"
+    ]["articles"]["items"]["properties"]["description"]
+    assert "minLength" not in transmitted_description
+    assert "maxLength" not in transmitted_description
+    assert "70 到 95" in transmitted_description["description"]
+
+
 def test_create_normalization_reads_paragraph_bounds_from_canonical_schema() -> None:
     target = make_deterministic_green_create_article("CREATE-NORMALIZE-PARAGRAPH")
     response_schema = pipeline.external_candidate_schema("create")
@@ -4677,10 +4744,10 @@ def test_publication_quality_gate_uses_full_standard_and_humanizer_rules() -> No
     assert pipeline._contains_banned_phrase("結果不一定相同，也不能保證成功", "一定") is False
     assert pipeline._contains_banned_phrase("結果不一定相同，也不能保證成功", "保證") is False
     assert pipeline._contains_banned_phrase("這一定成功", "一定") is True
-    external_article = pipeline.external_candidate_schema("create")["properties"]["articles"]["items"]
-    assert external_article["properties"]["description"]["minLength"] == 70
-    assert external_article["properties"]["description"]["maxLength"] == 95
-    body = external_article["properties"]["bodySections"]
+    canonical_article = pipeline.candidate_schema("create")["properties"]["articles"]["items"]
+    assert canonical_article["properties"]["description"]["minLength"] == 70
+    assert canonical_article["properties"]["description"]["maxLength"] == 95
+    body = pipeline.external_candidate_schema("create")["properties"]["articles"]["items"]["properties"]["bodySections"]
     assert body["minItems"] == 5
     assert "maxItems" not in body
     paragraphs = body["items"]["properties"]["paragraphs"]
