@@ -2616,3 +2616,46 @@ def test_bounded_runner_records_two_write_cycles_reclamation_and_stop_loss(
     assert receipt["stop_loss"]["status"] == "STOPPED"
     assert receipt["stop_loss"]["cross_project_deletions"] == []
     assert json.loads(receipt_path.read_text(encoding="utf-8")) == receipt
+
+
+@pytest.mark.parametrize("change", ["exit", "replace", "absent", "stable", "churn", "malformed", "missing", "wrong-path", "contradictory-state"])
+def test_rss_reconciles_only_proven_process_lifecycle(monkeypatch: pytest.MonkeyPatch, change: str) -> None:
+    label = "com.pantheon.agy-content-publisher"
+    target = f"gui/{os.getuid()}/{label}"
+    plist = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / "Library/LaunchAgents" / f"{label}.plist"
+    pid = 100
+    ps_calls = 0
+    exited = False
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal pid, ps_calls, exited
+        if command[:2] == ["launchctl", "print"]:
+            if command[-1] != target or (exited and change == "absent"):
+                return _completed(113)
+            state = "not running" if exited or (ps_calls and change == "contradictory-state") else "running"
+            pid_line = "" if exited else f"\tpid = {pid}\n"
+            path = str(plist) + (".wrong" if ps_calls and change == "wrong-path" else "")
+            return _completed(0, f"{target} = {{\n\tpath = {path}\n\tstate = {state}\n{pid_line}\tlast exit code = 1\n}}\n")
+        assert command[:3] == ["ps", "-o", "pid=,rss="]
+        ps_calls += 1
+        old_pid = pid
+        if change in ("exit", "absent"):
+            exited = True
+            return _completed(1, "")
+        if change == "churn" or (change == "replace" and ps_calls == 1):
+            pid += 1
+        if change == "malformed":
+            return _completed(0, f"{pid} invalid\n")
+        if change == "missing":
+            return _completed(0, "")
+        return _completed(0, f"{old_pid} 42\n")
+
+    monkeypatch.setattr(guard.time, "sleep", lambda _seconds: None)
+    result = guard._service_rss_bytes(runner, expected_idle_labels=frozenset({label}))
+    success = change in ("exit", "replace", "absent", "stable")
+    assert result["available"] is success
+    if success:
+        assert result["value"] == (0 if change in ("exit", "absent") else 42 * 1024)
+    else:
+        assert result["value"] is None
+    assert ps_calls == (3 if change == "churn" else 2 if change == "replace" else 1)

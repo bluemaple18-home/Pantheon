@@ -591,6 +591,26 @@ def _service_rss_bytes(
     expected_inert_labels: frozenset[str] = frozenset(),
     expected_idle_labels: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
+    # 只重測已證實的程序拓樸變動；量測錯誤不能藉重試變成零。
+    for attempt in range(3):
+        result = _service_rss_snapshot(
+            runner,
+            expected_inert_labels=expected_inert_labels,
+            expected_idle_labels=expected_idle_labels,
+        )
+        if result.get("error") != "service_topology_changed_during_rss":
+            return result
+        if attempt < 2:
+            time.sleep(SERVICE_TRANSITION_RECHECK_SECONDS)
+    return result
+
+
+def _service_rss_snapshot(
+    runner: Runner,
+    *,
+    expected_inert_labels: frozenset[str],
+    expected_idle_labels: frozenset[str],
+) -> dict[str, Any]:
     pids: list[str] = []
     loaded: list[dict[str, Any]] = []
     inert: list[dict[str, Any]] = []
@@ -742,34 +762,64 @@ def _service_rss_bytes(
                 "absent_labels": absent,
             },
         }
-    result = runner(["ps", "-o", "rss=", "-p", ",".join(pids)])
+    identity = {
+        "loaded_labels": loaded,
+        "inert_labels": inert,
+        "idle_labels": idle,
+        "absent_labels": absent,
+    }
+
+    def unavailable(error: str) -> dict[str, Any]:
+        return {"value": None, "available": False, "error": error, "identity": identity}
+
+    result = runner(["ps", "-o", "pid=,rss=", "-p", ",".join(pids)])
+    if result.returncode not in (0, 1):
+        return unavailable(f"ps_failed:{result.returncode}")
+    values: dict[str, int] = {}
+    for line in result.stdout.splitlines():
+        match = re.fullmatch(r"\s*([1-9][0-9]*)\s+([0-9]+)\s*", line)
+        if match is None or match[1] not in pids or match[1] in values:
+            return unavailable("ps_parse_failed")
+        values[match[1]] = int(match[2])
+    if result.returncode == 1 and values:
+        return unavailable("ps_failed:1")
+    changed = False
+    for item in loaded:
+        label = item["label"]
+        target = f"{domain}/{label}"
+        current = runner(["launchctl", "print", target])
+        if current.returncode in (3, 113) and label in expected_idle_labels:
+            changed = True
+            continue
+        current_identity = _launchctl_top_level_identity(current.stdout, expected_target=target)
+        expected_path = str(Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(strict=True) / "Library" / "LaunchAgents" / f"{label}.plist")
+        if (
+            current.returncode != 0
+            or current_identity is None
+            or current_identity["paths"] != [expected_path]
+            or len(current_identity["states"]) != 1
+            or len(current_identity["last_exit_codes"]) > 1
+        ):
+            return unavailable("service_identity_unknown_after_rss")
+        current_pids = re.findall(r"^\s*pid = ([1-9][0-9]*)\s*$", current.stdout, re.MULTILINE)
+        if current_pids == [str(item["pid"])]:
+            if current_identity["states"] != ["running"]:
+                return unavailable("service_identity_unknown_after_rss")
+            continue
+        if label not in expected_idle_labels or not (
+            (not current_pids and current_identity["states"] == ["not running"])
+            or (len(current_pids) == 1 and current_identity["states"] == ["running"])
+        ):
+            return unavailable("service_identity_unknown_after_rss")
+        changed = True
+    if changed:
+        return unavailable("service_topology_changed_during_rss")
     if result.returncode != 0:
-        return {
-            "value": None,
-            "available": False,
-            "error": f"ps_failed:{result.returncode}",
-            "identity": {
-                "loaded_labels": loaded,
-                "inert_labels": inert,
-                "idle_labels": idle,
-                "absent_labels": absent,
-            },
-        }
-    values = [int(value) for value in result.stdout.split() if value.isdigit()]
-    if len(values) != len(pids):
-        return {
-            "value": None,
-            "available": False,
-            "error": "ps_parse_failed",
-            "identity": {
-                "loaded_labels": loaded,
-                "inert_labels": inert,
-                "idle_labels": idle,
-                "absent_labels": absent,
-            },
-        }
+        return unavailable(f"ps_failed:{result.returncode}")
+    if set(values) != set(pids):
+        return unavailable("ps_parse_failed")
     return {
-        "value": sum(values) * 1024,
+        "value": sum(values.values()) * 1024,
         "available": True,
         "error": None,
         "identity": {

@@ -4957,7 +4957,7 @@ def main() -> int:
             selector_kwargs["seed_translations"] = False
     queue_root = args.queue_root.resolve()
     state_root = (repo_root / args.state_root).resolve() if not args.state_root.is_absolute() else args.state_root.resolve()
-    _validate_formal_runtime(repo_root, queue_root, state_root)
+    runtime_receipt = _validate_formal_runtime(repo_root, queue_root, state_root)
     _trim_configured_launchd_logs()
     contract_values = (
         getattr(args, "expected_repo_root", None),
@@ -5003,6 +5003,9 @@ def main() -> int:
             )
         except formal_runtime.RuntimeManifestError as error:
             raise SystemExit(str(error)) from error
+    # 正式 tick 已核對 manifest、actor 與 activation token，沿用同一權威收據。
+    if manifest_authority is None and runtime_receipt.get("status") == "PASS":
+        manifest_authority = runtime_receipt
     if all(value is not None for value in contract_values):
         preflight = deployment_preflight(
             repo_root,
@@ -5019,7 +5022,7 @@ def main() -> int:
             expected_exact_run_ids=exact_run_ids,
             manifest_authority=manifest_authority,
             expected_manifest_digest=(
-                str(manifest_authority_values[2])
+                str(manifest_authority["manifest_digest"])
                 if manifest_authority is not None
                 else None
             ),

@@ -6286,3 +6286,48 @@ def test_native_unstaged_duplicate_still_rejected(tmp_path, monkeypatch):
         publisher.multilingual.apply_approved_translations(repo, candidate['run_id'], brief, candidate, review, approval,
             source_loader=publisher.multilingual.load_source_article)
     assert _tree_bytes(tmp_path) == before
+
+
+@pytest.mark.parametrize("drift", [False, True])
+def test_scheduled_child_uses_validated_tick_authority_without_origin_main(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, drift: bool,
+) -> None:
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    actor.mkdir()
+    (queue / "runs").mkdir(parents=True)
+    _write_runtime_manifest_fixture(actor)
+    sha = "a" * 40
+    digest = publisher.runtime_manifest_digest(actor)
+    receipt = {"status": "PASS", "actor_root": str(actor.resolve()), "actor_head": sha,
+               "runtime_digest": "c" * 64 if drift else digest, "manifest_digest": "b" * 64}
+    monkeypatch.setattr(publisher, "_validate_formal_runtime", lambda *_args: receipt)
+    original_preflight = publisher.deployment_preflight
+
+    def git(_root: Path, args: list[str], _input: str | None = None) -> str:
+        if args == ["status", "--porcelain"]:
+            return ""
+        if args == ["rev-parse", "HEAD"]:
+            return sha
+        raise AssertionError(f"新 actor 尚無 origin/main，不可改用 remote authority: {args}")
+
+    monkeypatch.setattr(publisher, "deployment_preflight", lambda *args, **kwargs: original_preflight(*args, **kwargs, git=git))
+    monkeypatch.setattr(publisher, "_isolated_transaction_worktree", lambda *_args: nullcontext(actor))
+    published = []
+    monkeypatch.setattr(publisher, "publish_ready_all", lambda *_args, **_kwargs: published.append(True) or {"status": "ok"})
+    template = Path(__file__).resolve().parents[1] / "ops/launchd/com.pantheon.agy-content-publisher.plist.example"
+    arguments = plistlib.loads(template.read_bytes())["ProgramArguments"]
+    child = arguments[arguments.index("--") + 1:]
+    replacements = {"__REPO_ROOT__": str(actor), "__QUEUE_ROOT__": str(queue),
+                    "__REPO_ROOT__/.work/content-publisher": str(state), "__MAX_RUNS__": "1",
+                    "__RUNTIME_SHA__": sha, "__RUNTIME_DIGEST__": digest}
+    # 使用正式 template 的 child 參數，不能以 installer-only preflight 冒充實跑。
+    monkeypatch.setattr(sys, "argv", ["publisher", *[replacements.get(x, x) for x in child[3:]]])
+    if drift:
+        with pytest.raises(publisher.PublishBlocked, match="manifest authority differs"):
+            publisher.main()
+        assert not published
+    else:
+        assert publisher.main() == 0
+        assert published == [True]
