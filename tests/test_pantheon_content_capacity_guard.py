@@ -84,6 +84,33 @@ def _available_snapshot(bytes_used: int = 100 * guard.MIB) -> dict[str, object]:
     }
 
 
+def _force_safe_child_disk_capacity(env: dict[str, str], tmp_path: Path) -> None:
+    """讓 installer subprocess 的容量測試不受開發機當下剩餘磁碟影響。"""
+    support_dir = tmp_path / "python-test-support"
+    support_dir.mkdir(exist_ok=True)
+    (support_dir / "sitecustomize.py").write_text(
+        "import os\n"
+        "_real_statvfs = os.statvfs\n"
+        "def _safe_statvfs(path):\n"
+        "    sample = _real_statvfs(path)\n"
+        "    values = list(sample)\n"
+        "    minimum_available = max(1, (int(sample.f_blocks) + 4) // 5)\n"
+        "    if int(sample.f_bavail) >= minimum_available:\n"
+        "        return sample\n"
+        "    values[3] = max(int(sample.f_bfree), minimum_available)\n"
+        "    values[4] = minimum_available\n"
+        "    return os.statvfs_result(values)\n"
+        "os.statvfs = _safe_statvfs\n",
+        encoding="utf-8",
+    )
+    existing_pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        f"{support_dir}{os.pathsep}{existing_pythonpath}"
+        if existing_pythonpath
+        else str(support_dir)
+    )
+
+
 def test_log_rotation_keeps_inode_and_tail(tmp_path: Path) -> None:
     path = tmp_path / guard.LOG_NAMES[0]
     body = b"a" * guard.LOG_MAX_BYTES + b"final-tail"
@@ -444,6 +471,7 @@ def test_capacity_installer_preflight_has_no_target_or_control_plane_mutation(
             "TMPDIR": str(tmp_path),
         }
     )
+    _force_safe_child_disk_capacity(env, tmp_path)
 
     completed = subprocess.run(
         [
@@ -527,6 +555,7 @@ def test_hardened_capacity_installer_uses_canonical_python_in_staged_plist(
             "TMPDIR": str(tmp_path),
         }
     )
+    _force_safe_child_disk_capacity(env, tmp_path)
 
     completed = subprocess.run(
         ["/bin/bash", str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh")],
@@ -832,6 +861,73 @@ def _make_live_plists_normal(launch_agents: Path) -> None:
             plistlib.dump(payload, stream, sort_keys=True)
 
 
+def _make_live_plists_publisher_canary_mixed(
+    launch_agents: Path,
+    *,
+    manifest: dict[str, object],
+    manifest_path: Path,
+) -> None:
+    """模擬 Publisher-only canary 後：Publisher normal，其餘 target plist activation-only。"""
+    python = Path(sys.executable).resolve(strict=True)
+    barrier = Path(str(manifest["publisher_state_root"])) / (
+        f"four-lane-activation-{manifest['generation']}.barrier"
+    )
+    _write_activation_only_live_plists(
+        launch_agents,
+        manifest=manifest,
+        manifest_path=manifest_path,
+        barrier=barrier,
+        python=python,
+    )
+    publisher = "com.pantheon.agy-content-publisher"
+    staged_publisher = launch_agents / ".pantheon-four-lane-stage" / f"{publisher}.plist"
+    shutil.copy2(staged_publisher, launch_agents / f"{publisher}.plist")
+
+
+def _publisher_canary_transition_direct_fixture(
+    tmp_path: Path,
+) -> tuple[
+    Path,
+    dict[str, object],
+    Path,
+    Path,
+    Path,
+]:
+    _repo, _env, fake_home, _mutation_log, manifest, manifest_path = (
+        _g5_capacity_transition_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    _make_live_plists_publisher_canary_mixed(
+        launch_agents,
+        manifest=manifest,
+        manifest_path=manifest_path,
+    )
+    barrier = Path(str(manifest["publisher_state_root"])) / (
+        f"four-lane-activation-{manifest['generation']}.barrier"
+    )
+    candidate_dir = tmp_path / "capacity-candidate"
+    _write_activation_only_live_plists(
+        candidate_dir,
+        manifest=manifest,
+        manifest_path=manifest_path,
+        barrier=barrier,
+        python=Path(sys.executable).resolve(strict=True),
+    )
+    capacity_plist = tmp_path / "candidate-capacity.plist"
+    capacity_payload = plistlib.loads(
+        (candidate_dir / "com.pantheon.content-capacity-guard.plist").read_bytes()
+    )
+    capacity_payload["ProgramArguments"].remove("--activation-only")
+    capacity_plist.write_bytes(plistlib.dumps(capacity_payload, sort_keys=True))
+    capacity_plist.chmod(0o600)
+    preflight_receipt = tmp_path / "preflight-pass.json"
+    preflight_receipt.write_text(
+        json.dumps({"status": "PASS"}),
+        encoding="utf-8",
+    )
+    return launch_agents, manifest, manifest_path, barrier, capacity_plist
+
+
 def _capacity_transition_installer_env(
     tmp_path: Path,
     *,
@@ -914,6 +1010,7 @@ def _capacity_transition_installer_env(
             "TMPDIR": str(tmp_path),
         }
     )
+    _force_safe_child_disk_capacity(env, tmp_path)
     return env, fake_home, mutation_log, manifest, manifest_path
 
 
@@ -1163,6 +1260,272 @@ def test_capacity_installer_all_stopped_recovery_stages_after_promotion(
         / ".pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
     ).is_file()
     assert not mutation_log.exists()
+
+
+def test_capacity_installer_all_stopped_recovery_rejects_publisher_canary_mixed_mode(
+    tmp_path: Path,
+) -> None:
+    launch_agents, manifest, manifest_path, barrier, capacity_plist = (
+        _publisher_canary_transition_direct_fixture(tmp_path)
+    )
+    preflight_receipt = tmp_path / "preflight-pass.json"
+
+    with pytest.raises(runtime_manifest.RuntimeManifestError, match="activation mode mismatch"):
+        guard.validate_preactivation_transition(
+            preflight_receipt=preflight_receipt,
+            manifest_path=manifest_path,
+            expected_digest=str(manifest["manifest_digest"]),
+            barrier=barrier,
+            launch_agents_dir=launch_agents,
+            capacity_plist=capacity_plist,
+            recovery_from_all_stopped=True,
+            runner=lambda _command: _completed(113, ""),
+        )
+
+
+def test_capacity_installer_publisher_canary_all_stopped_recovery_accepts_exact_mixed_mode(
+    tmp_path: Path,
+) -> None:
+    launch_agents, manifest, manifest_path, barrier, capacity_plist = (
+        _publisher_canary_transition_direct_fixture(tmp_path)
+    )
+    preflight_receipt = tmp_path / "preflight-pass.json"
+
+    receipt = guard.validate_preactivation_transition(
+        preflight_receipt=preflight_receipt,
+        manifest_path=manifest_path,
+        expected_digest=str(manifest["manifest_digest"]),
+        barrier=barrier,
+        launch_agents_dir=launch_agents,
+        capacity_plist=capacity_plist,
+        recovery_from_publisher_canary_all_stopped=True,
+        runner=lambda _command: _completed(113, ""),
+    )
+
+    assert receipt["status"] == "PASS"
+    assert receipt["recovery_from_publisher_canary_all_stopped"] is True
+    topology = {row["label"]: row["topology"] for row in receipt["loaded_labels"]}
+    assert topology["com.pantheon.agy-content-publisher"] == "normal-absent"
+    assert topology["com.pantheon.agy-gemini-new"] == "activation-only-absent"
+
+
+def test_capacity_installer_publisher_canary_all_stopped_recovery_rejects_wrong_mixed_mode(
+    tmp_path: Path,
+) -> None:
+    launch_agents, manifest, manifest_path, barrier, capacity_plist = (
+        _publisher_canary_transition_direct_fixture(tmp_path)
+    )
+    wrong_label = "com.pantheon.agy-gemini-new"
+    wrong_path = launch_agents / f"{wrong_label}.plist"
+    payload = plistlib.loads(wrong_path.read_bytes())
+    payload["ProgramArguments"].remove("--activation-only")
+    wrong_path.write_bytes(plistlib.dumps(payload, sort_keys=True))
+    preflight_receipt = tmp_path / "preflight-pass.json"
+
+    with pytest.raises(runtime_manifest.RuntimeManifestError, match="activation mode mismatch"):
+        guard.validate_preactivation_transition(
+            preflight_receipt=preflight_receipt,
+            manifest_path=manifest_path,
+            expected_digest=str(manifest["manifest_digest"]),
+            barrier=barrier,
+            launch_agents_dir=launch_agents,
+            capacity_plist=capacity_plist,
+            recovery_from_publisher_canary_all_stopped=True,
+            runner=lambda _command: _completed(113, ""),
+        )
+
+
+def test_capacity_installer_publisher_canary_all_stopped_recovery_rejects_stale_target_identity(
+    tmp_path: Path,
+) -> None:
+    launch_agents, manifest, manifest_path, barrier, capacity_plist = (
+        _publisher_canary_transition_direct_fixture(tmp_path)
+    )
+    for label in runtime_manifest.SERVICE_LABELS:
+        plist_path = launch_agents / f"{label}.plist"
+        payload = plistlib.loads(plist_path.read_bytes())
+        payload["EnvironmentVariables"]["PANTHEON_RUNTIME_IDENTITY"] = "stale-canary-target"
+        plist_path.write_bytes(plistlib.dumps(payload, sort_keys=True))
+    preflight_receipt = tmp_path / "preflight-pass.json"
+
+    with pytest.raises(
+        runtime_manifest.RuntimeManifestError,
+        match="publisher-canary live target identity mismatch",
+    ):
+        guard.validate_preactivation_transition(
+            preflight_receipt=preflight_receipt,
+            manifest_path=manifest_path,
+            expected_digest=str(manifest["manifest_digest"]),
+            barrier=barrier,
+            launch_agents_dir=launch_agents,
+            capacity_plist=capacity_plist,
+            recovery_from_publisher_canary_all_stopped=True,
+            runner=lambda _command: _completed(113, ""),
+        )
+
+
+def test_capacity_installer_publisher_canary_all_stopped_recovery_rejects_stale_barrier_path(
+    tmp_path: Path,
+) -> None:
+    launch_agents, manifest, manifest_path, barrier, capacity_plist = (
+        _publisher_canary_transition_direct_fixture(tmp_path)
+    )
+    stale_barrier = tmp_path / "stale" / barrier.name
+    for label in runtime_manifest.SERVICE_LABELS:
+        plist_path = launch_agents / f"{label}.plist"
+        payload = plistlib.loads(plist_path.read_bytes())
+        arguments = payload["ProgramArguments"]
+        barrier_index = arguments.index("--barrier") + 1
+        arguments[barrier_index] = str(stale_barrier)
+        plist_path.write_bytes(plistlib.dumps(payload, sort_keys=True))
+    preflight_receipt = tmp_path / "preflight-pass.json"
+
+    with pytest.raises(
+        runtime_manifest.RuntimeManifestError,
+        match="publisher-canary live target path mismatch",
+    ):
+        guard.validate_preactivation_transition(
+            preflight_receipt=preflight_receipt,
+            manifest_path=manifest_path,
+            expected_digest=str(manifest["manifest_digest"]),
+            barrier=barrier,
+            launch_agents_dir=launch_agents,
+            capacity_plist=capacity_plist,
+            recovery_from_publisher_canary_all_stopped=True,
+            runner=lambda _command: _completed(113, ""),
+        )
+
+
+def test_capacity_installer_publisher_canary_all_stopped_recovery_rejects_stale_manifest_path(
+    tmp_path: Path,
+) -> None:
+    launch_agents, manifest, manifest_path, barrier, capacity_plist = (
+        _publisher_canary_transition_direct_fixture(tmp_path)
+    )
+    stale_manifest = tmp_path / "stale-runtime-manifest.json"
+    for label in runtime_manifest.SERVICE_LABELS:
+        plist_path = launch_agents / f"{label}.plist"
+        payload = plistlib.loads(plist_path.read_bytes())
+        arguments = payload["ProgramArguments"]
+        manifest_index = arguments.index("--manifest") + 1
+        arguments[manifest_index] = str(stale_manifest)
+        plist_path.write_bytes(plistlib.dumps(payload, sort_keys=True))
+    preflight_receipt = tmp_path / "preflight-pass.json"
+
+    with pytest.raises(
+        runtime_manifest.RuntimeManifestError,
+        match="publisher-canary live target path mismatch",
+    ):
+        guard.validate_preactivation_transition(
+            preflight_receipt=preflight_receipt,
+            manifest_path=manifest_path,
+            expected_digest=str(manifest["manifest_digest"]),
+            barrier=barrier,
+            launch_agents_dir=launch_agents,
+            capacity_plist=capacity_plist,
+            recovery_from_publisher_canary_all_stopped=True,
+            runner=lambda _command: _completed(113, ""),
+        )
+
+
+def test_capacity_installer_rejects_ambiguous_recovery_modes() -> None:
+    with pytest.raises(
+        runtime_manifest.RuntimeManifestError,
+        match="preactivation recovery mode is ambiguous",
+    ):
+        guard.validate_preactivation_transition(
+            preflight_receipt=Path("/unused/preflight.json"),
+            manifest_path=Path("/unused/manifest.json"),
+            expected_digest="0" * 64,
+            barrier=Path("/unused/barrier.json"),
+            launch_agents_dir=Path("/unused/LaunchAgents"),
+            capacity_plist=Path("/unused/capacity.plist"),
+            recovery_from_all_stopped=True,
+            recovery_from_publisher_canary_all_stopped=True,
+        )
+
+
+def test_capacity_installer_publisher_canary_all_stopped_recovery_rejects_unknown_launchctl_state(
+    tmp_path: Path,
+) -> None:
+    launch_agents, manifest, manifest_path, barrier, capacity_plist = (
+        _publisher_canary_transition_direct_fixture(tmp_path)
+    )
+    preflight_receipt = tmp_path / "preflight-pass.json"
+
+    with pytest.raises(
+        runtime_manifest.RuntimeManifestError,
+        match="preactivation service is absent",
+    ):
+        guard.validate_preactivation_transition(
+            preflight_receipt=preflight_receipt,
+            manifest_path=manifest_path,
+            expected_digest=str(manifest["manifest_digest"]),
+            barrier=barrier,
+            launch_agents_dir=launch_agents,
+            capacity_plist=capacity_plist,
+            recovery_from_publisher_canary_all_stopped=True,
+            runner=lambda _command: _completed(3, ""),
+        )
+
+
+def test_capacity_installer_publisher_canary_all_stopped_recovery_rejects_loaded_service(
+    tmp_path: Path,
+) -> None:
+    launch_agents, manifest, manifest_path, barrier, capacity_plist = (
+        _publisher_canary_transition_direct_fixture(tmp_path)
+    )
+    loaded_label = "com.pantheon.agy-content-publisher"
+    preflight_receipt = tmp_path / "preflight-pass.json"
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        label = command[-1].rsplit("/", 1)[-1]
+        if label != loaded_label:
+            return _completed(113, "")
+        return _completed(
+            0,
+            (
+                f"{command[-1]} = {{\n"
+                f"\tpath = {launch_agents / f'{label}.plist'}\n"
+                "\tstate = waiting\n"
+                "\tlast exit code = 0\n"
+                "}\n"
+            ),
+        )
+
+    with pytest.raises(runtime_manifest.RuntimeManifestError, match="all-stopped recovery service is loaded"):
+        guard.validate_preactivation_transition(
+            preflight_receipt=preflight_receipt,
+            manifest_path=manifest_path,
+            expected_digest=str(manifest["manifest_digest"]),
+            barrier=barrier,
+            launch_agents_dir=launch_agents,
+            capacity_plist=capacity_plist,
+            recovery_from_publisher_canary_all_stopped=True,
+            runner=runner,
+        )
+
+
+def test_capacity_installer_accepts_publisher_canary_recovery_action_name(
+    tmp_path: Path,
+) -> None:
+    repo, env, _fake_home, _mutation_log, _manifest, _manifest_path = (
+        _g5_capacity_transition_fixture(tmp_path)
+    )
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+            "--install-publisher-canary-all-stopped-recovery-stage",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode != 2
+    assert "用法：" not in completed.stderr
 
 
 def test_capacity_installer_all_stopped_recovery_rejects_loaded_capacity_guard(
