@@ -5,6 +5,7 @@ import os
 import plistlib
 from pathlib import Path
 import pwd
+import shutil
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -1125,6 +1126,153 @@ def test_capacity_installer_recovery_stages_after_guard_stopped_normal_services(
         / ".pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
     ).is_file()
     assert not mutation_log.exists()
+
+
+def test_capacity_installer_all_stopped_recovery_stages_after_promotion(
+    tmp_path: Path,
+) -> None:
+    repo, env, fake_home, mutation_log, _manifest, _manifest_path = (
+        _g5_capacity_transition_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    _make_live_plists_normal(launch_agents)
+    _write_capacity_transition_launchctl(
+        tmp_path / "bin" / "launchctl",
+        launch_agents=launch_agents,
+        mutation_log=mutation_log,
+        absent_labels=tuple(runtime_manifest.SERVICE_LABELS),
+    )
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+            "--install-all-stopped-recovery-stage",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, f"{completed.stdout}\n{completed.stderr}"
+    assert '"recovery_from_all_stopped": true' in completed.stdout
+    assert (
+        launch_agents
+        / ".pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
+    ).is_file()
+    assert not mutation_log.exists()
+
+
+def test_capacity_installer_all_stopped_recovery_rejects_loaded_capacity_guard(
+    tmp_path: Path,
+) -> None:
+    repo, env, fake_home, mutation_log, _manifest, _manifest_path = (
+        _g5_capacity_transition_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    _make_live_plists_normal(launch_agents)
+    _write_capacity_transition_launchctl(
+        tmp_path / "bin" / "launchctl",
+        launch_agents=launch_agents,
+        mutation_log=mutation_log,
+        absent_labels=guard.SERVICE_LABELS,
+    )
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+            "--install-all-stopped-recovery-stage",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 1
+    assert '"status": "NO-GO"' in completed.stdout
+    assert not (
+        launch_agents
+        / ".pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
+    ).exists()
+
+
+def test_capacity_installer_all_stopped_recovery_never_bypasses_empty_stage(
+    tmp_path: Path,
+) -> None:
+    repo, env, fake_home, mutation_log, _manifest, _manifest_path = (
+        _g5_capacity_transition_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    _make_live_plists_normal(launch_agents)
+    stage_dir = launch_agents / ".pantheon-four-lane-stage"
+    shutil.rmtree(stage_dir)
+    _write_capacity_transition_launchctl(
+        tmp_path / "bin" / "launchctl",
+        launch_agents=launch_agents,
+        mutation_log=mutation_log,
+        absent_labels=tuple(runtime_manifest.SERVICE_LABELS),
+    )
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+            "--install-all-stopped-recovery-stage",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 1
+    assert '"status": "NO-GO"' in completed.stdout
+    assert not (
+        stage_dir / "com.pantheon.content-capacity-guard.plist"
+    ).exists()
+    assert not mutation_log.exists()
+
+
+def test_capacity_installer_normal_stopped_recovery_still_rejects_absent_capacity_guard(
+    tmp_path: Path,
+) -> None:
+    repo, env, fake_home, mutation_log, _manifest, _manifest_path = (
+        _g5_capacity_transition_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    _make_live_plists_normal(launch_agents)
+    _write_capacity_transition_launchctl(
+        tmp_path / "bin" / "launchctl",
+        launch_agents=launch_agents,
+        mutation_log=mutation_log,
+        absent_labels=tuple(runtime_manifest.SERVICE_LABELS),
+    )
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+            "--install-recovery-stage",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 1
+    assert '"status": "NO-GO"' in completed.stdout
+    assert not (
+        launch_agents
+        / ".pantheon-four-lane-stage/com.pantheon.content-capacity-guard.plist"
+    ).exists()
 
 
 def test_capacity_installer_recovery_accepts_operation_identity_with_actor_head(

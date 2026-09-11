@@ -1077,8 +1077,12 @@ def validate_preactivation_transition(
     publisher_reset_receipt: Path | None = None,
     expected_reset_correlation_id: str | None = None,
     recovery_from_normal_stopped: bool = False,
+    recovery_from_all_stopped: bool = False,
     runner: Runner = _run,
 ) -> dict[str, Any]:
+    if recovery_from_normal_stopped and recovery_from_all_stopped:
+        raise formal_runtime.RuntimeManifestError("preactivation recovery mode is ambiguous")
+    recovery_from_stopped = recovery_from_normal_stopped or recovery_from_all_stopped
     try:
         receipt = json.loads(preflight_receipt.read_text(encoding="utf-8"))
     except (FileNotFoundError, OSError, json.JSONDecodeError) as error:
@@ -1167,7 +1171,7 @@ def validate_preactivation_transition(
         live_receipt = formal_runtime.plist_receipt(
             plist_path,
             expected_activation_mode=(
-                "normal" if recovery_from_normal_stopped else "activation-only"
+                "normal" if recovery_from_stopped else "activation-only"
             ),
         )
         with plist_path.open("rb") as stream:
@@ -1219,8 +1223,11 @@ def validate_preactivation_transition(
         result = runner(["launchctl", "print", target])
         if result.returncode != 0:
             if (
-                recovery_from_normal_stopped
-                and label != CAPACITY_GUARD_LABEL
+                recovery_from_stopped
+                and (
+                    recovery_from_all_stopped
+                    or label != CAPACITY_GUARD_LABEL
+                )
                 and result.returncode == 113
             ):
                 live_receipts[label] = live_receipt
@@ -1228,6 +1235,10 @@ def validate_preactivation_transition(
                 loaded.append({"label": label, "topology": "normal-absent"})
                 continue
             raise formal_runtime.RuntimeManifestError("preactivation service is absent")
+        if recovery_from_all_stopped:
+            raise formal_runtime.RuntimeManifestError(
+                "preactivation all-stopped recovery service is loaded"
+            )
         if recovery_from_normal_stopped and label != CAPACITY_GUARD_LABEL:
             raise formal_runtime.RuntimeManifestError(
                 "preactivation recovery business service is loaded"
@@ -1281,6 +1292,7 @@ def validate_preactivation_transition(
         "runtime_identity_digest": manifest["runtime_identity_digest"],
         "generation": manifest["generation"],
         "recovery_from_normal_stopped": recovery_from_normal_stopped,
+        "recovery_from_all_stopped": recovery_from_all_stopped,
         "loaded_labels": loaded,
     }
 
@@ -1502,6 +1514,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--publisher-reset-receipt", type=Path)
     parser.add_argument("--expected-reset-correlation-id")
     parser.add_argument("--recovery-from-normal-stopped", action="store_true")
+    parser.add_argument("--recovery-from-all-stopped", action="store_true")
     parser.add_argument("--reset-proof-dir", type=Path)
     parser.add_argument("--cycle-bytes", type=int, default=MIB)
     parser.add_argument(
@@ -1564,6 +1577,7 @@ def main() -> int:
                 publisher_reset_receipt=args.publisher_reset_receipt,
                 expected_reset_correlation_id=args.expected_reset_correlation_id,
                 recovery_from_normal_stopped=args.recovery_from_normal_stopped,
+                recovery_from_all_stopped=args.recovery_from_all_stopped,
             )
         except formal_runtime.RuntimeManifestError as error:
             print(
