@@ -497,12 +497,14 @@ MACHINE_OWNED_REVIEW_CODES = {
     "concrete_verbs",
     "description_boundary",
     "description_length",
+    "description_length_violation",
     "generic_ai_phrase",
     "missing_counterexample_or_limit",
     "observable_action_density",
     "opening_keyword",
     "paragraph_count",
     "paragraph_length",
+    "paragraph_length_insufficient",
     "paragraph_length_violation",
     "repeated_sentence",
     "required_tags",
@@ -3012,7 +3014,9 @@ class GeminiClient:
             # 數值限制仍由本地驗證；欄位說明只提供模型可讀的生成指引。
             provider_schema = json.loads(json.dumps(generation_config["responseJsonSchema"]))
             fields = provider_schema["properties"]["articles"]["items"]["properties"]
-            source_fields = schema["properties"]["articles"]["items"]["properties"]
+            source_fields = candidate_schema("create")["properties"]["articles"][
+                "items"
+            ]["properties"]
             for field in ("title", "description"):
                 lower = source_fields[field]["minLength"]
                 upper = source_fields[field]["maxLength"]
@@ -3374,15 +3378,24 @@ def _rewrite_provider_body_sections_schema() -> dict[str, Any]:
     return body_sections
 
 
+def _provider_shape_schema(value: Any) -> Any:
+    """複製 provider schema，只保留結構約束並移除本機內容長度 gate。"""
+    if isinstance(value, dict):
+        return {
+            key: _provider_shape_schema(child)
+            for key, child in value.items()
+            if key not in {"minLength", "maxLength"}
+        }
+    if isinstance(value, list):
+        return [_provider_shape_schema(child) for child in value]
+    return value
+
+
 def _create_provider_body_sections_schema() -> dict[str, Any]:
     """保留 create 結構約束；段落字數交給 canonical 本機 gate 與 repair。"""
-    body_sections = _article_json_schema()["properties"]["bodySections"]
-    paragraph_items = body_sections["items"]["properties"]["paragraphs"][
-        "items"
-    ]
-    paragraph_items.pop("minLength", None)
-    paragraph_items.pop("maxLength", None)
-    return body_sections
+    return _provider_shape_schema(
+        _article_json_schema()["properties"]["bodySections"]
+    )
 
 
 def external_candidate_schema(mode: str) -> dict[str, Any]:
@@ -3415,11 +3428,7 @@ def external_candidate_schema(mode: str) -> dict[str, Any]:
         properties = {"slot": {"type": "string"}}
         properties.update(
             {
-                field: (
-                    _create_provider_body_sections_schema()
-                    if field == "bodySections"
-                    else full["properties"][field]
-                )
+                field: _provider_shape_schema(full["properties"][field])
                 for field in sorted(EXTERNAL_CREATE_FIELDS)
             }
         )
@@ -3435,6 +3444,77 @@ def external_candidate_schema(mode: str) -> dict[str, Any]:
         "properties": {"articles": {"type": "array", "items": article, "minItems": 1, "maxItems": 5}},
         "required": ["articles"],
     }
+
+
+def _reflow_paragraphs_to_bounds(
+    paragraphs: list[str],
+    *,
+    paragraph_count_minimum: int,
+    paragraph_count_maximum: int,
+    paragraph_minimum: int,
+    paragraph_maximum: int,
+) -> list[str] | None:
+    if not paragraphs or not all(isinstance(paragraph, str) for paragraph in paragraphs):
+        return None
+    combined = "".join(paragraphs)
+    minimum_count = max(
+        paragraph_count_minimum,
+        (len(combined) + paragraph_maximum - 1) // paragraph_maximum,
+    )
+    maximum_count = min(
+        paragraph_count_maximum,
+        len(combined) // paragraph_minimum,
+    )
+    if minimum_count > maximum_count:
+        return None
+    paragraph_count = min(
+        max(len(paragraphs), minimum_count),
+        maximum_count,
+    )
+    remaining = combined
+    reflowed: list[str] = []
+    for remaining_count in range(paragraph_count, 1, -1):
+        minimum_cut = max(
+            paragraph_minimum,
+            len(remaining) - (remaining_count - 1) * paragraph_maximum,
+        )
+        maximum_cut = min(
+            paragraph_maximum,
+            len(remaining) - (remaining_count - 1) * paragraph_minimum,
+        )
+        target = min(
+            max(len(remaining) // remaining_count, minimum_cut),
+            maximum_cut,
+        )
+        sentence_cuts = [
+            index + 1
+            for index, character in enumerate(remaining[:maximum_cut])
+            if character in "。！？；"
+            and minimum_cut <= index + 1 <= maximum_cut
+        ]
+        cut = (
+            min(
+                sentence_cuts,
+                key=lambda candidate: (
+                    abs(candidate - target),
+                    candidate,
+                ),
+            )
+            if sentence_cuts
+            else target
+        )
+        reflowed.append(remaining[:cut])
+        remaining = remaining[cut:]
+    reflowed.append(remaining)
+    if (
+        "".join(reflowed) != combined
+        or not all(
+            paragraph_minimum <= len(paragraph) <= paragraph_maximum
+            for paragraph in reflowed
+        )
+    ):
+        return None
+    return reflowed
 
 
 def normalize_new_output_contract(
@@ -3487,65 +3567,14 @@ def normalize_new_output_contract(
                 return None
             if not any(len(paragraph) > paragraph_maximum for paragraph in paragraphs):
                 continue
-            combined = "".join(paragraphs)
-            minimum_count = max(
-                paragraph_count_minimum,
-                (len(combined) + paragraph_maximum - 1) // paragraph_maximum,
+            reflowed = _reflow_paragraphs_to_bounds(
+                paragraphs,
+                paragraph_count_minimum=paragraph_count_minimum,
+                paragraph_count_maximum=paragraph_count_maximum,
+                paragraph_minimum=paragraph_minimum,
+                paragraph_maximum=paragraph_maximum,
             )
-            maximum_count = min(
-                paragraph_count_maximum,
-                len(combined) // paragraph_minimum,
-            )
-            if minimum_count > maximum_count:
-                return None
-            paragraph_count = min(
-                max(len(paragraphs), minimum_count),
-                maximum_count,
-            )
-            remaining = combined
-            reflowed: list[str] = []
-            for remaining_count in range(paragraph_count, 1, -1):
-                minimum_cut = max(
-                    paragraph_minimum,
-                    len(remaining)
-                    - (remaining_count - 1) * paragraph_maximum,
-                )
-                maximum_cut = min(
-                    paragraph_maximum,
-                    len(remaining)
-                    - (remaining_count - 1) * paragraph_minimum,
-                )
-                target = min(
-                    max(len(remaining) // remaining_count, minimum_cut),
-                    maximum_cut,
-                )
-                sentence_cuts = [
-                    index + 1
-                    for index, character in enumerate(remaining[:maximum_cut])
-                    if character in "。！？；"
-                    and minimum_cut <= index + 1 <= maximum_cut
-                ]
-                cut = (
-                    min(
-                        sentence_cuts,
-                        key=lambda candidate: (
-                            abs(candidate - target),
-                            candidate,
-                        ),
-                    )
-                    if sentence_cuts
-                    else target
-                )
-                reflowed.append(remaining[:cut])
-                remaining = remaining[cut:]
-            reflowed.append(remaining)
-            if (
-                "".join(reflowed) != combined
-                or not all(
-                    paragraph_minimum <= len(paragraph) <= paragraph_maximum
-                    for paragraph in reflowed
-                )
-            ):
+            if reflowed is None:
                 return None
             section["paragraphs"] = reflowed
             changed = True
@@ -3755,13 +3784,63 @@ def _create_repair_measurements(candidate: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _create_repair_directives(findings: list[dict[str, Any]]) -> str:
+def _create_repair_directives(
+    findings: list[dict[str, Any]],
+    candidate: dict[str, Any] | None = None,
+    repair_contract: dict[str, tuple[str, ...]] | None = None,
+) -> str:
     codes = {str(finding.get("code")) for finding in findings}
     directives = []
-    if "description_length" in codes:
+    if codes & {
+        "description_boundary",
+        "description_context_and_limit",
+        "description_length",
+        "missing_boundary",
+    }:
+        boundary_sentence = "本文只提供通用理解，不能替個人下結論。"
         directives.append(
-            "description 修復目標為 80 到 90 字；輸出前逐字計數，不足就補具體情境與限制，超過就刪除贅詞"
+            "description 修復目標為 85 到 90 個 Unicode 字元（含標點）；"
+            "repair schema 的 description 是 object，必須依序填滿 "
+            "readerProblem、concreteSituation、observableAction、nextStep 四個欄位；"
+            "四欄分別對應讀者困擾、具體情境、可觀察行動、限制或不適用情況，"
+            "各寫一個短而完整的語意片段，不要把完整 meta description 塞進單一欄位；"
+            f"固定 boundary 句由本機附加：「{boundary_sentence}」；"
+            "provider parts 不得自行重複 boundary，也不要只在 prior 內容尾端補短語"
         )
+        if candidate is not None and repair_contract is not None:
+            observations = []
+            for index, article in enumerate(candidate["articles"]):
+                slot = _slot(index)
+                if "description" not in repair_contract.get(slot, ()):
+                    continue
+                current_length = len(str(article["description"]))
+                observation = (
+                    f"{slot} 本機實測 description 為 {current_length} 個 Unicode 字元"
+                )
+                if current_length < 85:
+                    observation += f"；下一版至少增加 {85 - current_length} 個實質字元後再收斂到 85 到 90"
+                elif current_length > 90:
+                    observation += "；下一版直接重寫並收斂到 85 到 90"
+                observations.append(observation)
+            if observations:
+                directives.append("；".join(observations))
+    if "answer_length" in codes:
+        directives.append(
+            "answer 修復目標為 35 到 45 個 Unicode 字元（含標點）；"
+            "要能獨立回答 primaryKeyword，超過上限時必須重寫完整 answer，不得只刪句尾"
+        )
+        if candidate is not None and repair_contract is not None:
+            answer_observations = []
+            for index, article in enumerate(candidate["articles"]):
+                slot = _slot(index)
+                if "answer" not in repair_contract.get(slot, ()):
+                    continue
+                current_length = len(str(article["answer"]))
+                answer_observations.append(
+                    f"{slot} 本機實測 answer 為 {current_length} 個 Unicode 字元；下一版直接收斂到 35 到 45"
+                )
+            if answer_observations:
+                directives.append("；".join(answer_observations))
     if codes & {
         "body_length",
         "body_length_insufficient",
@@ -3912,6 +3991,127 @@ def _create_repair_contract(
     return contract
 
 
+def _external_create_repair_description_schema() -> dict[str, Any]:
+    fields = {
+        "readerProblem": {
+            "type": "string",
+            "description": "讀者目前的具體困擾；短而完整，不要加入固定 disclaimer。",
+        },
+        "concreteSituation": {
+            "type": "string",
+            "description": "一個可辨識的互動情境；短而具體，不要加入固定 disclaimer。",
+        },
+        "observableAction": {
+            "type": "string",
+            "description": "可觀察或可記錄的行動；短而具體，不要加入固定 disclaimer。",
+        },
+        "nextStep": {
+            "type": "string",
+            "description": "讀者接下來可做的 bounded 下一步；短而完整，不要加入固定 disclaimer。",
+        },
+    }
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": fields,
+        "required": list(fields),
+    }
+
+
+def _hydrate_create_repair_description(value: object) -> str:
+    fields = (
+        "readerProblem",
+        "concreteSituation",
+        "observableAction",
+        "nextStep",
+    )
+    if not isinstance(value, dict) or set(value) != set(fields):
+        raise CandidateValidationError("external create repair description parts are strict")
+    parts = []
+    for field in fields:
+        part = _ensure_string(value.get(field), f"description.{field}").strip()
+        part = part.rstrip("，。；")
+        if not part:
+            raise CandidateValidationError(
+                f"description.{field} must contain substantive text"
+            )
+        parts.append(part)
+    boundary = "本文只提供通用理解，不能替個人下結論。"
+    separator = "；"
+    suffix = f"。{boundary}"
+    _description_minimum, description_maximum = _range_bounds(
+        publication_presentation_profile("create"),
+        "description_characters",
+    )
+    target_maximum = min(description_maximum, 90)
+    available = target_maximum - len(suffix) - len(separator) * (len(parts) - 1)
+    if sum(len(part) for part in parts) > available:
+        minimum_per_part = 8
+        lengths = [min(len(part), minimum_per_part) for part in parts]
+        remaining = available - sum(lengths)
+        if remaining < 0:
+            raise CandidateValidationError(
+                "description repair budget cannot preserve semantic parts"
+            )
+        while remaining:
+            progressed = False
+            for index, part in enumerate(parts):
+                if remaining == 0:
+                    break
+                if lengths[index] >= len(part):
+                    continue
+                lengths[index] += 1
+                remaining -= 1
+                progressed = True
+            if not progressed:
+                break
+        parts = [part[: lengths[index]] for index, part in enumerate(parts)]
+    return separator.join(parts) + suffix
+
+
+def _hydrate_create_repair_body_sections(value: object) -> object:
+    if not isinstance(value, list):
+        return value
+    normalized = json.loads(json.dumps(value, ensure_ascii=False))
+    try:
+        body_schema = candidate_schema("create")["properties"]["articles"][
+            "items"
+        ]["properties"]["bodySections"]
+        paragraph_schema = body_schema["items"]["properties"]["paragraphs"]
+        paragraph_count_minimum = int(paragraph_schema["minItems"])
+        paragraph_count_maximum = int(paragraph_schema["maxItems"])
+        paragraph_minimum = int(paragraph_schema["items"]["minLength"])
+        paragraph_maximum = int(paragraph_schema["items"]["maxLength"])
+    except (KeyError, TypeError, ValueError):
+        return value
+    for section in normalized:
+        if not isinstance(section, dict):
+            continue
+        paragraphs = section.get("paragraphs")
+        if not isinstance(paragraphs, list) or not all(
+            isinstance(paragraph, str) for paragraph in paragraphs
+        ):
+            continue
+        if (
+            paragraph_count_minimum <= len(paragraphs) <= paragraph_count_maximum
+            and all(
+                paragraph_minimum <= len(paragraph) <= paragraph_maximum
+                for paragraph in paragraphs
+            )
+        ):
+            continue
+        reflowed = _reflow_paragraphs_to_bounds(
+            paragraphs,
+            paragraph_count_minimum=paragraph_count_minimum,
+            paragraph_count_maximum=paragraph_count_maximum,
+            paragraph_minimum=paragraph_minimum,
+            paragraph_maximum=paragraph_maximum,
+        )
+        if reflowed is not None:
+            section["paragraphs"] = reflowed
+    return normalized
+
+
 def external_create_repair_schema(
     contract: dict[str, tuple[str, ...]],
 ) -> dict[str, Any]:
@@ -3922,7 +4122,14 @@ def external_create_repair_schema(
         "additionalProperties": False,
         "properties": {
             "slot": {"type": "string"},
-            **{field: full["properties"][field] for field in fields},
+            **{
+                field: (
+                    _external_create_repair_description_schema()
+                    if field == "description"
+                    else _provider_shape_schema(full["properties"][field])
+                )
+                for field in fields
+            },
         },
         "required": ["slot", *fields] if len(contract) == 1 else ["slot"],
     }
@@ -3969,7 +4176,13 @@ def hydrate_create_repair(
                 f"external create repair fields differ from contract for {slot}"
             )
         for field in expected_fields:
-            article[field] = generated[field]
+            article[field] = (
+                _hydrate_create_repair_description(generated[field])
+                if field == "description"
+                else _hydrate_create_repair_body_sections(generated[field])
+                if field == "bodySections"
+                else generated[field]
+            )
     validate_candidate(repaired, enforce_policy=enforce_policy)
     return repaired
 
@@ -4247,7 +4460,11 @@ def _writer_prompt(
                 _create_repair_measurements(prior),
                 ensure_ascii=False,
             )
-            repair_directives = _create_repair_directives(findings or [])
+            repair_directives = _create_repair_directives(
+                findings or [],
+                candidate=prior,
+                repair_contract=repair_contract,
+            )
         else:
             instruction = (
                 f"{repair_instruction}\n{_rewrite_generation_instruction()}"
@@ -4263,7 +4480,15 @@ def _writer_prompt(
         "bounded repair contract:", json.dumps(repair_contract, ensure_ascii=False) if repair_contract else "null",
     ]
     if brief.get("mode") == "create":
-        return "\n".join([*context, instruction, "不得共用跨篇完整句型。"])
+        tail = [instruction, "不得共用跨篇完整句型。"]
+        if prior is not None:
+            tail.extend(
+                [
+                    f"最後修復檢查：{repair_directives}",
+                    "有 active finding 的欄位不得逐字沿用 prior public candidate；每個 repair contract 指定欄位都必須實際修正後再輸出。",
+                ]
+            )
+        return "\n".join([*context, *tail])
     return "\n".join([instruction, "不得共用跨篇完整句型。", *context])
 
 

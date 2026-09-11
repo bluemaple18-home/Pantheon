@@ -41,8 +41,9 @@ fi
 TEMP_PLIST="${TEMP_PLIST_REALPATH}"
 
 if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" \
-  && "${ACTION}" != "--install-recovery-stage" ]]; then
-  echo "用法：scripts/install_pantheon_content_capacity_guard_launchd.sh [--preflight|--install|--install-recovery-stage]" >&2
+  && "${ACTION}" != "--install-recovery-stage" \
+  && "${ACTION}" != "--install-all-stopped-recovery-stage" ]]; then
+  echo "用法：scripts/install_pantheon_content_capacity_guard_launchd.sh [--preflight|--install|--install-recovery-stage|--install-all-stopped-recovery-stage]" >&2
   exit 2
 fi
 if [[ "${PYTHON_PATH}" != /* ]]; then
@@ -158,7 +159,8 @@ run_capacity_preflight() {
   PREFLIGHT_STATUS="$?"
   set -e
   printf '%s\n' "${PREFLIGHT_OUTPUT}" > "${PREFLIGHT_RECEIPT}"
-  if [[ "${PREFLIGHT_STATUS}" == "0" \
+  if [[ ( "${ACTION}" == "--install" || "${ACTION}" == "--preflight" ) \
+    && "${PREFLIGHT_STATUS}" == "0" \
     && ! -f "${STAGE_DIR}/manifest-digest" \
     && ! -f "${STAGE_DIR}/generation" \
     && ! -f "${STAGE_DIR}/publisher-max-runs" ]]; then
@@ -178,6 +180,8 @@ run_capacity_preflight() {
   )
   if [[ "${ACTION}" == "--install-recovery-stage" ]]; then
     TRANSITION_ARGS+=(--recovery-from-normal-stopped)
+  elif [[ "${ACTION}" == "--install-all-stopped-recovery-stage" ]]; then
+    TRANSITION_ARGS+=(--recovery-from-all-stopped)
   fi
   if (
     cd "${REPO_ROOT}"

@@ -15,6 +15,7 @@ import secrets
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -102,6 +103,10 @@ STALE_PROCESSING_SECONDS = 10 * 60
 MAX_CREDENTIAL_POOL_BYTES = 16 * 1024
 MAX_PRODUCTION_ATTEMPT_BYTES = 4 * 1024
 DEFAULT_RATE_LIMIT_COOLDOWN_SECONDS = 5 * 60
+MAX_TRANSLATION_CONTENT_BYTES = 16 * 1024 * 1024
+MAX_TRANSLATION_CONTENT_FILE_BYTES = 4 * 1024 * 1024
+MAX_TRANSLATION_CONTENT_FILES = 1024
+SOURCE_COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 SAFE_CREDENTIAL_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 SAFE_ATTEMPT_JOB_ID = re.compile(r"^[0-9a-f]{40,64}$")
 SAFE_SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -1436,9 +1441,183 @@ def _translation_coordinator_lock(root: Path, inherited_fd: int | None) -> int |
         raise
 
 
+def _translation_source_git(actor_root: Path, *args: str, input_bytes: bytes | None = None) -> bytes:
+    """僅讀本地物件；缺少物件不得由 partial clone 隱式 fetch。"""
+    try:
+        return subprocess.run(
+            ["git", "--no-replace-objects", "-C", str(actor_root), *args],
+            input=input_bytes, check=True, capture_output=True, timeout=30,
+            env={**os.environ, "GIT_NO_LAZY_FETCH": "1", "GIT_OPTIONAL_LOCKS": "0"},
+        ).stdout
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ValueError("translation published source Git lookup failed") from error
+
+
+def _translation_published_sha(
+    actor_root: Path, root: Path, state: dict[str, Any], brief: dict[str, Any],
+    read: Callable[[Path, str], dict[str, Any]], content_sha: str | None,
+) -> str:
+    """用既有 ledger／replacement lineage 綁定已發布來源，不建立第二份 authority。"""
+    from scripts import agy_multilingual_pipeline as multilingual
+
+    if content_sha is None:
+        content_sha = _translation_source_git(
+            actor_root, "rev-parse", "--verify", "refs/remotes/origin/main^{commit}",
+        ).decode("ascii").strip()
+    if SOURCE_COMMIT_SHA.fullmatch(content_sha) is None:
+        raise ValueError("translation published source SHA is invalid")
+    state_directory = os.environ.get("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT", "")
+    state_root = Path(state_directory)
+    if not state_directory or not state_root.is_absolute() or state_root.resolve() != state_root:
+        raise ValueError("translation publisher state root is not canonical")
+    ledger = read_closed_json_artifact(
+        state_root / "ledger.json", max_bytes=4 * 1024 * 1024,
+        label="translation publisher ledger",
+    )
+    if type(ledger.get("schema_version")) is not int or ledger["schema_version"] != 1:
+        raise ValueError("translation publisher ledger schema differs")
+
+    lane = state["lane"]
+    lineage_run = state["run_id"]
+    # 原生 registered run 不屬於 publisher 的 auto 排程清單；replacement 不走此分支。
+    native_registered = not lineage_run.startswith("auto-i18n-") and "replacement_of" not in state
+    if "replacement_of" in state:
+        parent_id = state["replacement_of"]
+        if (
+            type(parent_id) is not str or EXACT_RUN_ID_PATTERN.fullmatch(parent_id) is None
+            or lineage_run != parent_id + "-replacement-01"
+            or state.get("replacement_reason") not in multilingual.TRANSLATION_REPLACEMENT_REASONS
+        ):
+            raise ValueError("translation published replacement lineage differs")
+        parent_dir = root / "translation-runs" / parent_id
+        parent = read(
+            root / "runs" / (hashlib.sha256(parent_id.encode()).hexdigest()[:24] + ".json"),
+            "translation replacement parent",
+        )
+        if (
+            parent.get("run_id") != parent_id or parent.get("run_dir") != str(parent_dir)
+            or parent.get("schema_version") != multilingual.SCHEMA_VERSION
+            or parent.get("lane") != lane or parent.get("status") != "failed"
+            or parent.get("identity_envelope") != state["identity_envelope"]
+            or "replacement_of" in parent
+        ):
+            raise ValueError("translation published replacement parent differs")
+        parent_brief = multilingual._normalize_registered_translation_brief(
+            read(parent_dir / "brief.json", "translation replacement parent brief"),
+            parent_dir, trusted_state=parent,
+        )
+        if {**brief, "run_id": parent_id} != parent_brief:
+            raise ValueError("translation published replacement source differs")
+        lineage_run = parent_id
+
+    article_id = brief["articles"][0]["source_article_id"]
+    matches = 0
+    for ledger_key, source_lane in (("published_runs", "i18n-new"), ("rewrite_released_runs", "i18n-rewrite")):
+        entries = ledger.get(ledger_key)
+        if not isinstance(entries, list):
+            raise ValueError("translation publisher ledger entries differ")
+        for entry in entries:
+            if not isinstance(entry, dict):
+                raise ValueError("translation publisher ledger entry differs")
+            article_ids = entry.get("article_ids", [])
+            if not isinstance(article_ids, list) or article_id not in article_ids:
+                continue
+            published_sha = entry.get("commit_sha")
+            if type(published_sha) is not str or SOURCE_COMMIT_SHA.fullmatch(published_sha) is None:
+                raise ValueError("translation published commit is missing")
+            # 同文章後續發布也必須已在本地 ref；不能拿舊版本剛好匹配 brief 當作放行。
+            _translation_source_git(actor_root, "merge-base", "--is-ancestor", published_sha, content_sha)
+            if native_registered and source_lane == lane:
+                source_run = entry.get("run_id")
+                if type(source_run) is not str or not source_run.strip():
+                    raise ValueError("translation published run identity differs")
+                matches += 1
+                continue
+            translation_runs = entry.get("translation_run_ids", [])
+            if source_lane == lane and isinstance(translation_runs, list) and lineage_run in translation_runs:
+                source_run = entry.get("run_id")
+                if type(source_run) is not str or not source_run.strip() or any(
+                    multilingual.translation_run_id(source_run, article_id, item["locale"]) != lineage_run
+                    for item in brief["articles"]
+                ):
+                    raise ValueError("translation published run identity differs")
+                matches += 1
+    if matches == 0 or (not native_registered and matches != 1):
+        raise ValueError("translation published source authority is missing or ambiguous")
+    return content_sha
+
+
+def _load_published_translation_source(actor_root: Path, content_sha: str, article_id: str) -> dict[str, Any]:
+    """固定 SHA 的有界內容投影；不 checkout、不執行投影內的 Python。"""
+    from scripts import agy_multilingual_pipeline as multilingual
+
+    policy_path = multilingual.pipeline.POLICY_V2_PATH.as_posix()
+    required = {"package.json", policy_path, "app/web/static/article-registry.js", "app/web/static/article-meta.js"}
+    listing = _translation_source_git(
+        actor_root, "ls-tree", "-r", "-z", "-l", content_sha, "--",
+        "app/web/static", policy_path, "package.json",
+    )
+    if len(listing) > 512 * 1024:
+        raise ValueError("translation content tree exceeds closed size")
+    files: list[tuple[str, str, int]] = []
+    total = 0
+    for record in listing.split(b"\0"):
+        if not record:
+            continue
+        metadata, raw_path = record.split(b"\t", 1)
+        relative = raw_path.decode("utf-8")
+        if relative not in required and not (relative.startswith("app/web/static/") and relative.endswith(".js")):
+            continue
+        mode, kind, oid, size_text = metadata.decode("ascii").split()
+        if (
+            mode not in {"100644", "100755"} or kind != "blob"
+            or SOURCE_COMMIT_SHA.fullmatch(oid) is None
+            or relative.startswith("/") or "\\" in relative
+            or any(part in {"", ".", ".."} for part in relative.split("/"))
+        ):
+            raise ValueError("translation content projection path or mode is invalid")
+        size = int(size_text)
+        total += size
+        files.append((relative, oid, size))
+        if not 0 <= size <= MAX_TRANSLATION_CONTENT_FILE_BYTES or total > MAX_TRANSLATION_CONTENT_BYTES or len(files) > MAX_TRANSLATION_CONTENT_FILES:
+            raise ValueError("translation content projection exceeds closed size")
+    paths = {path for path, _oid, _size in files}
+    if not required <= paths or len(paths) != len(files):
+        raise ValueError("translation content projection dependencies are missing")
+    blobs = _translation_source_git(
+        actor_root, "cat-file", "--batch",
+        input_bytes="".join(oid + "\n" for _path, oid, _size in files).encode("ascii"),
+    )
+    if len(blobs) > total + len(files) * 128:
+        raise ValueError("translation content blob batch exceeds closed size")
+    with tempfile.TemporaryDirectory(prefix="agy-translation-source-") as directory:
+        snapshot = Path(directory)
+        offset = 0
+        for relative, oid, size in files:
+            end = blobs.find(b"\n", offset)
+            expected_header = f"{oid} blob {size}".encode("ascii")
+            if end < 0 or blobs[offset:end] != expected_header:
+                raise ValueError("translation content blob identity differs")
+            start = end + 1
+            offset = start + size + 1
+            if blobs[offset - 1:offset] != b"\n":
+                raise ValueError("translation content blob size differs")
+            target = snapshot / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with target.open("xb") as output:
+                output.write(blobs[start:offset - 1])
+        if offset != len(blobs):
+            raise ValueError("translation content blob batch has trailing data")
+        try:
+            return multilingual.load_source_article(snapshot, article_id)
+        except (OSError, subprocess.SubprocessError) as error:
+            raise ValueError("translation content snapshot loader failed") from error
+
+
 def _validate_translation_dispatch(
     queue_root: Path, request: dict[str, Any], lane: str | None,
-) -> None:
+    content_sha: str | None = None,
+) -> str | None:
     """在既有 provider 邊界拒絕無綁定、舊契約或來源改版的翻譯工作。"""
     translation_lane = _translation_dispatch_lane(queue_root, lane, request)
     if translation_lane is None:
@@ -1491,11 +1670,13 @@ def _validate_translation_dispatch(
     ):
         raise ValueError("translation dispatch source identity differs")
     actor_root = Path(os.environ.get("PANTHEON_RUNTIME_ACTOR_ROOT", str(Path(__file__).resolve().parents[1])))
+    content_sha = _translation_published_sha(actor_root, root, state, brief, read, content_sha)
     for item in brief["articles"]:
         multilingual.validate_source_contract(item["source"])
-        current_source = multilingual.load_source_article(actor_root, item["source_article_id"])
+        current_source = _load_published_translation_source(actor_root, content_sha, item["source_article_id"])
         if multilingual.source_sha256(current_source) != item["source_sha256"]:
             raise ValueError("translation dispatch source drift")
+    return content_sha
 
 
 def process_once(
@@ -1509,6 +1690,7 @@ def process_once(
 ) -> dict[str, Any]:
     selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     translation_lock_fd: int | None = None
+    translation_content_sha: str | None = None
     processing_path: Path | None = None
     archive_path: Path | None = None
     job_id = ""
@@ -1572,7 +1754,7 @@ def process_once(
                         )
                     except BlockingIOError:
                         return {"status": "busy", "reason": "coordinator_handoff"}
-                _validate_translation_dispatch(queue_root, request, lane)
+                translation_content_sha = _validate_translation_dispatch(queue_root, request, lane, translation_content_sha)
             except Exception:
                 # 沿用既有失敗終態，避免舊請求永久卡住同 lane；不建立 provider attempt。
                 processing_path = _claim_next(queue_root, selected_run_ids)
@@ -1649,7 +1831,7 @@ def process_once(
                 _restore_unattempted_claim(queue_root, processing_path)
                 processing_path = None
                 return {"status": "selection_changed"}
-            _validate_translation_dispatch(queue_root, request, lane)
+            translation_content_sha = _validate_translation_dispatch(queue_root, request, lane, translation_content_sha)
             with production_slot_admission(
                 production_state_path,
                 pool_id=str(pool_payload["pool_id"]),
@@ -1699,7 +1881,7 @@ def process_once(
             if request["job_id"] != job_id:
                 raise ValueError("request job id differs from queue filename")
 
-            _validate_translation_dispatch(queue_root, request, lane)
+            translation_content_sha = _validate_translation_dispatch(queue_root, request, lane, translation_content_sha)
 
         if os.environ.get("AGY_GEMINI_V4_BROKER") == "1":
             executable = Path(os.environ["AGY_GEMINI_V4_EXECUTABLE"])
