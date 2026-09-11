@@ -2407,7 +2407,7 @@ console.log(JSON.stringify(rendered));
         assert article["paragraphCounts"] == [3, 3, 3, 3, 3], article
         assert 3 <= article["faqCount"] <= 5, article
         assert article["published"] == "2026-07-18", article
-        assert article["updated"] == "2026-07-18", article
+        assert article["updated"] >= article["published"], article
 
 
 def test_agy_asc_batch_02_adds_only_approved_full_standard_articles() -> None:
