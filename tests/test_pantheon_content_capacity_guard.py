@@ -74,6 +74,10 @@ def _available_snapshot(bytes_used: int = 100 * guard.MIB) -> dict[str, object]:
         "file_count": 100,
         "disk_total_bytes": 200 * guard.GIB,
         "disk_free_bytes": 100 * guard.GIB,
+        "admission_available_bytes": 100 * guard.GIB,
+        "capacity_source": "test_important_usage",
+        "capacity_available": True,
+        "capacity_error": None,
         "rss_bytes": 0,
         "rss_available": True,
         "rss_error": None,
@@ -84,12 +88,60 @@ def _available_snapshot(bytes_used: int = 100 * guard.MIB) -> dict[str, object]:
     }
 
 
+def _host_capacity(total_gib: int, available_gib: int) -> dict[str, object]:
+    return {
+        "disk_total_bytes": total_gib * guard.GIB,
+        "disk_free_bytes": available_gib * guard.GIB,
+        "admission_available_bytes": available_gib * guard.GIB,
+        "capacity_source": "test_important_usage",
+        "capacity_available": True,
+        "capacity_error": None,
+    }
+
+
+def _passing_preflight_receipt(capacity_path: str = "/") -> dict[str, object]:
+    total = 200 * guard.GIB
+    admission = 100 * guard.GIB
+    projected = guard.DEFAULT_PROJECTED_BYTES
+    reserve = max(guard.HOST_RESERVE_MIN_BYTES, (total + 9) // 10)
+    return {
+        "status": "PASS",
+        "reasons": [],
+        "capacity_available": True,
+        "capacity_error": None,
+        "capacity_source": "macos_foundation_important_usage",
+        "disk_total_bytes": total,
+        "disk_free_bytes": 80 * guard.GIB,
+        "raw_disk_total_bytes": total,
+        "raw_disk_free_bytes": 80 * guard.GIB,
+        "admission_available_bytes": admission,
+        "projected_bytes": projected,
+        "reserve_bytes": reserve,
+        "projected_admission_available_bytes": admission - projected,
+        "capacity_path": capacity_path,
+    }
+
+
+@pytest.fixture(autouse=True)
+def _stable_canonical_capacity_sensor(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        guard,
+        "_host_capacity_sample",
+        lambda _path: {
+            **_host_capacity(200, 100),
+            "capacity_source": "macos_foundation_important_usage",
+        },
+    )
+
+
 def _force_safe_child_disk_capacity(env: dict[str, str], tmp_path: Path) -> None:
     """讓 installer subprocess 的容量測試不受開發機當下剩餘磁碟影響。"""
     support_dir = tmp_path / "python-test-support"
     support_dir.mkdir(exist_ok=True)
     (support_dir / "sitecustomize.py").write_text(
         "import os\n"
+        "import json\n"
+        "import subprocess\n"
         "_real_statvfs = os.statvfs\n"
         "def _safe_statvfs(path):\n"
         "    sample = _real_statvfs(path)\n"
@@ -100,7 +152,18 @@ def _force_safe_child_disk_capacity(env: dict[str, str], tmp_path: Path) -> None
         "    values[3] = max(int(sample.f_bfree), minimum_available)\n"
         "    values[4] = minimum_available\n"
         "    return os.statvfs_result(values)\n"
-        "os.statvfs = _safe_statvfs\n",
+        "os.statvfs = _safe_statvfs\n"
+        "_real_run = subprocess.run\n"
+        "def _safe_run(command, *args, **kwargs):\n"
+        "    if isinstance(command, list) and command[:3] == ['/usr/bin/osascript', '-l', 'JavaScript']:\n"
+        "        disk = os.statvfs(command[-1])\n"
+        "        total = int(disk.f_blocks) * int(disk.f_frsize)\n"
+        "        physical = int(disk.f_bavail) * int(disk.f_frsize)\n"
+        "        admission = min(total, max(physical, 100 * 1024**3))\n"
+        "        payload = json.dumps({'total_bytes': total, 'physical_available_bytes': physical, 'admission_available_bytes': admission})\n"
+        "        return subprocess.CompletedProcess(command, 0, payload, '')\n"
+        "    return _real_run(command, *args, **kwargs)\n"
+        "subprocess.run = _safe_run\n",
         encoding="utf-8",
     )
     existing_pythonpath = env.get("PYTHONPATH")
@@ -189,6 +252,7 @@ def test_measure_tree_ignores_directory_that_disappears_during_scan(
 
 def test_preflight_rejects_low_disk_without_mutation(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(guard, "_disk_sample", lambda _path: (200 * guard.GIB, 19 * guard.GIB))
+    monkeypatch.setattr(guard, "_host_capacity_sample", lambda _path: _host_capacity(200, 19))
     monkeypatch.setattr(
         guard,
         "_service_rss_bytes",
@@ -206,11 +270,12 @@ def test_preflight_rejects_low_disk_without_mutation(tmp_path: Path, monkeypatch
     result = guard.preflight(tmp_path, tmp_path / "publisher", tmp_path / "logs")
 
     assert result["status"] == "NO-GO"
-    assert result["reasons"] == ["disk_free_below_start_floor"]
+    assert result["reasons"] == ["projected_admission_below_reserve"]
 
 
 def test_preflight_accepts_free_space_above_ten_percent(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(guard, "_disk_sample", lambda _path: (200 * guard.GIB, 25 * guard.GIB))
+    monkeypatch.setattr(guard, "_host_capacity_sample", lambda _path: _host_capacity(200, 25))
     monkeypatch.setattr(
         guard,
         "_service_rss_bytes",
@@ -235,6 +300,15 @@ def test_preflight_accepts_exactly_ten_percent_free(tmp_path: Path, monkeypatch)
     monkeypatch.setattr(guard, "_disk_sample", lambda _path: (200 * guard.GIB, 20 * guard.GIB))
     monkeypatch.setattr(
         guard,
+        "_host_capacity_sample",
+        lambda _path: {
+            **_host_capacity(200, 20),
+            "disk_free_bytes": 20 * guard.GIB + guard.DEFAULT_PROJECTED_BYTES,
+            "admission_available_bytes": 20 * guard.GIB + guard.DEFAULT_PROJECTED_BYTES,
+        },
+    )
+    monkeypatch.setattr(
+        guard,
         "_service_rss_bytes",
         lambda: {
             "value": 0,
@@ -250,6 +324,136 @@ def test_preflight_accepts_exactly_ten_percent_free(tmp_path: Path, monkeypatch)
     result = guard.preflight(tmp_path, tmp_path / "publisher", tmp_path / "logs")
 
     assert result["status"] == "PASS"
+
+
+def test_preflight_uses_important_usage_and_does_not_deny_on_unknown_swap(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """raw 偏低與 swap 無法觀測，不得取代 projected admission 判斷。"""
+    sample = _available_snapshot()
+    sample.update(
+        {
+            "disk_total_bytes": 200 * guard.GIB,
+            "disk_free_bytes": 19 * guard.GIB,
+            "capacity_source": "macos_foundation_important_usage",
+            "admission_available_bytes": 30 * guard.GIB,
+            "capacity_available": True,
+            "swap_used_bytes": None,
+            "swap_available": False,
+            "swap_error": "sandbox_denied",
+        }
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_roots: sample)
+
+    result = guard.preflight(
+        tmp_path,
+        tmp_path / "publisher",
+        tmp_path / "logs",
+    )
+
+    assert result["status"] == "PASS"
+    assert result["reasons"] == []
+    assert result["projected_admission_available_bytes"] == 29 * guard.GIB
+    assert result["telemetry_gaps"] == ["swap_telemetry_unknown"]
+
+
+def test_host_capacity_sample_loads_canonical_ai_core_sensor(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    sensor = tmp_path / "ai-core/scripts/host_capacity_sensor.py"
+    sensor.parent.mkdir(parents=True)
+    sensor.write_text(
+        "from types import SimpleNamespace\n"
+        "def measure_host_capacity(path):\n"
+        "    return SimpleNamespace(total_bytes=200, physical_available_bytes=19, "
+        "admission_available_bytes=30, source='macos_foundation_important_usage')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(guard, "CANONICAL_HOST_CAPACITY_SENSOR", sensor)
+
+    assert _REAL_HOST_CAPACITY_SAMPLE(tmp_path) == {
+        "disk_total_bytes": 200,
+        "disk_free_bytes": 19,
+        "admission_available_bytes": 30,
+        "capacity_source": "macos_foundation_important_usage",
+        "capacity_available": True,
+        "capacity_error": None,
+    }
+
+
+def test_preflight_fails_closed_when_canonical_capacity_sensor_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        guard,
+        "_host_capacity_sample",
+        lambda _path: (_ for _ in ()).throw(RuntimeError("sensor unavailable")),
+    )
+    monkeypatch.setattr(guard, "_disk_sample", lambda _path: (200 * guard.GIB, 100 * guard.GIB))
+    monkeypatch.setattr(
+        guard,
+        "_service_rss_bytes",
+        lambda: {
+            "value": 0,
+            "available": True,
+            "error": None,
+            "identity": {"loaded_labels": [], "absent_labels": list(guard.SERVICE_LABELS)},
+        },
+    )
+    monkeypatch.setattr(
+        guard, "_swap_used_bytes", lambda: {"value": 0, "available": True, "error": None}
+    )
+
+    result = guard.preflight(tmp_path, tmp_path / "publisher", tmp_path / "logs")
+
+    assert result["status"] == "NO-GO"
+    assert result["reasons"] == ["capacity_telemetry_unknown"]
+    assert result["capacity_available"] is False
+
+
+def test_preflight_reserve_rounds_ten_percent_up(tmp_path: Path, monkeypatch) -> None:
+    sample = _available_snapshot()
+    total_bytes = 300 * guard.GIB + 1
+    sample.update(
+        {
+            "disk_total_bytes": total_bytes,
+            "admission_available_bytes": 31 * guard.GIB,
+        }
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_roots: sample)
+
+    result = guard.preflight(
+        tmp_path,
+        tmp_path / "publisher",
+        tmp_path / "logs",
+    )
+
+    assert result["reserve_bytes"] == (total_bytes + 9) // 10
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        lambda receipt: receipt.clear(),
+        lambda receipt: receipt.update({"capacity_source": "raw_statvfs"}),
+        lambda receipt: receipt.update({"capacity_source": "shutil.disk_usage"}),
+        lambda receipt: receipt.update({"raw_disk_total_bytes": 1}),
+        lambda receipt: receipt.update({"disk_free_bytes": 101 * guard.GIB}),
+        lambda receipt: receipt.update({"projected_bytes": 0}),
+        lambda receipt: receipt.update({"projected_admission_available_bytes": 1}),
+        lambda receipt: receipt.update({"reserve_bytes": 1}),
+        lambda receipt: receipt.pop("raw_disk_free_bytes"),
+    ),
+)
+def test_preactivation_rejects_incomplete_or_tampered_capacity_receipt(mutation) -> None:
+    receipt = _passing_preflight_receipt()
+    mutation(receipt)
+
+    with pytest.raises(runtime_manifest.RuntimeManifestError, match="receipt mismatch"):
+        guard._validate_capacity_admission_receipt(receipt)
 
 
 def test_check_over_budget_stops_only_registered_services(tmp_path: Path, monkeypatch) -> None:
@@ -922,7 +1126,7 @@ def _publisher_canary_transition_direct_fixture(
     capacity_plist.chmod(0o600)
     preflight_receipt = tmp_path / "preflight-pass.json"
     preflight_receipt.write_text(
-        json.dumps({"status": "PASS"}),
+        json.dumps(_passing_preflight_receipt(str(manifest["queue_root"]))),
         encoding="utf-8",
     )
     return launch_agents, manifest, manifest_path, barrier, capacity_plist
@@ -1307,6 +1511,63 @@ def test_capacity_installer_publisher_canary_all_stopped_recovery_accepts_exact_
     topology = {row["label"]: row["topology"] for row in receipt["loaded_labels"]}
     assert topology["com.pantheon.agy-content-publisher"] == "normal-absent"
     assert topology["com.pantheon.agy-gemini-new"] == "activation-only-absent"
+
+
+def test_preactivation_remeasures_capacity_and_rejects_stale_safe_receipt(
+    tmp_path: Path,
+) -> None:
+    launch_agents, manifest, manifest_path, barrier, capacity_plist = (
+        _publisher_canary_transition_direct_fixture(tmp_path)
+    )
+    preflight_receipt = tmp_path / "preflight-pass.json"
+
+    with pytest.raises(
+        runtime_manifest.RuntimeManifestError,
+        match="capacity remeasurement mismatch",
+    ):
+        guard.validate_preactivation_transition(
+            preflight_receipt=preflight_receipt,
+            manifest_path=manifest_path,
+            expected_digest=str(manifest["manifest_digest"]),
+            barrier=barrier,
+            launch_agents_dir=launch_agents,
+            capacity_plist=capacity_plist,
+            recovery_from_publisher_canary_all_stopped=True,
+            runner=lambda _command: _completed(113, ""),
+            capacity_sensor=lambda _path: {
+                **_host_capacity(200, 19),
+                "capacity_source": "macos_foundation_important_usage",
+            },
+        )
+
+
+def test_preactivation_rejects_capacity_path_outside_signed_manifest_queue(
+    tmp_path: Path,
+) -> None:
+    launch_agents, manifest, manifest_path, barrier, capacity_plist = (
+        _publisher_canary_transition_direct_fixture(tmp_path)
+    )
+    preflight_receipt = tmp_path / "preflight-pass.json"
+    payload = json.loads(preflight_receipt.read_text(encoding="utf-8"))
+    foreign_root = tmp_path / "foreign-volume"
+    foreign_root.mkdir()
+    payload["capacity_path"] = str(foreign_root)
+    preflight_receipt.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(
+        runtime_manifest.RuntimeManifestError,
+        match="capacity path mismatch",
+    ):
+        guard.validate_preactivation_transition(
+            preflight_receipt=preflight_receipt,
+            manifest_path=manifest_path,
+            expected_digest=str(manifest["manifest_digest"]),
+            barrier=barrier,
+            launch_agents_dir=launch_agents,
+            capacity_plist=capacity_plist,
+            recovery_from_publisher_canary_all_stopped=True,
+            runner=lambda _command: _completed(113, ""),
+        )
 
 
 def test_capacity_installer_publisher_canary_all_stopped_recovery_rejects_wrong_mixed_mode(
@@ -2180,7 +2441,10 @@ def test_preactivation_transition_enforces_activation_only_exit_78_boundary(
     with capacity_plist.open("wb") as stream:
         plistlib.dump(payload, stream, sort_keys=True)
     preflight_receipt = tmp_path / "preflight.json"
-    preflight_receipt.write_text('{"status": "PASS"}\n', encoding="utf-8")
+    preflight_receipt.write_text(
+        json.dumps(_passing_preflight_receipt(str(manifest["queue_root"]))),
+        encoding="utf-8",
+    )
     fake_launchctl = tmp_path / "bin" / "launchctl"
 
     def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -2446,16 +2710,18 @@ def test_capacity_installer_rejects_unsafe_preactivation_transition_cases(
     assert not mutation_log.exists()
 
 
-def test_unknown_rss_or_swap_telemetry_is_no_go(tmp_path: Path, monkeypatch) -> None:
-    """REG-PANTHEON-CAPACITY-UNKNOWN-METRICS-NO-GO-001。"""
+def test_unknown_rss_telemetry_is_recorded_without_denying_disk_admission(
+    tmp_path: Path, monkeypatch
+) -> None:
     sample = _available_snapshot()
     sample.update({"rss_bytes": None, "rss_available": False, "rss_error": "ps_failed"})
     monkeypatch.setattr(guard, "_snapshot", lambda *_roots: sample)
 
     result = guard.preflight(tmp_path, tmp_path / "publisher", tmp_path / "logs")
 
-    assert result["status"] == "NO-GO"
-    assert "rss_telemetry_unknown" in result["reasons"]
+    assert result["status"] == "PASS"
+    assert result["reasons"] == []
+    assert result["telemetry_gaps"] == ["rss_telemetry_unknown"]
 
 
 def test_swap_telemetry_uses_primary_source_without_fallback() -> None:
@@ -2495,7 +2761,7 @@ def test_swap_telemetry_uses_native_fallback_after_primary_command_failure() -> 
     }
 
 
-def test_swap_telemetry_is_no_go_when_primary_and_fallback_fail(
+def test_swap_telemetry_gap_does_not_deny_disk_admission(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2520,8 +2786,9 @@ def test_swap_telemetry_is_no_go_when_primary_and_fallback_fail(
         "available": False,
         "error": "swap_sources_failed:command:1;fallback:sysctlbyname_failed:1",
     }
-    assert result["status"] == "NO-GO"
-    assert result["reasons"] == ["swap_telemetry_unknown"]
+    assert result["status"] == "PASS"
+    assert result["reasons"] == []
+    assert result["telemetry_gaps"] == ["swap_telemetry_unknown"]
 
 
 def test_swap_telemetry_parse_error_fails_closed_without_fallback() -> None:
@@ -2603,6 +2870,7 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
         "_disk_sample",
         lambda _path: (200 * guard.GIB, 100 * guard.GIB),
     )
+    monkeypatch.setattr(guard, "_host_capacity_sample", lambda _path: _host_capacity(200, 100))
     activation_labels = {
         "value": frozenset({"com.pantheon.agy-content-publisher"})
     }
@@ -2680,6 +2948,7 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
         assert invalid["rss_error"] == (
             "loaded_service_pid_missing:com.pantheon.agy-content-publisher"
         )
+        assert invalid["reasons"] == ["service_topology_invalid"]
 
     identity["value"] = f"gate2-actor:{'a' * 40}:normal"
     activation_labels["value"] = frozenset()
@@ -2695,7 +2964,7 @@ def test_preflight_allows_formal_activation_only_service_without_pid_but_rejects
     assert normal["rss_error"] == (
         "loaded_service_pid_missing:com.pantheon.agy-content-publisher"
     )
-    assert "rss_telemetry_unknown" in normal["reasons"]
+    assert "service_topology_invalid" in normal["reasons"]
 
     monkeypatch.setattr(
         guard,
@@ -3170,3 +3439,4 @@ def test_rss_reconciles_only_proven_process_lifecycle(monkeypatch: pytest.Monkey
     else:
         assert result["value"] is None
     assert ps_calls == (3 if change == "churn" else 2 if change == "replace" else 1)
+_REAL_HOST_CAPACITY_SAMPLE = guard._host_capacity_sample

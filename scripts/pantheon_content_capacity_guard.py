@@ -7,6 +7,7 @@ import argparse
 import ctypes
 from datetime import datetime
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -29,6 +30,12 @@ MAX_BYTES = 4 * GIB
 MAX_FILE_COUNT = 120_000
 NORMAL_GROWTH_BYTES_PER_HOUR = 256 * MIB
 RECOVERY_WINDOW_SECONDS = 3600
+DEFAULT_PROJECTED_BYTES = GIB
+HOST_RESERVE_MIN_BYTES = 20 * GIB
+CANONICAL_HOST_CAPACITY_SENSOR = (
+    Path(pwd.getpwuid(os.getuid()).pw_dir).resolve()
+    / "ai-core/scripts/host_capacity_sensor.py"
+)
 SERVICE_TRANSITION_RECHECKS = 20
 SERVICE_TRANSITION_RECHECK_SECONDS = 0.25
 LOG_MAX_BYTES = 32 * MIB
@@ -66,6 +73,31 @@ LOG_NAMES = tuple(
 )
 Runner = Callable[[list[str]], subprocess.CompletedProcess[str]]
 SwapFallback = Callable[[], tuple[int | None, str | None]]
+CapacitySensor = Callable[[Path], dict[str, Any]]
+
+
+def _host_capacity_sample(path: Path) -> dict[str, Any]:
+    """使用 ai-core canonical sensor；macOS 量測失敗時不得降級為 raw。"""
+    sensor_path = CANONICAL_HOST_CAPACITY_SENSOR
+    module_name = f"_pantheon_host_capacity_sensor_{hashlib.sha256(str(sensor_path).encode()).hexdigest()[:12]}"
+    spec = importlib.util.spec_from_file_location(module_name, sensor_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("canonical host capacity sensor unavailable")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+        capacity = module.measure_host_capacity(path)
+    except Exception as error:
+        raise RuntimeError("canonical host capacity measurement failed") from error
+    return {
+        "disk_total_bytes": capacity.total_bytes,
+        "disk_free_bytes": capacity.physical_available_bytes,
+        "admission_available_bytes": capacity.admission_available_bytes,
+        "capacity_source": capacity.source,
+        "capacity_available": True,
+        "capacity_error": None,
+    }
 
 
 def _measure_tree(root: Path) -> tuple[int, int]:
@@ -979,7 +1011,18 @@ def _snapshot(
 ) -> dict[str, Any]:
     roots = (queue_root, publisher_root, log_root)
     measured = [_measure_tree(root) for root in roots]
-    total_disk, free_disk = _disk_sample(queue_root)
+    raw_total_disk, raw_free_disk = _disk_sample(queue_root)
+    try:
+        capacity = _host_capacity_sample(queue_root)
+    except RuntimeError as error:
+        capacity = {
+            "disk_total_bytes": raw_total_disk,
+            "disk_free_bytes": raw_free_disk,
+            "admission_available_bytes": None,
+            "capacity_source": None,
+            "capacity_available": False,
+            "capacity_error": str(error),
+        }
     if runner is _run:
         if expected_inert_labels or expected_idle_labels:
             rss = _service_rss_bytes(
@@ -1002,8 +1045,9 @@ def _snapshot(
     return {
         "bytes": sum(item[0] for item in measured),
         "file_count": sum(item[1] for item in measured),
-        "disk_total_bytes": total_disk,
-        "disk_free_bytes": free_disk,
+        "raw_disk_total_bytes": raw_total_disk,
+        "raw_disk_free_bytes": raw_free_disk,
+        **capacity,
         "rss_bytes": rss["value"],
         "rss_available": rss["available"],
         "rss_error": rss["error"],
@@ -1021,6 +1065,7 @@ def preflight(
     *,
     runner: Runner = _run,
 ) -> dict[str, Any]:
+    projected_bytes = DEFAULT_PROJECTED_BYTES
     runtime_receipt = formal_runtime.validate_runtime_tick(
         "com.pantheon.content-capacity-guard",
         queue_root=queue_root.resolve(),
@@ -1042,16 +1087,38 @@ def preflight(
         snapshot_options["expected_idle_labels"] = expected_idle_labels
     sample = _snapshot(queue_root, publisher_root, log_root, **snapshot_options)
     reasons: list[str] = []
-    if sample["disk_free_bytes"] * 10 < sample["disk_total_bytes"]:
-        reasons.append("disk_free_below_start_floor")
+    reserve_bytes = max(
+        HOST_RESERVE_MIN_BYTES,
+        (sample["disk_total_bytes"] + 9) // 10,
+    )
+    admission_available = sample.get("admission_available_bytes")
+    projected_admission_available = (
+        int(admission_available) - projected_bytes
+        if isinstance(admission_available, int) and not isinstance(admission_available, bool)
+        else None
+    )
+    if sample.get("capacity_available") is not True or projected_admission_available is None:
+        reasons.append("capacity_telemetry_unknown")
+    elif projected_admission_available < reserve_bytes:
+        reasons.append("projected_admission_below_reserve")
     if sample["bytes"] > MAX_BYTES:
         reasons.append("project_bytes_over_budget")
     if sample["file_count"] > MAX_FILE_COUNT:
         reasons.append("project_files_over_budget")
+    telemetry_gaps = []
     if sample.get("rss_available") is not True:
-        reasons.append("rss_telemetry_unknown")
+        telemetry_gaps.append("rss_telemetry_unknown")
+        rss_error = str(sample.get("rss_error") or "")
+        topology_error = rss_error.startswith(
+            (
+                "loaded_service_pid_missing:",
+                "inert_service_pid_present:",
+            )
+        )
+        if topology_error:
+            reasons.append("service_topology_invalid")
     if sample.get("swap_available") is not True:
-        reasons.append("swap_telemetry_unknown")
+        telemetry_gaps.append("swap_telemetry_unknown")
     process_policy = {
         "topology": "INERT_LOADED",
         "pid_required": False,
@@ -1063,7 +1130,76 @@ def preflight(
         "pid_required": True,
         "measurement_required": True,
     }
-    return {"status": "PASS" if not reasons else "NO-GO", "reasons": reasons, "process_policy": process_policy, **sample}
+    return {
+        "status": "PASS" if not reasons else "NO-GO",
+        "reasons": reasons,
+        "telemetry_gaps": telemetry_gaps,
+        "projected_bytes": projected_bytes,
+        "reserve_bytes": reserve_bytes,
+        "projected_admission_available_bytes": projected_admission_available,
+        "capacity_path": str(queue_root.resolve()),
+        "process_policy": process_policy,
+        **sample,
+    }
+
+
+def _validate_capacity_admission_receipt(receipt: object) -> None:
+    """驗證 activation 使用的 receipt 確實包含本次容量 admission 證據。"""
+    if not isinstance(receipt, dict):
+        raise formal_runtime.RuntimeManifestError("preactivation receipt mismatch")
+    integer_fields = (
+        "disk_total_bytes",
+        "disk_free_bytes",
+        "raw_disk_total_bytes",
+        "raw_disk_free_bytes",
+        "admission_available_bytes",
+        "projected_bytes",
+        "reserve_bytes",
+        "projected_admission_available_bytes",
+    )
+    values = {name: receipt.get(name) for name in integer_fields}
+    if (
+        receipt.get("status") != "PASS"
+        or receipt.get("reasons") != []
+        or receipt.get("capacity_available") is not True
+        or receipt.get("capacity_error") is not None
+        or receipt.get("capacity_source")
+        != (
+            "macos_foundation_important_usage"
+            if sys.platform == "darwin"
+            else "shutil.disk_usage"
+        )
+        or any(
+            not isinstance(value, int) or isinstance(value, bool) or value < 0
+            for value in values.values()
+        )
+    ):
+        raise formal_runtime.RuntimeManifestError("preactivation receipt mismatch")
+    capacity_path = receipt.get("capacity_path")
+    if not isinstance(capacity_path, str) or not capacity_path:
+        raise formal_runtime.RuntimeManifestError("preactivation receipt mismatch")
+    total = values["disk_total_bytes"]
+    physical_available = values["disk_free_bytes"]
+    raw_total = values["raw_disk_total_bytes"]
+    raw_available = values["raw_disk_free_bytes"]
+    admission = values["admission_available_bytes"]
+    projected = values["projected_bytes"]
+    reserve = values["reserve_bytes"]
+    projected_available = values["projected_admission_available_bytes"]
+    expected_reserve = max(HOST_RESERVE_MIN_BYTES, (total + 9) // 10)
+    if (
+        total <= 0
+        or raw_total != total
+        or raw_available > raw_total
+        or physical_available > total
+        or admission < physical_available
+        or admission > total
+        or projected != DEFAULT_PROJECTED_BYTES
+        or reserve != expected_reserve
+        or projected_available != admission - projected
+        or projected_available < reserve
+    ):
+        raise formal_runtime.RuntimeManifestError("preactivation receipt mismatch")
 
 
 def validate_preactivation_transition(
@@ -1080,6 +1216,7 @@ def validate_preactivation_transition(
     recovery_from_all_stopped: bool = False,
     recovery_from_publisher_canary_all_stopped: bool = False,
     runner: Runner = _run,
+    capacity_sensor: CapacitySensor | None = None,
 ) -> dict[str, Any]:
     recovery_mode_count = sum(
         int(value)
@@ -1100,9 +1237,34 @@ def validate_preactivation_transition(
         receipt = json.loads(preflight_receipt.read_text(encoding="utf-8"))
     except (FileNotFoundError, OSError, json.JSONDecodeError) as error:
         raise formal_runtime.RuntimeManifestError("preactivation receipt is invalid") from error
-    if not isinstance(receipt, dict) or receipt.get("status") != "PASS":
-        raise formal_runtime.RuntimeManifestError("preactivation receipt mismatch")
+    _validate_capacity_admission_receipt(receipt)
     manifest = formal_runtime.load_manifest(manifest_path, expected_digest)
+    try:
+        capacity_path = Path(receipt["capacity_path"]).resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise formal_runtime.RuntimeManifestError(
+            "preactivation capacity path mismatch"
+        ) from error
+    if capacity_path != Path(manifest["queue_root"]):
+        raise formal_runtime.RuntimeManifestError("preactivation capacity path mismatch")
+    sensor = _host_capacity_sample if capacity_sensor is None else capacity_sensor
+    try:
+        current_capacity = sensor(capacity_path)
+    except Exception as error:
+        raise formal_runtime.RuntimeManifestError(
+            "preactivation capacity remeasurement failed"
+        ) from error
+    if (
+        current_capacity.get("capacity_available") is not True
+        or current_capacity.get("capacity_source") != receipt["capacity_source"]
+        or current_capacity.get("disk_total_bytes") != receipt["disk_total_bytes"]
+        or not isinstance(current_capacity.get("admission_available_bytes"), int)
+        or current_capacity["admission_available_bytes"] - receipt["projected_bytes"]
+        < receipt["reserve_bytes"]
+    ):
+        raise formal_runtime.RuntimeManifestError(
+            "preactivation capacity remeasurement mismatch"
+        )
     formal_runtime.validate_barrier(barrier, manifest)
     launch_agents = launch_agents_dir.resolve(strict=True)
     stage_dir = launch_agents / ".pantheon-four-lane-stage"
@@ -1369,18 +1531,27 @@ def check_once(
     current = _snapshot(queue_root, publisher_root, log_root, **snapshot_options)
     timestamp = time.time() if now is None else now
     previous = _read_state(state_file)
-    stop_floor = max(20 * GIB, current["disk_total_bytes"] // 10)
+    stop_floor = max(
+        HOST_RESERVE_MIN_BYTES,
+        (current["disk_total_bytes"] + 9) // 10,
+    )
     reasons: list[str] = []
     if current["bytes"] > MAX_BYTES:
         reasons.append("project_bytes_over_budget")
     if current["file_count"] > MAX_FILE_COUNT:
         reasons.append("project_files_over_budget")
-    if current["disk_free_bytes"] < stop_floor:
-        reasons.append("disk_free_below_stop_floor")
+    admission_available = current.get("admission_available_bytes")
+    if current.get("capacity_available") is not True or not isinstance(
+        admission_available, int
+    ):
+        reasons.append("capacity_telemetry_unknown")
+    elif admission_available < stop_floor:
+        reasons.append("admission_available_below_stop_floor")
+    telemetry_gaps: list[str] = []
     if current.get("rss_available") is not True:
-        reasons.append("rss_telemetry_unknown")
+        telemetry_gaps.append("rss_telemetry_unknown")
     if current.get("swap_available") is not True:
-        reasons.append("swap_telemetry_unknown")
+        telemetry_gaps.append("swap_telemetry_unknown")
     if previous.get("status") == "STOP_FAILED":
         reasons.append("stop_verification_pending")
 
@@ -1390,7 +1561,13 @@ def check_once(
     projected = current["bytes"] + growth_per_hour * RECOVERY_WINDOW_SECONDS // 3600
     high_growth = (
         growth_per_hour > 2 * NORMAL_GROWTH_BYTES_PER_HOUR
-        and (projected > MAX_BYTES or current["disk_free_bytes"] - growth_per_hour < stop_floor)
+        and (
+            projected > MAX_BYTES
+            or (
+                isinstance(admission_available, int)
+                and admission_available - growth_per_hour < stop_floor
+            )
+        )
     )
     high_growth_streak = int(previous.get("high_growth_streak", 0)) + 1 if high_growth else 0
     if high_growth_streak >= 2:
@@ -1436,6 +1613,7 @@ def check_once(
         "growth_streak": growth_streak,
         "memory_streak": memory_streak,
         "reasons": reasons,
+        "telemetry_gaps": telemetry_gaps,
         "stopped_services": [
             label for label, outcome in stop_verification.items() if outcome["absent"]
         ],
