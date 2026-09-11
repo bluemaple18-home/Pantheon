@@ -43,8 +43,9 @@ TEMP_PLIST="${TEMP_PLIST_REALPATH}"
 if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" \
   && "${ACTION}" != "--install-recovery-stage" \
   && "${ACTION}" != "--install-all-stopped-recovery-stage" \
+  && "${ACTION}" != "--install-activation-only-all-stopped-recovery-stage" \
   && "${ACTION}" != "--install-publisher-canary-all-stopped-recovery-stage" ]]; then
-  echo "用法：scripts/install_pantheon_content_capacity_guard_launchd.sh [--preflight|--install|--install-recovery-stage|--install-all-stopped-recovery-stage|--install-publisher-canary-all-stopped-recovery-stage]" >&2
+  echo "用法：scripts/install_pantheon_content_capacity_guard_launchd.sh [--preflight|--install|--install-recovery-stage|--install-all-stopped-recovery-stage|--install-activation-only-all-stopped-recovery-stage|--install-publisher-canary-all-stopped-recovery-stage]" >&2
   exit 2
 fi
 if [[ "${PYTHON_PATH}" != /* ]]; then
@@ -183,6 +184,8 @@ run_capacity_preflight() {
     TRANSITION_ARGS+=(--recovery-from-normal-stopped)
   elif [[ "${ACTION}" == "--install-all-stopped-recovery-stage" ]]; then
     TRANSITION_ARGS+=(--recovery-from-all-stopped)
+  elif [[ "${ACTION}" == "--install-activation-only-all-stopped-recovery-stage" ]]; then
+    TRANSITION_ARGS+=(--recovery-from-activation-only-all-stopped)
   elif [[ "${ACTION}" == "--install-publisher-canary-all-stopped-recovery-stage" ]]; then
     TRANSITION_ARGS+=(--recovery-from-publisher-canary-all-stopped)
   fi

@@ -1214,6 +1214,7 @@ def validate_preactivation_transition(
     expected_reset_correlation_id: str | None = None,
     recovery_from_normal_stopped: bool = False,
     recovery_from_all_stopped: bool = False,
+    recovery_from_activation_only_all_stopped: bool = False,
     recovery_from_publisher_canary_all_stopped: bool = False,
     runner: Runner = _run,
     capacity_sensor: CapacitySensor | None = None,
@@ -1223,6 +1224,7 @@ def validate_preactivation_transition(
         for value in (
             recovery_from_normal_stopped,
             recovery_from_all_stopped,
+            recovery_from_activation_only_all_stopped,
             recovery_from_publisher_canary_all_stopped,
         )
     )
@@ -1230,7 +1232,9 @@ def validate_preactivation_transition(
         raise formal_runtime.RuntimeManifestError("preactivation recovery mode is ambiguous")
     recovery_from_stopped = recovery_mode_count == 1
     all_stopped_recovery = (
-        recovery_from_all_stopped or recovery_from_publisher_canary_all_stopped
+        recovery_from_all_stopped
+        or recovery_from_activation_only_all_stopped
+        or recovery_from_publisher_canary_all_stopped
     )
     publisher_label = "com.pantheon.agy-content-publisher"
     try:
@@ -1347,6 +1351,8 @@ def validate_preactivation_transition(
             expected_live_activation_mode = (
                 "normal" if label == publisher_label else "activation-only"
             )
+        elif recovery_from_activation_only_all_stopped:
+            expected_live_activation_mode = "activation-only"
         else:
             expected_live_activation_mode = (
                 "normal" if recovery_from_stopped else "activation-only"
@@ -1495,6 +1501,9 @@ def validate_preactivation_transition(
         "generation": manifest["generation"],
         "recovery_from_normal_stopped": recovery_from_normal_stopped,
         "recovery_from_all_stopped": recovery_from_all_stopped,
+        "recovery_from_activation_only_all_stopped": (
+            recovery_from_activation_only_all_stopped
+        ),
         "recovery_from_publisher_canary_all_stopped": (
             recovery_from_publisher_canary_all_stopped
         ),
@@ -1737,6 +1746,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--recovery-from-normal-stopped", action="store_true")
     parser.add_argument("--recovery-from-all-stopped", action="store_true")
     parser.add_argument(
+        "--recovery-from-activation-only-all-stopped",
+        action="store_true",
+    )
+    parser.add_argument(
         "--recovery-from-publisher-canary-all-stopped",
         action="store_true",
     )
@@ -1803,6 +1816,9 @@ def main() -> int:
                 expected_reset_correlation_id=args.expected_reset_correlation_id,
                 recovery_from_normal_stopped=args.recovery_from_normal_stopped,
                 recovery_from_all_stopped=args.recovery_from_all_stopped,
+                recovery_from_activation_only_all_stopped=(
+                    args.recovery_from_activation_only_all_stopped
+                ),
                 recovery_from_publisher_canary_all_stopped=(
                     args.recovery_from_publisher_canary_all_stopped
                 ),
