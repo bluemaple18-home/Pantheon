@@ -1466,6 +1466,70 @@ def test_capacity_installer_all_stopped_recovery_stages_after_promotion(
     assert not mutation_log.exists()
 
 
+def test_capacity_installer_activation_only_all_stopped_recovery_stages_after_pause(
+    tmp_path: Path,
+) -> None:
+    repo, env, fake_home, mutation_log, _manifest, _manifest_path = (
+        _g5_capacity_transition_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    _write_capacity_transition_launchctl(
+        tmp_path / "bin" / "launchctl",
+        launch_agents=launch_agents,
+        mutation_log=mutation_log,
+        absent_labels=tuple(runtime_manifest.SERVICE_LABELS),
+    )
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+            "--install-activation-only-all-stopped-recovery-stage",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, f"{completed.stdout}\n{completed.stderr}"
+    assert '"recovery_from_activation_only_all_stopped": true' in completed.stdout
+    assert not mutation_log.exists()
+
+
+def test_capacity_installer_activation_only_all_stopped_recovery_rejects_normal_plists(
+    tmp_path: Path,
+) -> None:
+    repo, env, fake_home, _mutation_log, _manifest, _manifest_path = (
+        _g5_capacity_transition_fixture(tmp_path)
+    )
+    launch_agents = fake_home / "Library" / "LaunchAgents"
+    _make_live_plists_normal(launch_agents)
+    _write_capacity_transition_launchctl(
+        tmp_path / "bin" / "launchctl",
+        launch_agents=launch_agents,
+        mutation_log=tmp_path / "mutations.log",
+        absent_labels=tuple(runtime_manifest.SERVICE_LABELS),
+    )
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+            "--install-activation-only-all-stopped-recovery-stage",
+        ],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 1
+    assert "plist activation mode mismatch" in completed.stdout
+
+
 def test_capacity_installer_all_stopped_recovery_rejects_publisher_canary_mixed_mode(
     tmp_path: Path,
 ) -> None:
