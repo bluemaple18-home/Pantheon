@@ -1078,11 +1078,24 @@ def validate_preactivation_transition(
     expected_reset_correlation_id: str | None = None,
     recovery_from_normal_stopped: bool = False,
     recovery_from_all_stopped: bool = False,
+    recovery_from_publisher_canary_all_stopped: bool = False,
     runner: Runner = _run,
 ) -> dict[str, Any]:
-    if recovery_from_normal_stopped and recovery_from_all_stopped:
+    recovery_mode_count = sum(
+        int(value)
+        for value in (
+            recovery_from_normal_stopped,
+            recovery_from_all_stopped,
+            recovery_from_publisher_canary_all_stopped,
+        )
+    )
+    if recovery_mode_count > 1:
         raise formal_runtime.RuntimeManifestError("preactivation recovery mode is ambiguous")
-    recovery_from_stopped = recovery_from_normal_stopped or recovery_from_all_stopped
+    recovery_from_stopped = recovery_mode_count == 1
+    all_stopped_recovery = (
+        recovery_from_all_stopped or recovery_from_publisher_canary_all_stopped
+    )
+    publisher_label = "com.pantheon.agy-content-publisher"
     try:
         receipt = json.loads(preflight_receipt.read_text(encoding="utf-8"))
     except (FileNotFoundError, OSError, json.JSONDecodeError) as error:
@@ -1168,11 +1181,17 @@ def validate_preactivation_transition(
     live_plist_sha256: dict[str, str] = {}
     for label in formal_runtime.SERVICE_LABELS:
         plist_path = launch_agents / f"{label}.plist"
+        if recovery_from_publisher_canary_all_stopped:
+            expected_live_activation_mode = (
+                "normal" if label == publisher_label else "activation-only"
+            )
+        else:
+            expected_live_activation_mode = (
+                "normal" if recovery_from_stopped else "activation-only"
+            )
         live_receipt = formal_runtime.plist_receipt(
             plist_path,
-            expected_activation_mode=(
-                "normal" if recovery_from_stopped else "activation-only"
-            ),
+            expected_activation_mode=expected_live_activation_mode,
         )
         with plist_path.open("rb") as stream:
             live_payload = plistlib.load(stream)
@@ -1219,23 +1238,44 @@ def validate_preactivation_transition(
             or not str(live_receipt.get("identity", ""))
         ):
             raise formal_runtime.RuntimeManifestError("preactivation live plist mismatch")
+        if recovery_from_publisher_canary_all_stopped:
+            expected_live_receipt = formal_runtime.receipt_for_label(manifest, label)
+            if any(
+                live_receipt.get(field) != value
+                for field, value in expected_live_receipt.items()
+            ):
+                raise formal_runtime.RuntimeManifestError(
+                    "preactivation publisher-canary live target identity mismatch"
+                )
+            if (
+                Path(str(live_barrier)) != barrier
+                or Path(str(live_manifest_path)) != manifest_path
+            ):
+                raise formal_runtime.RuntimeManifestError(
+                    "preactivation publisher-canary live target path mismatch"
+                )
         target = f"{domain}/{label}"
         result = runner(["launchctl", "print", target])
         if result.returncode != 0:
             if (
                 recovery_from_stopped
                 and (
-                    recovery_from_all_stopped
+                    all_stopped_recovery
                     or label != CAPACITY_GUARD_LABEL
                 )
                 and result.returncode == 113
             ):
                 live_receipts[label] = live_receipt
                 live_plist_sha256[label] = _file_sha256(plist_path)
-                loaded.append({"label": label, "topology": "normal-absent"})
+                loaded.append(
+                    {
+                        "label": label,
+                        "topology": f"{expected_live_activation_mode}-absent",
+                    }
+                )
                 continue
             raise formal_runtime.RuntimeManifestError("preactivation service is absent")
-        if recovery_from_all_stopped:
+        if all_stopped_recovery:
             raise formal_runtime.RuntimeManifestError(
                 "preactivation all-stopped recovery service is loaded"
             )
@@ -1293,6 +1333,9 @@ def validate_preactivation_transition(
         "generation": manifest["generation"],
         "recovery_from_normal_stopped": recovery_from_normal_stopped,
         "recovery_from_all_stopped": recovery_from_all_stopped,
+        "recovery_from_publisher_canary_all_stopped": (
+            recovery_from_publisher_canary_all_stopped
+        ),
         "loaded_labels": loaded,
     }
 
@@ -1515,6 +1558,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--expected-reset-correlation-id")
     parser.add_argument("--recovery-from-normal-stopped", action="store_true")
     parser.add_argument("--recovery-from-all-stopped", action="store_true")
+    parser.add_argument(
+        "--recovery-from-publisher-canary-all-stopped",
+        action="store_true",
+    )
     parser.add_argument("--reset-proof-dir", type=Path)
     parser.add_argument("--cycle-bytes", type=int, default=MIB)
     parser.add_argument(
@@ -1578,6 +1625,9 @@ def main() -> int:
                 expected_reset_correlation_id=args.expected_reset_correlation_id,
                 recovery_from_normal_stopped=args.recovery_from_normal_stopped,
                 recovery_from_all_stopped=args.recovery_from_all_stopped,
+                recovery_from_publisher_canary_all_stopped=(
+                    args.recovery_from_publisher_canary_all_stopped
+                ),
             )
         except formal_runtime.RuntimeManifestError as error:
             print(
