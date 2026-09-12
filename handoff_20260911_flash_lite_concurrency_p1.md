@@ -2,7 +2,7 @@
 
 ## 最終主線收尾
 
-**狀態：CLOSED。正式產品修補已在 `main`，retry8 promotion 已 `COMMITTED`，七服務已恢復正常載入。**
+**狀態：CLOSED。正式產品修補已在 `main`，retry8 promotion 已 `COMMITTED`；依使用者最後指示，七服務目前維持暫停。**
 
 - 正式產品 actor baseline：`579ddfe0c5b4fd5d8fbf5df96d887ef73b5ba867`（PR #32 merge；PR #28–#32 均已進 `main`）。
 - Retry8 generation：`g115-579ddfe0c5-flash-lite-publisher-canary-retry8-20260911`。
@@ -10,14 +10,14 @@
 - Plan digest：`ebc7234d0210a5a44673cc78e5e71fc6c3abc17c7ee005f1c31f573e2b627d3e`。
 - Promotion status：`COMMITTED`；finalize receipt 為 `COMMITTED`。
 - Rule25 readiness：`READY`（execution line `exec-ra-slice-004`）。
-- Runtime topology：七個 launchd service 目前 7/7 `LOADED`。
-- 收尾時 remote `main`：`5ca2f84ddadcaf87514deca7673407c081dc612a`。
+- Runtime topology：七個 launchd service 目前 7/7 `ABSENT`，沒有自動排程。
+- 最新 remote `main`：`a093137e8c1deb39b00b3c3290bfc91747f5d43b`（`v0.3.431`）。
 
 ## 已驗收 publish
 
 1. `legacy-auto-sweep-v1-astrology-0045-asc-aries` → `PUBLISHED_REWRITE`，commit `6a05dd942d7d7abd9617fab4d744f8e328d340f5`，version `0.3.410`；發布時已驗證公開網址 HTTP 200、正文可見、canonical 正確。
 2. 後續既有 publish-ready `ASC-GEMINI` → commit `662a33bba3f8d9c89a5e019d9b667edb9f88430b`，version `0.3.411`；發布時已驗證 HTTP 200、正文可見。
-3. `main` 後續另有內容發布至 `0.3.412`（`5ca2f84d...`）。`579ddfe0c5..5ca2f84d` 的三個後續 commit 只有內容／CHANGELOG／generated web output，沒有再修改本次 Flash Lite deployment/control code。
+3. 暫停生效前，既有排程繼續發布至 `0.3.431`（`a093137e8c...`）；目前七服務已全部卸載，不再自動產文。
 
 ## 正式修補已進主線
 
@@ -46,9 +46,9 @@
 - retry8 `status`：`PASS / COMMITTED`。
 - `promotion-finalize.json`：`COMMITTED`。
 - Rule25：`READY`。
-- 七個 production launchd label：7/7 `LOADED`。
-- remote compare `579ddfe0c5..5ca2f84d`：只有發文內容相關檔案，無 deployment/control source drift。
-- Root working tree 原有其他 `.ai` / handoff 未追蹤工作保持不動；本次收尾沒有覆寫其他開發。
+- 七個 production launchd label：7/7 `ABSENT`（依使用者要求暫停）。
+- 本機根工作區與獨立 final candidate 均已 fast-forward 至 `a093137e8c`。
+- 原有未追蹤 `.ai`／handoff／runtime evidence 已保全於 `.work/local-closeout-20260912/`，未遺失且不污染工作樹。
 
 ## 歷史故障摘要
 
