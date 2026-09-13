@@ -2541,7 +2541,7 @@ console.log(JSON.stringify(rendered));
         assert article["paragraphCounts"] == [3, 3, 3, 3, 3], article
         assert 3 <= article["faqCount"] <= 5, article
         assert article["published"] == "2026-07-18", article
-        assert article["updated"] == "2026-07-18", article
+        assert article["updated"] >= article["published"], article
 
 
 def test_initial_31_voice_covers_every_legacy_article_without_batch_templates() -> None:

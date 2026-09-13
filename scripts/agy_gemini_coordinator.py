@@ -41,7 +41,7 @@ from scripts.agy_gemini_outbox import (
     validate_external_failure_receipt,
     validate_external_request,
 )
-from scripts.agy_gemini_runner import process_once
+from scripts.agy_gemini_runner import process_once, published_translation_source_loader
 
 
 MAX_BRIEF_BYTES = 12 * 1024
@@ -3223,8 +3223,14 @@ def replace_failed_translation_run_exact(
                     or {key: terminal.get(key) for key in ("generation", "planning_contract_status", "terminal_stage")}
                     != {"generation": 3, "planning_contract_status": "PLANNING_CONTRACT_FAILURE", "terminal_stage": "PLANNING"}):
                 raise ValueError("translation replacement terminal budget differs")
+        source_loader = published_translation_source_loader(
+            repo_root.resolve(),
+            root,
+            state,
+            brief,
+        )
         for article in brief["articles"]:
-            current = multilingual.load_source_article(repo_root.resolve(), str(article["source_article_id"]))
+            current = source_loader(repo_root.resolve(), str(article["source_article_id"]))
             if multilingual.source_sha256(current) != article["source_sha256"]:
                 raise ValueError("translation replacement source drift")
         paths = (replacement_run_dir, replacement_run_dir / "brief.json", replacement_state_path)
@@ -3267,7 +3273,20 @@ def replace_failed_translation_run_exact(
         locked_receipt, state = preflight()
         if locked_receipt != receipt:
             raise ValueError("translation replacement authority changed before execute")
-        replacement = multilingual.enqueue_translation_replacement(repo_root.resolve(), root, terminal_state=state, recovery_reason=str(receipt["replacement_reason"]))
+        brief = multilingual.read_translation_brief_payload(run_dir / "brief.json")
+        source_loader = published_translation_source_loader(
+            repo_root.resolve(),
+            root,
+            state,
+            brief,
+        )
+        replacement = multilingual.enqueue_translation_replacement(
+            repo_root.resolve(),
+            root,
+            terminal_state=state,
+            recovery_reason=str(receipt["replacement_reason"]),
+            source_loader=source_loader,
+        )
     return {
         **receipt,
         **{f"replacement_{key}": value for key, value in replacement.items()},
@@ -3599,11 +3618,21 @@ def seed_failed_translation_replacements(
             continue
         state, reason = selected_item
         try:
+            brief = multilingual.read_translation_brief_payload(
+                root / "translation-runs" / str(state["run_id"]) / "brief.json"
+            )
+            source_loader = published_translation_source_loader(
+                repo_root.resolve(),
+                root,
+                state,
+                brief,
+            )
             replacement = multilingual.enqueue_translation_replacement(
                 repo_root,
                 root,
                 terminal_state=state,
                 recovery_reason=reason,
+                source_loader=source_loader,
             )
         except ValueError as error:
             closed_reason = (
