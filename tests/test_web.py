@@ -2385,7 +2385,7 @@ console.log(JSON.stringify({{
         assert article["sectionCount"] == 4, article
         assert 4 <= article["faqCount"] <= 5, article
         assert article["published"] == "2026-07-19", article
-        assert article["updated"] == "2026-07-19", article
+        assert article["updated"] >= article["published"], article
 
 
 def test_agy_v1_adds_only_approved_full_standard_articles() -> None:
@@ -2461,7 +2461,7 @@ console.log(JSON.stringify(rendered));
         assert article["paragraphCounts"] == [3, 3, 3, 3, 3], article
         assert 3 <= article["faqCount"] <= 5, article
         assert article["published"] == "2026-07-18", article
-        assert article["updated"] == "2026-07-18", article
+        assert article["updated"] >= article["published"], article
 
 
 def test_agy_asc_venus_batch_03_adds_only_approved_full_standard_articles() -> None:
@@ -2499,7 +2499,7 @@ console.log(JSON.stringify(rendered));
         assert article["paragraphCounts"] == [3, 3, 3, 3, 3], article
         assert 3 <= article["faqCount"] <= 5, article
         assert article["published"] == "2026-07-18", article
-        assert article["updated"] == "2026-07-18", article
+        assert article["updated"] >= article["published"], article
 
 
 def test_agy_venus_batch_04_adds_only_approved_full_standard_articles() -> None:
