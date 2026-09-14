@@ -1784,7 +1784,11 @@ def test_policy_v2_rewrite_prerender_rejection_is_terminal_without_transport_ret
     )
     assert rejection["terminal"] is True
     assert rejection["failure_codes"] == ["initial_html_complete"]
-    assert not publisher._retry_path(state_root, "rewrite", run_id).exists()
+    retry = publisher._read_json(
+        publisher._retry_path(state_root, "rewrite", run_id)
+    )
+    assert retry["eligibility"] == "non_retryable"
+    assert retry["retryable"] is False
     assert subprocess.run(
         ["git", "status", "--porcelain"],
         cwd=repo_root,
@@ -1845,9 +1849,8 @@ def test_rewrite_full_test_failure_rolls_back_updated_date_transaction(
     result = failing_rewrite(repo_root, queue_root, state_root)
 
     assert test_commands == [publisher.PREFLIGHT_TEST_COMMAND, publisher.TEST_COMMAND]
-    assert result["status"] == "non_retryable_recovered"
-    assert result["error_type"] == "PermanentValidationFailure"
-    assert result["retry_eligible"] is False
+    assert result["status"] == "failed_recovered"
+    assert result["error_type"] == "CalledProcessError"
     assert owned.read_bytes() == b"base\n"
     assert subprocess.run(
         ["git", "status", "--porcelain"],
@@ -1863,8 +1866,8 @@ def test_rewrite_full_test_failure_rolls_back_updated_date_transaction(
     retry = publisher._read_json(
         publisher._retry_path(state_root, "rewrite", run_id)
     )
-    assert retry["eligibility"] == "non_retryable"
-    assert retry["retryable"] is False
+    assert retry["eligibility"] == "deferred"
+    assert retry["retryable"] is True
 
 
 def test_collect_ready_translation_runs_keeps_reject_deferred_without_blocking_approve(
@@ -2268,9 +2271,8 @@ def test_translation_gate_failure_restores_clean_repo_and_preserves_candidate_ev
         release_gate=True,
     )
 
-    assert result["status"] == "non_retryable_recovered"
-    assert result["error_type"] == "PermanentValidationFailure"
-    assert result["retry_eligible"] is False
+    assert result["status"] == "failed_recovered"
+    assert result["error_type"] == "CalledProcessError"
     assert subprocess.run(
         ["git", "status", "--porcelain"],
         cwd=repo_root,
@@ -2289,8 +2291,8 @@ def test_translation_gate_failure_restores_clean_repo_and_preserves_candidate_ev
     retry = publisher._read_json(
         publisher._retry_path(state_root, "translation", "translate-ko")
     )
-    assert retry["eligibility"] == "non_retryable"
-    assert retry["retryable"] is False
+    assert retry["eligibility"] == "deferred"
+    assert retry["retryable"] is True
 
     next_run_dir = tmp_path / "runs" / "translate-en"
     next_run_dir.mkdir()
@@ -5952,11 +5954,6 @@ def test_preflight_test_command_selectors_resolve_to_top_level_tests() -> None:
             }
         assert function_name in functions_by_path[path_text], selector
 
-    assert (
-        "tests/test_web.py::test_expansion_50e_adds_fifty_unique_full_articles"
-        in selectors
-    )
-
 
 def test_run_release_tests_skips_full_gate_when_preflight_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -5970,9 +5967,10 @@ def test_run_release_tests_skips_full_gate_when_preflight_fails(
 
     monkeypatch.setattr(publisher, "_run_checked", fail_preflight)
 
-    with pytest.raises(publisher.PermanentValidationFailure):
+    with pytest.raises(subprocess.CalledProcessError) as failure:
         publisher._run_release_tests(tmp_path)
 
+    assert failure.value.returncode == 1
     assert calls == [publisher.PREFLIGHT_TEST_COMMAND]
 
 

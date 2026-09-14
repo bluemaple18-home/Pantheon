@@ -76,7 +76,6 @@ PREFLIGHT_TEST_COMMAND = [
     "tests/test_web.py::test_cloudflare_pages_wildcard_rewrite_uses_prerendered_product_hubs",
     "tests/test_web.py::test_tarot_hub_reading_guide_is_scanable",
     "tests/test_web.py::test_public_articles_follow_latest_publication_standard",
-    "tests/test_web.py::test_expansion_50e_adds_fifty_unique_full_articles",
     "-q",
 ]
 SUCCESS_STATUSES = {
@@ -894,10 +893,6 @@ class PolicyRejected(PublishBlocked):
         super().__init__(
             "policy v2 required rejection: " + ",".join(codes or ["unknown"])
         )
-
-
-class PermanentValidationFailure(PublishBlocked):
-    """既有 deterministic validator 已否決候選；相同 bytes 不得重試。"""
 
 
 class PrerenderTimeout(PublishBlocked):
@@ -2663,6 +2658,14 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                         journal.selected_run_ids,
                         error,
                     )
+                    _record_retry_failure(
+                        state_root,
+                        phase,
+                        journal.selected_run_ids,
+                        error,
+                        recovery_path,
+                        retryable=False,
+                    )
                     return {
                         "schema_version": SCHEMA_VERSION,
                         "status": "policy_rejected",
@@ -2677,45 +2680,11 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                             }
                         ),
                         "retry_eligible": False,
+                        "retry_status": "candidate_preserved_non_retryable",
                         "evidence": str(recovery_path),
                         "policy_rejection_evidence": [
                             str(path) for path in rejection_paths
                         ],
-                    }
-                except PermanentValidationFailure as error:
-                    if _unresolved_push_path(state_root).is_file():
-                        raise PushOutcomeUnknown(
-                            "push or published handoff requires reconciliation; no rollback/retry"
-                        ) from error
-                    if not journal.mutation_started:
-                        raise
-                    evidence_path = _recover_failed_publish(
-                        repo_root,
-                        state_root,
-                        base_sha=base_sha,
-                        phase=phase,
-                        run_ids=journal.selected_run_ids,
-                        error=error,
-                        git=git,
-                        journal=journal,
-                    )
-                    _record_retry_failure(
-                        state_root,
-                        phase,
-                        journal.selected_run_ids,
-                        error,
-                        evidence_path,
-                        retryable=False,
-                    )
-                    return {
-                        "schema_version": SCHEMA_VERSION,
-                        "status": "non_retryable_recovered",
-                        count_key: 0,
-                        "base_sha": base_sha,
-                        "error_type": type(error).__name__,
-                        "evidence": str(evidence_path),
-                        "retry_eligible": False,
-                        "retry_status": "candidate_preserved_non_retryable",
                     }
                 except Exception as error:
                     if _unresolved_push_path(state_root).is_file():
@@ -4002,15 +3971,8 @@ def _release_test_child_env() -> dict[str, str]:
 def _run_release_tests(repo_root: Path) -> None:
     """先跑快速結構檢查，通過後才進完整 release gate。"""
     child_env = _release_test_child_env()
-    for command in (PREFLIGHT_TEST_COMMAND, TEST_COMMAND):
-        try:
-            _run_checked(repo_root, command, env=child_env)
-        except subprocess.CalledProcessError as error:
-            if error.returncode == 1:
-                raise PermanentValidationFailure(
-                    "deterministic release validation failed"
-                ) from error
-            raise
+    _run_checked(repo_root, PREFLIGHT_TEST_COMMAND, env=child_env)
+    _run_checked(repo_root, TEST_COMMAND, env=child_env)
 
 
 def _stage_commit_tag_push(
