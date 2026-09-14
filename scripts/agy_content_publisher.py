@@ -76,6 +76,7 @@ PREFLIGHT_TEST_COMMAND = [
     "tests/test_web.py::test_cloudflare_pages_wildcard_rewrite_uses_prerendered_product_hubs",
     "tests/test_web.py::test_tarot_hub_reading_guide_is_scanable",
     "tests/test_web.py::test_public_articles_follow_latest_publication_standard",
+    "tests/test_web.py::test_expansion_50e_adds_fifty_unique_full_articles",
     "-q",
 ]
 SUCCESS_STATUSES = {
@@ -895,6 +896,10 @@ class PolicyRejected(PublishBlocked):
         )
 
 
+class PermanentValidationFailure(PublishBlocked):
+    """既有 deterministic validator 已否決候選；相同 bytes 不得重試。"""
+
+
 class PrerenderTimeout(PublishBlocked):
     """預渲染子程序逾時；保留可重驗的最小診斷。"""
 
@@ -1364,6 +1369,8 @@ def _retry_eligibility(state_root: Path, phase: str, run_id: str) -> str:
         return "invalid"
     if not isinstance(retry, dict):
         return "invalid"
+    if retry.get("retryable") is False or retry.get("eligibility") == "non_retryable":
+        return "non_retryable"
     try:
         attempts = int(retry.get("attempts", 0))
     except (TypeError, ValueError):
@@ -1391,12 +1398,21 @@ def _record_retry_failure(
     run_ids: list[str],
     error: Exception,
     evidence_path: Path,
+    *,
+    retryable: bool = True,
 ) -> None:
     for run_id in run_ids:
         path = _retry_path(state_root, phase, run_id)
         previous = _read_json(path) if path.is_file() else {}
         attempts = int(previous.get("attempts", 0)) + 1
         delay = RETRY_DELAY_SECONDS * (2 ** min(attempts - 1, 4))
+        eligibility = (
+            "non_retryable"
+            if not retryable
+            else "exhausted"
+            if attempts >= MAX_RETRY_ATTEMPTS
+            else "deferred"
+        )
         _atomic_write_json(
             path,
             {
@@ -1410,7 +1426,8 @@ def _record_retry_failure(
                 "evidence": str(evidence_path),
                 "last_attempt_at": _now(),
                 "next_eligible_at": (datetime.now().astimezone() + timedelta(seconds=delay)).isoformat(timespec="seconds"),
-                "eligibility": "exhausted" if attempts >= MAX_RETRY_ATTEMPTS else "deferred",
+                "eligibility": eligibility,
+                "retryable": retryable,
                 "candidate_preserved": True,
                 "recovery_count": int(previous.get("recovery_count", 0)),
                 "last_recovery_id": previous.get("last_recovery_id"),
@@ -2665,6 +2682,41 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                             str(path) for path in rejection_paths
                         ],
                     }
+                except PermanentValidationFailure as error:
+                    if _unresolved_push_path(state_root).is_file():
+                        raise PushOutcomeUnknown(
+                            "push or published handoff requires reconciliation; no rollback/retry"
+                        ) from error
+                    if not journal.mutation_started:
+                        raise
+                    evidence_path = _recover_failed_publish(
+                        repo_root,
+                        state_root,
+                        base_sha=base_sha,
+                        phase=phase,
+                        run_ids=journal.selected_run_ids,
+                        error=error,
+                        git=git,
+                        journal=journal,
+                    )
+                    _record_retry_failure(
+                        state_root,
+                        phase,
+                        journal.selected_run_ids,
+                        error,
+                        evidence_path,
+                        retryable=False,
+                    )
+                    return {
+                        "schema_version": SCHEMA_VERSION,
+                        "status": "non_retryable_recovered",
+                        count_key: 0,
+                        "base_sha": base_sha,
+                        "error_type": type(error).__name__,
+                        "evidence": str(evidence_path),
+                        "retry_eligible": False,
+                        "retry_status": "candidate_preserved_non_retryable",
+                    }
                 except Exception as error:
                     if _unresolved_push_path(state_root).is_file():
                         raise PushOutcomeUnknown(
@@ -3401,6 +3453,7 @@ def summarize_legacy_rewrite_backlog(
         "publish_ready": 0,
         "retry_deferred": 0,
         "retry_exhausted": 0,
+        "retry_non_retryable": 0,
         "retry_invalid": 0,
         "reject": 0,
         "active_or_incomplete": 0,
@@ -3412,6 +3465,7 @@ def summarize_legacy_rewrite_backlog(
         "publish_ready_run_ids": [],
         "retry_deferred_run_ids": [],
         "retry_exhausted_run_ids": [],
+        "retry_non_retryable_run_ids": [],
         "retry_invalid_run_ids": [],
         "reject_run_ids": [],
         "unattempted_articles": [],
@@ -3948,8 +4002,15 @@ def _release_test_child_env() -> dict[str, str]:
 def _run_release_tests(repo_root: Path) -> None:
     """先跑快速結構檢查，通過後才進完整 release gate。"""
     child_env = _release_test_child_env()
-    _run_checked(repo_root, PREFLIGHT_TEST_COMMAND, env=child_env)
-    _run_checked(repo_root, TEST_COMMAND, env=child_env)
+    for command in (PREFLIGHT_TEST_COMMAND, TEST_COMMAND):
+        try:
+            _run_checked(repo_root, command, env=child_env)
+        except subprocess.CalledProcessError as error:
+            if error.returncode == 1:
+                raise PermanentValidationFailure(
+                    "deterministic release validation failed"
+                ) from error
+            raise
 
 
 def _stage_commit_tag_push(
