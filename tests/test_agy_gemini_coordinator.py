@@ -2571,7 +2571,9 @@ def test_seed_failed_translation_replacements_is_bounded_per_i18n_lane(
         *,
         terminal_state: dict[str, object],
         recovery_reason: str,
+        source_loader: object | None = None,
     ) -> dict[str, str]:
+        assert source_loader is not None
         base_run_id = str(terminal_state["run_id"])
         replacement_run_id = f"{base_run_id}-replacement-01"
         calls.append((base_run_id, recovery_reason))
@@ -2609,6 +2611,16 @@ def test_seed_failed_translation_replacements_is_bounded_per_i18n_lane(
         coordinator.multilingual,
         "enqueue_translation_replacement",
         fake_enqueue,
+    )
+    monkeypatch.setattr(
+        coordinator.multilingual,
+        "read_translation_brief_payload",
+        lambda path: json.loads(path.read_text()),
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "published_translation_source_loader",
+        lambda *_args, **_kwargs: lambda *_loader_args: {},
     )
 
     first = coordinator.seed_failed_translation_replacements(
@@ -2680,7 +2692,9 @@ def test_seed_failed_translation_replacements_persists_legacy_routing_before_enq
         *,
         terminal_state: dict[str, object],
         recovery_reason: str,
+        source_loader: object | None = None,
     ) -> dict[str, object]:
+        assert source_loader is not None
         seen_terminal_states.append(dict(terminal_state))
         assert recovery_reason == "LOCALE_PLAN_VALIDATION"
         return {"run_id": f"{terminal_state['run_id']}-replacement-01"}
@@ -2689,6 +2703,16 @@ def test_seed_failed_translation_replacements_persists_legacy_routing_before_enq
         coordinator.multilingual,
         "enqueue_translation_replacement",
         fake_enqueue,
+    )
+    monkeypatch.setattr(
+        coordinator.multilingual,
+        "read_translation_brief_payload",
+        lambda path: json.loads(path.read_text()),
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "published_translation_source_loader",
+        lambda *_args, **_kwargs: lambda *_loader_args: {},
     )
 
     summary = coordinator.seed_failed_translation_replacements(
@@ -2807,6 +2831,16 @@ def test_failed_translation_replacement_skip_is_persisted_without_log_loop(
         coordinator.multilingual,
         "enqueue_translation_replacement",
         fail_source_drift,
+    )
+    monkeypatch.setattr(
+        coordinator.multilingual,
+        "read_translation_brief_payload",
+        lambda path: json.loads(path.read_text()),
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "published_translation_source_loader",
+        lambda *_args, **_kwargs: lambda *_loader_args: {},
     )
 
     first = coordinator.seed_failed_translation_replacements(
@@ -3356,7 +3390,11 @@ def test_exact_translation_replacement_cli_plan_only_is_zero_write(tmp_path: Pat
     repo_root, queue_root, run_dir, source, state = _exact_translation_replacement_fixture(tmp_path)
     if not legacy:
         coordinator.atomic_write_json(run_dir / "brief.json", {key: value for key, value in json.loads((run_dir / "brief.json").read_text()).items() if key != "lane"})
-    monkeypatch.setattr(coordinator.multilingual, "load_source_article", lambda *_args: source)
+    monkeypatch.setattr(
+        coordinator,
+        "published_translation_source_loader",
+        lambda *_args, **_kwargs: lambda *_loader_args: source,
+    )
     monkeypatch.setattr(coordinator.multilingual, "enqueue_translation_replacement", lambda *_args, **_kwargs: pytest.fail("enqueue invoked"))
     monkeypatch.setattr(coordinator, "cycle_once", lambda *_args, **_kwargs: pytest.fail("cycle invoked"))
     monkeypatch.setattr(coordinator, "process_once", lambda *_args, **_kwargs: pytest.fail("runner invoked"))
@@ -3386,13 +3424,18 @@ def test_exact_translation_replacement_cli_execute_is_idempotent_and_does_not_ad
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     repo_root, queue_root, run_dir, source, state = _exact_translation_replacement_fixture(tmp_path)
-    monkeypatch.setattr(coordinator.multilingual, "load_source_article", lambda *_args: source)
+    monkeypatch.setattr(
+        coordinator,
+        "published_translation_source_loader",
+        lambda *_args, **_kwargs: lambda *_loader_args: source,
+    )
     original_enqueue = coordinator.multilingual.enqueue_translation_replacement
     calls = 0
     def enqueue(*args: object, **kwargs: object) -> dict[str, str]:
         nonlocal calls
         calls += 1
-        return original_enqueue(*args, **kwargs, source_loader=lambda *_args: source)
+        kwargs["source_loader"] = lambda *_args: source
+        return original_enqueue(*args, **kwargs)
     monkeypatch.setattr(coordinator.multilingual, "enqueue_translation_replacement", enqueue)
     monkeypatch.setattr(coordinator, "cycle_once", lambda *_args, **_kwargs: pytest.fail("cycle invoked"))
     monkeypatch.setattr(coordinator, "process_once", lambda *_args, **_kwargs: pytest.fail("runner invoked"))
@@ -3504,7 +3547,11 @@ def test_exact_translation_replacement_cli_rejects_identity_and_lineage_drift_wi
         target.mkdir()
         (queue_root / "translation-runs" / f"{state['run_id']}-replacement-01").symlink_to(target, target_is_directory=True)
     selected_run_id = "missing-terminal-run" if failure == "missing-run" else str(state["run_id"])
-    monkeypatch.setattr(coordinator.multilingual, "load_source_article", lambda *_args: selected_source)
+    monkeypatch.setattr(
+        coordinator,
+        "published_translation_source_loader",
+        lambda *_args, **_kwargs: lambda *_loader_args: selected_source,
+    )
     monkeypatch.setattr(coordinator, "_validate_formal_runtime", lambda *_args, **_kwargs: {})
     argv = [
         "agy_gemini_coordinator", "--queue-root", str(queue_root), "--repo-root", str(repo_root),
@@ -3528,7 +3575,11 @@ def test_exact_translation_replacement_execute_revalidates_under_lock_before_wri
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     repo_root, queue_root, run_dir, source, state = _exact_translation_replacement_fixture(tmp_path)
-    monkeypatch.setattr(coordinator.multilingual, "load_source_article", lambda *_args: source)
+    monkeypatch.setattr(
+        coordinator,
+        "published_translation_source_loader",
+        lambda *_args, **_kwargs: lambda *_loader_args: source,
+    )
     monkeypatch.setattr(coordinator.multilingual, "enqueue_translation_replacement", lambda *_args, **_kwargs: pytest.fail("enqueue invoked"))
     original_read = coordinator._read_run_state_by_id
     reads = 0

@@ -433,6 +433,79 @@ def test_published_dispatch_reads_committed_source(published_dispatch, lane, his
     assert f.loaded_paths and all(path != f.actor for path in f.loaded_paths)
 
 
+def test_replacement_loader_reads_published_commit_when_actor_predates_source(published_dispatch):
+    f = published_dispatch("i18n-new", historical=False)
+    parent_path = f.queue / "runs" / (f.namespace + ".json")
+    parent = json.loads(parent_path.read_text())
+    parent["status"] = "failed"
+    parent_path.write_text(json.dumps(parent))
+    brief = m.read_translation_brief_payload(Path(f.run["run_dir"]) / "brief.json")
+    before = (
+        f.git("rev-parse", "HEAD"),
+        f.git("status", "--porcelain"),
+        (f.actor / ".git/index").read_bytes(),
+    )
+
+    with pytest.raises(subprocess.CalledProcessError):
+        m.load_source_article(f.actor, f.source["article_id"])
+
+    source_loader = runner.published_translation_source_loader(
+        f.actor,
+        f.queue,
+        parent,
+        brief,
+    )
+    assert source_loader(f.actor, f.source["article_id"]) == f.source
+    replacement = m.enqueue_translation_replacement(
+        f.actor,
+        f.queue,
+        terminal_state=parent,
+        recovery_reason=next(iter(m.TRANSLATION_REPLACEMENT_REASONS)),
+        source_loader=source_loader,
+    )
+    assert replacement["run_id"] == f.run["run_id"] + "-replacement-01"
+    assert (
+        f.git("rev-parse", "HEAD"),
+        f.git("status", "--porcelain"),
+        (f.actor / ".git/index").read_bytes(),
+    ) == before
+
+
+def test_coordinator_seeds_replacement_from_published_commit_when_actor_predates_source(
+    published_dispatch,
+):
+    f = published_dispatch("i18n-new", historical=False)
+    parent_path = f.queue / "runs" / (f.namespace + ".json")
+    parent = json.loads(parent_path.read_text())
+    parent["status"] = "failed"
+    parent["error_type"] = "LocalePlanValidationError"
+    parent_path.write_text(json.dumps(parent))
+    before = (
+        f.git("rev-parse", "HEAD"),
+        f.git("status", "--porcelain"),
+        (f.actor / ".git/index").read_bytes(),
+    )
+
+    summary = c.seed_failed_translation_replacements(
+        f.actor,
+        f.queue,
+        legacy_article_ids=set(),
+    )
+
+    replacement_id = f.run["run_id"] + "-replacement-01"
+    assert summary == {
+        "status": "seeded",
+        "created": 1,
+        "created_run_ids": [replacement_id],
+    }
+    assert (f.queue / "translation-runs" / replacement_id / "brief.json").is_file()
+    assert (
+        f.git("rev-parse", "HEAD"),
+        f.git("status", "--porcelain"),
+        (f.actor / ".git/index").read_bytes(),
+    ) == before
+
+
 @pytest.mark.parametrize("field", ["body", "policy", "global_policy"])
 def test_published_dispatch_rejects_later_source_drift(published_dispatch, field):
     f = published_dispatch(historical=True)

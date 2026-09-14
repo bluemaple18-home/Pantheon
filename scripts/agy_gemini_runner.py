@@ -1614,6 +1614,62 @@ def _load_published_translation_source(actor_root: Path, content_sha: str, artic
             raise ValueError("translation content snapshot loader failed") from error
 
 
+def published_translation_source_loader(
+    actor_root: Path,
+    queue_root: Path,
+    state: dict[str, Any],
+    brief: dict[str, Any],
+    *,
+    content_sha: str | None = None,
+) -> Callable[[Path, str], dict[str, Any]]:
+    """沿用 publisher ledger authority，為 replacement 提供固定發布 SHA 的來源 loader。"""
+    root = queue_root.resolve()
+    if queue_root.is_symlink():
+        raise ValueError("translation published source queue root is not canonical")
+
+    def read(path: Path, label: str) -> dict[str, Any]:
+        path.relative_to(root)
+        current = path
+        while current != root:
+            if current.is_symlink():
+                raise ValueError("translation published source authority path is not canonical")
+            current = current.parent
+        if path.name == "brief.json":
+            from scripts import agy_multilingual_pipeline as multilingual
+
+            return multilingual.read_translation_brief_payload(path)
+        return read_closed_json_artifact(
+            path,
+            max_bytes=4 * 1024 * 1024,
+            label=label,
+        )
+
+    resolved_actor = actor_root.resolve()
+    resolved_sha = _translation_published_sha(
+        resolved_actor,
+        root,
+        state,
+        brief,
+        read,
+        content_sha,
+    )
+    source_ids = {
+        str(item["source_article_id"])
+        for item in brief["articles"]
+    }
+
+    def load(_repo_root: Path, article_id: str) -> dict[str, Any]:
+        if article_id not in source_ids:
+            raise ValueError("translation published source article differs")
+        return _load_published_translation_source(
+            resolved_actor,
+            resolved_sha,
+            article_id,
+        )
+
+    return load
+
+
 def _validate_translation_dispatch(
     queue_root: Path, request: dict[str, Any], lane: str | None,
     content_sha: str | None = None,
