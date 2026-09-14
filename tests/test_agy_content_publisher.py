@@ -1085,6 +1085,53 @@ def test_recover_exhausted_create_retry_resets_budget_with_audit_receipt(
     ]
 
 
+def test_recover_exhausted_rewrite_retry_resets_budget_with_hash_bound_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "rewrite-exhausted"
+    _write_rewrite_run(queue_root, run_dir, make_rewrite_article())
+    create_retry_path = _write_exhausted_create_retry(state_root, run_dir.name)
+    retry = publisher._read_json(create_retry_path)
+    evidence_path = Path(retry["evidence"])
+    rewrite_retry_path = publisher._retry_path(state_root, "rewrite", run_dir.name)
+    retry["phase"] = "rewrite"
+    evidence = publisher._read_json(evidence_path)
+    evidence["phase"] = "rewrite"
+    _write_json(evidence_path, evidence)
+    _write_json(rewrite_retry_path, retry)
+    create_retry_path.unlink()
+    monkeypatch.setattr(publisher.pipeline, "load_publication_reference_corpus", lambda _repo: [])
+    monkeypatch.setattr(publisher, "_rewrite_findings_for_run", lambda *_args, **_kwargs: [])
+
+    preview = publisher.recover_exhausted_create_retries(
+        repo_root, queue_root, state_root, run_ids=[run_dir.name],
+        expected_error="test_web hub display fixture marker not found",
+        reason="舊版發布測試已由 target 7b3193e862 修復",
+        dry_run=True, phase="rewrite",
+    )
+    result = publisher.recover_exhausted_create_retries(
+        repo_root, queue_root, state_root, run_ids=[run_dir.name],
+        expected_error="test_web hub display fixture marker not found",
+        reason="舊版發布測試已由 target 7b3193e862 修復",
+        expected_recovery_digest=preview["recovery_digest"], phase="rewrite",
+    )
+
+    assert result["status"] == "RECOVERED"
+    recovered = publisher._read_json(rewrite_retry_path)
+    assert recovered["phase"] == "rewrite"
+    assert recovered["attempts"] == 0
+    assert recovered["eligibility"] == "recovered"
+    receipt = publisher._read_json(Path(recovered["evidence"]))
+    assert receipt["phase"] == "rewrite"
+    assert receipt["candidate_sha256"]
+    ready = publisher.collect_ready_rewrite_runs(queue_root, state_root)
+    assert [state["run_id"] for state, _candidate, _review, _brief in ready] == [run_dir.name]
+
+
 @pytest.mark.parametrize(
     ("invalid_field", "invalid_value", "message"),
     [
