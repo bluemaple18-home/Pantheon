@@ -2658,10 +2658,14 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                         journal.selected_run_ids,
                         error,
                     )
+                    rejected_run_ids = [
+                        str(_read_json(path)["run_id"])
+                        for path in rejection_paths
+                    ]
                     _record_retry_failure(
                         state_root,
                         phase,
-                        journal.selected_run_ids,
+                        rejected_run_ids,
                         error,
                         recovery_path,
                         retryable=False,

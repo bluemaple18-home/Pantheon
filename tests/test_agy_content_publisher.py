@@ -1715,13 +1715,15 @@ def test_apply_rewrite_release_invalid_inventory_fails_closed(
         )
 
 
-def test_policy_v2_rewrite_prerender_rejection_is_terminal_without_transport_retry(
+def test_policy_v2_batch_rejection_marks_only_matching_run_non_retryable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo_root, queue_root, state_root, base_sha = _init_recovery_repo(tmp_path)
     run_id = "rewrite-prerender-policy-reject"
+    clean_run_id = "rewrite-prerender-policy-clean"
     run_dir = tmp_path / "runs" / run_id
+    clean_run_dir = tmp_path / "runs" / clean_run_id
     candidate = {
         "schema_version": 1,
         "run_id": run_id,
@@ -1729,16 +1731,29 @@ def test_policy_v2_rewrite_prerender_rejection_is_terminal_without_transport_ret
         "articles": [make_rewrite_article("LEGACY-PRERENDER-REJECT")],
     }
     _write_json(run_dir / "candidate.json", candidate)
-    _write_json(
-        queue_root / "runs" / f"{run_id}.json",
-        {
-            "schema_version": 1,
-            "run_id": run_id,
-            "run_dir": str(run_dir),
-            "status": "complete",
-            "result": {"candidate": str(run_dir / "candidate.json")},
-        },
-    )
+    clean_candidate = {
+        "schema_version": 1,
+        "run_id": clean_run_id,
+        "mode": "rewrite_existing_body",
+        "articles": [make_rewrite_article("LEGACY-PRERENDER-CLEAN")],
+    }
+    _write_json(clean_run_dir / "candidate.json", clean_candidate)
+    for selected_run_id, selected_run_dir in (
+        (run_id, run_dir),
+        (clean_run_id, clean_run_dir),
+    ):
+        _write_json(
+            queue_root / "runs" / f"{selected_run_id}.json",
+            {
+                "schema_version": 1,
+                "run_id": selected_run_id,
+                "run_dir": str(selected_run_dir),
+                "status": "complete",
+                "result": {
+                    "candidate": str(selected_run_dir / "candidate.json")
+                },
+            },
+        )
     monkeypatch.setattr(
         publisher,
         "_assert_clean_origin_head",
@@ -1756,7 +1771,7 @@ def test_policy_v2_rewrite_prerender_rejection_is_terminal_without_transport_ret
         _mutation_journal: publisher.MutationJournal | None = None,
     ) -> dict[str, object]:
         assert _mutation_journal is not None
-        _mutation_journal.select_runs([run_id])
+        _mutation_journal.select_runs([run_id, clean_run_id])
         _mutation_journal.begin()
         _mutation_journal.capture(
             lambda: (repo / "app/web/owned.txt").write_text(
@@ -1784,11 +1799,29 @@ def test_policy_v2_rewrite_prerender_rejection_is_terminal_without_transport_ret
     )
     assert rejection["terminal"] is True
     assert rejection["failure_codes"] == ["initial_html_complete"]
+    assert result["policy_rejection_evidence"] == [
+        str(publisher._policy_rejection_path(state_root, "rewrite", run_id))
+    ]
+    assert not publisher._policy_rejection_path(
+        state_root,
+        "rewrite",
+        clean_run_id,
+    ).exists()
     retry = publisher._read_json(
         publisher._retry_path(state_root, "rewrite", run_id)
     )
     assert retry["eligibility"] == "non_retryable"
     assert retry["retryable"] is False
+    assert not publisher._retry_path(
+        state_root,
+        "rewrite",
+        clean_run_id,
+    ).exists()
+    assert publisher._retry_eligibility(
+        state_root,
+        "rewrite",
+        clean_run_id,
+    ) == "eligible"
     assert subprocess.run(
         ["git", "status", "--porcelain"],
         cwd=repo_root,
