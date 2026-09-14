@@ -1448,6 +1448,7 @@ def recover_exhausted_create_retries(
     expected_recovery_digest: str | None = None,
     dry_run: bool = False,
     phase: str = "create",
+    expected_quarantine_reason: str | None = None,
 ) -> dict[str, Any]:
     """驗證並恢復指定 create/rewrite run 的 retry budget，同時保存可稽核 receipt。"""
     if phase not in {"create", "rewrite"}:
@@ -1468,8 +1469,10 @@ def recover_exhausted_create_retries(
         _assert_no_unresolved_push(state_root)
         ledger = _load_ledger(state_root)
         published = {str(item.get("run_id")) for item in ledger[ledger_key]}
-        quarantined = {
-            str(item.get("run_id")) for item in ledger["quarantined_runs"]
+        ledger_path = _ledger_path(state_root)
+        ledger_bytes = ledger_path.read_bytes() if ledger_path.is_file() else b""
+        quarantines = {
+            str(item.get("run_id")): item for item in ledger["quarantined_runs"]
         }
         reference_articles = pipeline.load_publication_reference_corpus(repo_root)
         states_by_run: dict[str, list[Path]] = {
@@ -1488,7 +1491,11 @@ def recover_exhausted_create_retries(
         for run_id in normalized_run_ids:
             if run_id in published:
                 raise PublishBlocked(f"retry recovery run already published: {run_id}")
-            if run_id in quarantined:
+            quarantine = quarantines.get(run_id)
+            if quarantine is not None and (
+                phase != "rewrite"
+                or str(quarantine.get("reason") or "") != str(expected_quarantine_reason or "")
+            ):
                 raise PublishBlocked(f"retry recovery run is quarantined: {run_id}")
             if _policy_rejection_path(state_root, phase, run_id).exists():
                 raise PublishBlocked(
@@ -1607,6 +1614,7 @@ def recover_exhausted_create_retries(
                     "candidate_sha256": hashlib.sha256(
                         pipeline.compact_json_bytes(candidate)
                     ).hexdigest(),
+                    "quarantine": quarantine,
                 }
             )
             candidates.append(candidate)
@@ -1645,6 +1653,7 @@ def recover_exhausted_create_retries(
                                 item["failure_bytes"]
                             ),
                             "candidate_sha256": item["candidate_sha256"],
+                            "quarantine": item["quarantine"],
                         }
                         for item in validated
                     ],
@@ -1686,6 +1695,8 @@ def recover_exhausted_create_retries(
                 raise PublishBlocked(
                     f"retry recovery candidate changed before mutation: {run_id}"
                 )
+        if ledger_path.is_file() and ledger_path.read_bytes() != ledger_bytes:
+            raise PublishBlocked("retry recovery ledger changed before mutation")
 
         recovered_runs: list[str] = []
         receipts: list[str] = []
@@ -1719,6 +1730,7 @@ def recover_exhausted_create_retries(
                 "source_retry_sha256": source_retry_sha256,
                 "source_failure_evidence": str(item["failure_evidence"]),
                 "candidate_sha256": item["candidate_sha256"],
+                "recovered_quarantine": item["quarantine"],
                 "authorized_at": recovered_at,
             }
             _atomic_write_json(receipt_path, receipt)
@@ -1750,6 +1762,14 @@ def recover_exhausted_create_retries(
             _atomic_write_json(receipt_path, receipt)
             recovered_runs.append(run_id)
             receipts.append(str(receipt_path))
+
+        recovered_set = set(recovered_runs)
+        if any(item["quarantine"] is not None for item in validated):
+            ledger["quarantined_runs"] = [
+                item for item in ledger["quarantined_runs"]
+                if str(item.get("run_id")) not in recovered_set
+            ]
+            _write_json(ledger_path, ledger)
 
         return {
             "schema_version": SCHEMA_VERSION,
@@ -4914,6 +4934,7 @@ def parse_args() -> argparse.Namespace:
         default=[],
     )
     parser.add_argument("--expected-retry-error")
+    parser.add_argument("--expected-quarantine-reason")
     parser.add_argument("--expected-recovery-digest")
     parser.add_argument("--recovery-reason")
     parser.add_argument("--expected-repo-root", type=Path)
@@ -5103,6 +5124,7 @@ def main() -> int:
             expected_recovery_digest=expected_recovery_digest,
             dry_run=args.dry_run,
             phase=recovery_phase,
+            expected_quarantine_reason=getattr(args, "expected_quarantine_reason", None),
         )
         print(json.dumps(result, ensure_ascii=False))
         return 0

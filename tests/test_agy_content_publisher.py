@@ -1104,6 +1104,9 @@ def test_recover_exhausted_rewrite_retry_resets_budget_with_hash_bound_receipt(
     _write_json(evidence_path, evidence)
     _write_json(rewrite_retry_path, retry)
     create_retry_path.unlink()
+    ledger = publisher._load_ledger(state_root)
+    ledger["quarantined_runs"].append({"run_id": run_dir.name, "reason": "publisher only supports create mode"})
+    _write_json(publisher._ledger_path(state_root), ledger)
     monkeypatch.setattr(publisher.pipeline, "load_publication_reference_corpus", lambda _repo: [])
     monkeypatch.setattr(publisher, "_rewrite_findings_for_run", lambda *_args, **_kwargs: [])
 
@@ -1112,12 +1115,14 @@ def test_recover_exhausted_rewrite_retry_resets_budget_with_hash_bound_receipt(
         expected_error="test_web hub display fixture marker not found",
         reason="舊版發布測試已由 target 7b3193e862 修復",
         dry_run=True, phase="rewrite",
+        expected_quarantine_reason="publisher only supports create mode",
     )
     result = publisher.recover_exhausted_create_retries(
         repo_root, queue_root, state_root, run_ids=[run_dir.name],
         expected_error="test_web hub display fixture marker not found",
         reason="舊版發布測試已由 target 7b3193e862 修復",
         expected_recovery_digest=preview["recovery_digest"], phase="rewrite",
+        expected_quarantine_reason="publisher only supports create mode",
     )
 
     assert result["status"] == "RECOVERED"
@@ -1128,6 +1133,8 @@ def test_recover_exhausted_rewrite_retry_resets_budget_with_hash_bound_receipt(
     receipt = publisher._read_json(Path(recovered["evidence"]))
     assert receipt["phase"] == "rewrite"
     assert receipt["candidate_sha256"]
+    assert receipt["recovered_quarantine"]["reason"] == "publisher only supports create mode"
+    assert publisher._load_ledger(state_root)["quarantined_runs"] == []
     ready = publisher.collect_ready_rewrite_runs(queue_root, state_root)
     assert [state["run_id"] for state, _candidate, _review, _brief in ready] == [run_dir.name]
 
