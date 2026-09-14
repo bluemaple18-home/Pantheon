@@ -1447,8 +1447,13 @@ def recover_exhausted_create_retries(
     reason: str,
     expected_recovery_digest: str | None = None,
     dry_run: bool = False,
+    phase: str = "create",
 ) -> dict[str, Any]:
-    """驗證並恢復指定 create run 的 retry budget，同時保存可稽核 receipt。"""
+    """驗證並恢復指定 create/rewrite run 的 retry budget，同時保存可稽核 receipt。"""
+    if phase not in {"create", "rewrite"}:
+        raise PublishBlocked("retry recovery phase is invalid")
+    candidate_mode = "create" if phase == "create" else "rewrite_existing_body"
+    ledger_key = "published_runs" if phase == "create" else "rewrite_released_runs"
     normalized_run_ids = [run_id.strip() for run_id in run_ids if run_id.strip()]
     if not normalized_run_ids or len(normalized_run_ids) != len(set(normalized_run_ids)):
         raise PublishBlocked("retry recovery run ids are empty or duplicated")
@@ -1462,9 +1467,7 @@ def recover_exhausted_create_retries(
     with _retry_recovery_lock(state_root, dry_run=dry_run):
         _assert_no_unresolved_push(state_root)
         ledger = _load_ledger(state_root)
-        published = {
-            str(item.get("run_id")) for item in ledger["published_runs"]
-        }
+        published = {str(item.get("run_id")) for item in ledger[ledger_key]}
         quarantined = {
             str(item.get("run_id")) for item in ledger["quarantined_runs"]
         }
@@ -1487,7 +1490,7 @@ def recover_exhausted_create_retries(
                 raise PublishBlocked(f"retry recovery run already published: {run_id}")
             if run_id in quarantined:
                 raise PublishBlocked(f"retry recovery run is quarantined: {run_id}")
-            if _policy_rejection_path(state_root, "create", run_id).exists():
+            if _policy_rejection_path(state_root, phase, run_id).exists():
                 raise PublishBlocked(
                     f"retry recovery run has terminal policy rejection: {run_id}"
                 )
@@ -1497,28 +1500,36 @@ def recover_exhausted_create_retries(
                     f"retry recovery requires one queue state for {run_id}"
                 )
             state, candidate, review = _load_completed_run(state_paths[0])
-            if candidate.get("mode") != "create":
+            if candidate.get("mode") != candidate_mode:
                 raise PublishBlocked(
-                    f"retry recovery only supports create mode: {run_id}"
+                    f"retry recovery mode differs from {phase}: {run_id}"
                 )
             if not _review_is_clean_approve(review):
                 raise PublishBlocked(
                     f"retry recovery reviewer approval is not clean: {run_id}"
                 )
-            findings = (
-                pipeline.quality_findings(
-                    candidate["articles"],
+            if phase == "rewrite":
+                brief = _load_rewrite_brief(Path(str(state["run_dir"])), run_id)
+                findings = _rewrite_findings_for_run(
+                    candidate,
+                    brief,
                     reference_articles=reference_articles,
                 )
-                if reference_articles
-                else pipeline.quality_findings(candidate["articles"])
-            )
+            else:
+                findings = (
+                    pipeline.quality_findings(
+                        candidate["articles"],
+                        reference_articles=reference_articles,
+                    )
+                    if reference_articles
+                    else pipeline.quality_findings(candidate["articles"])
+                )
             if findings:
                 raise PublishBlocked(
                     f"retry recovery candidate no longer passes policy: {run_id}"
                 )
 
-            retry_path = _retry_path(state_root, "create", run_id)
+            retry_path = _retry_path(state_root, phase, run_id)
             if not retry_path.is_file():
                 raise PublishBlocked(
                     f"retry recovery record is missing: {run_id}"
@@ -1527,7 +1538,7 @@ def recover_exhausted_create_retries(
             retry = json.loads(retry_bytes)
             if (
                 retry.get("schema_version") != SCHEMA_VERSION
-                or retry.get("phase") != "create"
+                or retry.get("phase") != phase
                 or retry.get("run_id") != run_id
             ):
                 raise PublishBlocked(
@@ -1562,7 +1573,7 @@ def recover_exhausted_create_retries(
             failure = json.loads(failure_bytes)
             if (
                 failure.get("status") != "FAILED_RECOVERED"
-                or failure.get("phase") != "create"
+                or failure.get("phase") != phase
                 or failure.get("repo_recovered") is not True
                 or failure.get("status_after_recovery") not in (None, [])
                 or failure.get("concurrent_write_conflicts") not in (None, [])
@@ -1600,11 +1611,29 @@ def recover_exhausted_create_retries(
             )
             candidates.append(candidate)
 
-        _assert_batch_unique(candidates)
+        if phase == "create":
+            _assert_batch_unique(candidates)
+        else:
+            rewrite_ids = [
+                str(article["article_id"])
+                for candidate in candidates
+                for article in candidate["articles"]
+            ]
+            rewrite_body_hashes = [
+                pipeline.body_sha256(article["bodySections"])
+                for candidate in candidates
+                for article in candidate["articles"]
+            ]
+            if (
+                len(rewrite_ids) != len(set(rewrite_ids))
+                or len(rewrite_body_hashes) != len(set(rewrite_body_hashes))
+            ):
+                raise PublishBlocked("retry recovery rewrite batch is not unique")
         recovery_digest = hashlib.sha256(
             pipeline.compact_json_bytes(
                 {
                     "expected_error": expected_error,
+                    "phase": phase,
                     "reason": reason,
                     "runs": [
                         {
@@ -1626,7 +1655,7 @@ def recover_exhausted_create_retries(
             return {
                 "schema_version": SCHEMA_VERSION,
                 "status": "dry-run",
-                "operation": "recover-exhausted-create-retries",
+                "operation": f"recover-exhausted-{phase}-retries",
                 "mutation_permitted": False,
                 "recoverable_runs": normalized_run_ids,
                 "expected_error": expected_error,
@@ -1668,7 +1697,7 @@ def recover_exhausted_create_retries(
             recovered_at = _now()
             recovery_id = hashlib.sha256(
                 (
-                    f"create:{run_id}:{source_retry_sha256}:"
+                    f"{phase}:{run_id}:{source_retry_sha256}:"
                     f"{recovered_at}:{reason}"
                 ).encode("utf-8")
             ).hexdigest()[:20]
@@ -1681,9 +1710,9 @@ def recover_exhausted_create_retries(
             receipt = {
                 "schema_version": SCHEMA_VERSION,
                 "status": "RECOVERY_AUTHORIZED",
-                "operation": "recover-exhausted-create-retry",
+                "operation": f"recover-exhausted-{phase}-retry",
                 "recovery_id": recovery_id,
-                "phase": "create",
+                "phase": phase,
                 "run_id": run_id,
                 "reason": reason,
                 "expected_error": expected_error,
@@ -1697,7 +1726,7 @@ def recover_exhausted_create_retries(
                 retry_path,
                 {
                     "schema_version": SCHEMA_VERSION,
-                    "phase": "create",
+                    "phase": phase,
                     "run_id": run_id,
                     "attempts": 0,
                     "max_attempts": MAX_RETRY_ATTEMPTS,
@@ -1725,7 +1754,7 @@ def recover_exhausted_create_retries(
         return {
             "schema_version": SCHEMA_VERSION,
             "status": "RECOVERED",
-            "operation": "recover-exhausted-create-retries",
+            "operation": f"recover-exhausted-{phase}-retries",
             "recovered_runs": recovered_runs,
             "receipts": receipts,
         }
@@ -4879,6 +4908,11 @@ def parse_args() -> argparse.Namespace:
         action="append",
         default=[],
     )
+    parser.add_argument(
+        "--recover-exhausted-rewrite-run",
+        action="append",
+        default=[],
+    )
     parser.add_argument("--expected-retry-error")
     parser.add_argument("--expected-recovery-digest")
     parser.add_argument("--recovery-reason")
@@ -4935,9 +4969,12 @@ def main() -> int:
         raise SystemExit("exact fresh JA release only supports the publisher transaction contract")
     if fresh_ja_prepare and (args.dry_run or args.push):
         raise SystemExit("exact fresh JA prepare only registers a local queue run")
-    recovery_run_ids = list(
-        getattr(args, "recover_exhausted_create_run", []) or []
-    )
+    create_recovery_run_ids = list(getattr(args, "recover_exhausted_create_run", []) or [])
+    rewrite_recovery_run_ids = list(getattr(args, "recover_exhausted_rewrite_run", []) or [])
+    if create_recovery_run_ids and rewrite_recovery_run_ids:
+        raise SystemExit("create and rewrite retry recovery cannot be combined")
+    recovery_phase = "rewrite" if rewrite_recovery_run_ids else "create"
+    recovery_run_ids = rewrite_recovery_run_ids or create_recovery_run_ids
     if recovery_run_ids and (
         args.rewrite_release
         or args.include_rewrites
@@ -5065,6 +5102,7 @@ def main() -> int:
             reason=recovery_reason,
             expected_recovery_digest=expected_recovery_digest,
             dry_run=args.dry_run,
+            phase=recovery_phase,
         )
         print(json.dumps(result, ensure_ascii=False))
         return 0
