@@ -1159,6 +1159,24 @@ import { AGY_AUTO_NEW_V1_20260915_024_01_ARTICLE_RECORDS } from "./article-expan
 
 import { AGY_AUTO_NEW_V1_20260915_089_01_ARTICLE_RECORDS } from "./article-expansion-agy-auto-new-v1-20260915-089-01.js?v=agy-auto-new-v1-20260915-089-01";
 
+import { AGY_AUTO_NEW_V1_20260915_092_01_ARTICLE_RECORDS } from "./article-expansion-agy-auto-new-v1-20260915-092-01.js?v=agy-auto-new-v1-20260915-092-01";
+
+import { AGY_AUTO_NEW_V1_20260914_123_01_ARTICLE_RECORDS } from "./article-expansion-agy-auto-new-v1-20260914-123-01.js?v=agy-auto-new-v1-20260914-123-01";
+
+import { AGY_AUTO_NEW_V1_20260915_111_01_ARTICLE_RECORDS } from "./article-expansion-agy-auto-new-v1-20260915-111-01.js?v=agy-auto-new-v1-20260915-111-01";
+
+import { AGY_AUTO_NEW_V1_20260915_130_01_ARTICLE_RECORDS } from "./article-expansion-agy-auto-new-v1-20260915-130-01.js?v=agy-auto-new-v1-20260915-130-01";
+
+import { AGY_AUTO_NEW_V1_20260914_118_01_ARTICLE_RECORDS } from "./article-expansion-agy-auto-new-v1-20260914-118-01.js?v=agy-auto-new-v1-20260914-118-01";
+
+import { AGY_AUTO_NEW_V1_20260915_142_01_ARTICLE_RECORDS } from "./article-expansion-agy-auto-new-v1-20260915-142-01.js?v=agy-auto-new-v1-20260915-142-01";
+
+import { AGY_AUTO_NEW_V1_20260915_072_01_ARTICLE_RECORDS } from "./article-expansion-agy-auto-new-v1-20260915-072-01.js?v=agy-auto-new-v1-20260915-072-01";
+
+import { AGY_AUTO_NEW_V1_20260915_016_01_ARTICLE_RECORDS } from "./article-expansion-agy-auto-new-v1-20260915-016-01.js?v=agy-auto-new-v1-20260915-016-01";
+
+import { AGY_AUTO_NEW_V1_20260915_167_01_ARTICLE_RECORDS } from "./article-expansion-agy-auto-new-v1-20260915-167-01.js?v=agy-auto-new-v1-20260915-167-01";
+
 export const ARTICLE_REGISTRY = [
   {
     id: "MBTI-BASE-01",
@@ -3406,6 +3424,15 @@ export const ARTICLE_REGISTRY = [
   ...AGY_AUTO_NEW_V1_20260914_130_01_ARTICLE_RECORDS,
   ...AGY_AUTO_NEW_V1_20260915_024_01_ARTICLE_RECORDS,
   ...AGY_AUTO_NEW_V1_20260915_089_01_ARTICLE_RECORDS,
+  ...AGY_AUTO_NEW_V1_20260915_092_01_ARTICLE_RECORDS,
+  ...AGY_AUTO_NEW_V1_20260914_123_01_ARTICLE_RECORDS,
+  ...AGY_AUTO_NEW_V1_20260915_111_01_ARTICLE_RECORDS,
+  ...AGY_AUTO_NEW_V1_20260915_130_01_ARTICLE_RECORDS,
+  ...AGY_AUTO_NEW_V1_20260914_118_01_ARTICLE_RECORDS,
+  ...AGY_AUTO_NEW_V1_20260915_142_01_ARTICLE_RECORDS,
+  ...AGY_AUTO_NEW_V1_20260915_072_01_ARTICLE_RECORDS,
+  ...AGY_AUTO_NEW_V1_20260915_016_01_ARTICLE_RECORDS,
+  ...AGY_AUTO_NEW_V1_20260915_167_01_ARTICLE_RECORDS,
 ];
 
 function withExpansion50DDate(article) {
