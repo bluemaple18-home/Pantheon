@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 from contextlib import contextmanager
 from pathlib import Path
 import subprocess
+import sys
+import tomllib
 
 import pytest
 
@@ -344,7 +347,10 @@ def test_publisher_preflight_invokes_formal_publish_transaction_and_release_boun
     assert isinstance(tag_call, dict)
     assert isinstance(push_call, dict)
     assert callable(transaction_call["git"])
-    assert tag_call["version"] == push_call["version"] == "0.0.0"
+    expected_version = tomllib.loads(
+        (Path(publish_call["repo_root"]) / "pyproject.toml").read_text(encoding="utf-8")
+    )["project"]["version"]
+    assert tag_call["version"] == push_call["version"] == expected_version
     assert tag_call["push"] is False
     assert push_call["push"] is True
     assert tag_call["release_gate"] is push_call["release_gate"] is False
@@ -596,3 +602,77 @@ def test_thin_adapter_never_converts_production_boundary_failure_to_pass(
         )
 
     assert not output_path.exists()
+
+
+@pytest.mark.parametrize("raise_inside", [False, True])
+def test_offline_transport_restores_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, raise_inside: bool,
+) -> None:
+    """正常與異常退出均還原 caller 環境，不沿用 live transport 路徑。"""
+    adapter._prepare_offline_transport(tmp_path)
+    monkeypatch.setenv("AGY_GEMINI_CREDENTIAL_POOL_FILE", "/unread-caller-pool")
+    monkeypatch.setenv("AGY_GEMINI_V4_EXECUTABLE", "/unread-caller-executable")
+    monkeypatch.setenv("AGY_GEMINI_NEW_ONLY", "1")
+    before = dict(os.environ)
+    try:
+        with adapter._offline_transport(tmp_path) as model:
+            assert os.environ["AGY_GEMINI_CREDENTIAL_POOL_FILE"] == str(tmp_path / "offline-transport/pool.json")
+            assert os.environ["AGY_GEMINI_V4_BROKER"] == "1"
+            assert model in adapter.AGY_MODEL_LABELS
+            if raise_inside:
+                raise RuntimeError("離線測試中斷")
+    except RuntimeError as error:
+        assert raise_inside and str(error) == "離線測試中斷"
+    assert dict(os.environ) == before
+
+
+@pytest.mark.parametrize("corruption", ["missing_config", "wrong_executable", "wrong_identity"])
+def test_offline_probe_rejects_invalid_transport_or_run_identity(
+    tmp_path: Path, corruption: str,
+) -> None:
+    """只破壞本輪輸入；仍執行真正 adapter、process_once 與 admission。"""
+    wrapper = tmp_path / "corrupt-input.py"
+    wrapper.write_text(
+        "import hashlib, json, sys\n"
+        "from pathlib import Path\n"
+        "sys.path.insert(0, str(Path.cwd()))\n"
+        "from scripts import pantheon_content_capability_adapter as adapter\n"
+        "corruption = sys.argv.pop(1)\n"
+        "args = adapter.parse_args()\n"
+        "if args.capability == 'run':\n"
+        "    source = json.loads(args.input.read_text())\n"
+        "    root = Path(source['sandbox_root'])\n"
+        "    if corruption == 'missing_config':\n"
+        "        (root / 'offline-transport/routes.json').unlink()\n"
+        "    elif corruption == 'wrong_executable':\n"
+        "        (root / 'offline-transport/generate-json').write_text('#!/bin/sh\\nexit 0\\n')\n"
+        "    else:\n"
+        "        namespace = hashlib.sha256(source['run_ids']['i18n-new'].encode()).hexdigest()[:24]\n"
+        "        path = root / 'queue/runs' / (namespace + '.json')\n"
+        "        state = json.loads(path.read_text())\n"
+        "        state['identity_envelope']['digest'] = '0' * 64\n"
+        "        path.write_text(json.dumps(state))\n"
+        "raise SystemExit(adapter.main())\n",
+        encoding="utf-8",
+    )
+    before = dict(os.environ)
+    receipt = probe.run_probe(
+        evidence_root=tmp_path / "invalid-probe",
+        execution_id="invalid-" + corruption,
+        correlation_id="invalid-" + corruption,
+        source_root=SOURCE_ROOT,
+        adapter_command=[sys.executable, str(wrapper), corruption],
+    )
+    assert dict(os.environ) == before
+    assert receipt["status"] == "BLOCKED"
+    assert [step["capability"] for step in receipt["steps"]] == ["create", "run"]
+    blocked = receipt["steps"][-1]
+    expected_error = {
+        "missing_config": "offline transport path identity mismatch",
+        "wrong_executable": "offline executable identity mismatch",
+        "wrong_identity": "i18n-new production runner did not process",
+    }[corruption]
+    assert expected_error in blocked["error"]
+    root = tmp_path / "invalid-probe/runtime"
+    assert not (root / "offline-transport/pool-state.json").exists()
+    assert not list(root.glob("queue/lanes/*/v4/ledger/*.jsonl"))

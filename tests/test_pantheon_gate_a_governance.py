@@ -61,6 +61,8 @@ def _authorization(repo_root: Path, *, evidence_root: str = "evidence/gate-a") -
         "g2-test",
         "--target-python-executable",
         "<runtime-python-executable>",
+        "--target-uv-executable",
+        "<runtime-uv-executable>",
         "--authorization-digest",
         "1" * 64,
         "--capacity-receipt",

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -52,11 +53,9 @@ def _repair_source_repo(tmp_path: Path) -> tuple[Path, Path, str]:
     repo = Path(__file__).resolve().parents[1]
     remote = tmp_path / "repair-origin.git"
     source = tmp_path / "repair-source"
-    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "push", "-q", str(remote), "HEAD:refs/heads/main"],
-        check=True,
-    )
+    # 從本地 HEAD 建立 fixture，避免觸發來源 checkout 的發版 hook。
+    subprocess.run(["git", "clone", "-q", "--bare", str(repo), str(remote)], check=True)
+    _git(remote, "update-ref", "refs/heads/main", _git(repo, "rev-parse", "HEAD"))
     subprocess.run(
         ["git", "-C", str(remote), "symbolic-ref", "HEAD", "refs/heads/main"],
         check=True,
@@ -86,7 +85,7 @@ def _repair_source_repo(tmp_path: Path) -> tuple[Path, Path, str]:
     _git(source, "push", "-q", "origin", "main")
     with (source / ".git/info/exclude").open("a", encoding="utf-8") as stream:
         stream.write("\n.venv\nnode_modules\n")
-    (source / ".venv").symlink_to((repo / ".venv").resolve(), target_is_directory=True)
+    (source / ".venv").symlink_to(Path(sys.prefix).resolve(), target_is_directory=True)
     node_root = tmp_path / "node-dependencies"
     cli = node_root / ".bin" / "agy-1.1.3"
     cli.parent.mkdir(parents=True)

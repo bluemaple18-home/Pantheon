@@ -16,6 +16,9 @@ from typing import Any, Callable, Iterator
 from scripts import agy_content_publisher as publisher
 from scripts import agy_gemini_coordinator as coordinator
 from scripts import agy_gemini_runner as runner
+from scripts import agy_multilingual_pipeline as multilingual
+from scripts import agy_seo_copy_pipeline as pipeline
+from scripts.agy_gemini_v4_broker import AGY_MODEL_LABELS
 from scripts import pantheon_content_capacity_guard as capacity_guard
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
 from scripts.agy_gemini_outbox import create_external_request
@@ -39,6 +42,141 @@ def _digest(payload: dict[str, Any]) -> str:
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
+
+
+OFFLINE_ARTICLE_ID = "PROBE-001"
+OFFLINE_EXECUTABLE = b"#!/bin/sh\nprintf '%s\\n' '{\"ok\":true}'\n"
+
+
+def prepare_offline_actor(sandbox_root: Path, source_root: Path) -> tuple[Path, str]:
+    """用真 Git 綁定合成已發布來源；不寫入正式 actor 或發布 receipt。"""
+    actor = sandbox_root / "actor"
+    actor.mkdir()
+    # 從實際 checkout 複製受版本控制的執行依賴，包含本卡未提交的修正。
+    paths = subprocess.run(
+        ["git", "-C", str(source_root), "ls-files", "-z", "--", "scripts", "config", "ops/launchd"],
+        check=True, capture_output=True,
+    ).stdout.decode().split("\0")
+    for relative in sorted(set(filter(None, paths)) | set(publisher.TRANSACTION_RUNTIME_PATHS)):
+        destination = actor / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes((source_root / relative).read_bytes())
+    static = actor / "app/web/static"
+    static.mkdir(parents=True)
+    article = {
+        "article_id": OFFLINE_ARTICLE_ID,
+        "canonical_path": "/articles/tarot/probe-0001",
+        "title": "離線契約驗證",
+        "description": "此合成內容只供離線契約驗證。",
+        "answer": "以可重現的本地資料確認來源一致。",
+        "tags": ["離線驗證"],
+        "faq": [{"question": "用途是什麼？", "answer": "只供離線契約驗證。"}],
+        "bodySections": [{"heading": "來源", "paragraphs": ["本內容沒有對外發布。"]}],
+    }
+    article["publication_policy"] = multilingual.source_publication_policy(
+        pipeline._hydrate_create_publication_policy({
+            "target": {**article, "published": "2026-09-15", "updated": "2026-09-15"},
+        })
+    )
+    multilingual.validate_source_contract(article)
+    (static / "article-registry.js").write_text(
+        "export const getArticlePath = () => " + json.dumps(article["canonical_path"])
+        + "; export const listArticleRecords = () => "
+        + json.dumps([{"id": OFFLINE_ARTICLE_ID,
+                       "publicationPolicy": article["publication_policy"]["article_policy"]}])
+        + ";\n", encoding="utf-8",
+    )
+    (static / "article-meta.js").write_text(
+        "export const buildArticleContent = () => ("
+        + json.dumps({**article, "displayTags": article["tags"]}) + ");\n",
+        encoding="utf-8",
+    )
+    for relative in ("pyproject.toml", "package.json"):
+        (actor / relative).write_bytes((source_root / relative).read_bytes())
+    git = ["git", "-c", "core.hooksPath=/dev/null", "-c", "user.name=Offline Probe",
+           "-c", "user.email=offline-probe@example.invalid", "-C", str(actor)]
+    def local_git(*args: str) -> str:
+        return subprocess.run([*git, *args], check=True, capture_output=True, text=True).stdout.strip()
+    local_git("init", "-q")
+    local_git("add", ".")
+    local_git("commit", "-qm", "離線來源 fixture")
+    actor_sha = local_git("rev-parse", "HEAD")
+    local_git("update-ref", "refs/remotes/origin/main", actor_sha)
+    # 既有來源 authority 格式；所有 commit、文章與 run 都只屬於本輪 sandbox。
+    ledger = {"schema_version": 1}
+    for key in ("published_runs", "rewrite_released_runs"):
+        ledger[key] = [{"run_id": "offline-source-" + key,
+                        "article_ids": [OFFLINE_ARTICLE_ID], "commit_sha": actor_sha,
+                        "translation_run_ids": [multilingual.translation_run_id(
+                            "offline-source-" + key, OFFLINE_ARTICLE_ID, "en"
+                        )]}]
+    (sandbox_root / "publisher-state/ledger.json").write_text(json.dumps(ledger), encoding="utf-8")
+    return actor, actor_sha
+
+
+def _prepare_offline_transport(sandbox_root: Path) -> None:
+    """建立既有 V4 與 allocator 可實際讀取的合成契約，不使用 live credential。"""
+    root = sandbox_root / "offline-transport"
+    root.mkdir(mode=0o700)
+    slots = []
+    for slot in runner.PRODUCTION_SLOT_IDS:
+        path = root / slot
+        path.write_text("offline-probe-credential-" + slot + "\n", encoding="utf-8")
+        path.chmod(0o600)
+        slots.append({"slot_id": slot, "credential_file": str(path)})
+    pool = root / "pool.json"
+    pool.write_text(json.dumps({"schema_version": 1, "pool_id": "offline-probe", "slots": slots}), encoding="utf-8")
+    pool.chmod(0o600)
+    models = list(AGY_MODEL_LABELS)
+    (root / "routes.json").write_text(json.dumps({
+        "schema_version": 1, "routes": {"writer": [models[0]], "reviewer": [models[1]]},
+    }), encoding="utf-8")
+    executable = root / "generate-json"
+    executable.write_bytes(OFFLINE_EXECUTABLE)
+    executable.chmod(0o700)
+
+
+@contextmanager
+def _offline_transport(sandbox_root: Path) -> Iterator[str]:
+    """只綁定本輪 owned 檔案；正式 process_once 與 admission 保持原函式。"""
+    root = sandbox_root / "offline-transport"
+    for name in ("pool.json", "routes.json", "generate-json", *runner.PRODUCTION_SLOT_IDS):
+        path = root / name
+        if root.is_symlink() or path.is_symlink() or path.resolve() != path or not path.is_file() or path.stat().st_uid != os.getuid():
+            raise AdapterBlocked("offline transport path identity mismatch")
+    executable = root / "generate-json"
+    if executable.read_bytes() != OFFLINE_EXECUTABLE:
+        raise AdapterBlocked("offline executable identity mismatch")
+    route = pipeline.load_model_route_config(root / "routes.json")
+    pool = json.loads((root / "pool.json").read_text(encoding="utf-8"))
+    expected_slots = [{"slot_id": slot, "credential_file": str(root / slot)} for slot in runner.PRODUCTION_SLOT_IDS]
+    if pool["pool_id"] != "offline-probe" or pool["slots"] != expected_slots:
+        raise AdapterBlocked("offline credential pool identity mismatch")
+    runner._read_production_pool(root / "pool.json")
+    values = {
+        "AGY_GEMINI_CREDENTIAL_POOL_FILE": str(root / "pool.json"),
+        "AGY_GEMINI_CREDENTIAL_POOL_STATE_FILE": str(root / "pool-state.json"),
+        "AGY_GEMINI_MODEL_ROUTE_CONFIG": str(route.path),
+        "AGY_GEMINI_MODEL_ROUTE_CONFIG_DIGEST": route.digest,
+        "AGY_WRITER_MODEL": route.routes["writer"][0],
+        "AGY_REVIEWER_MODEL": route.routes["reviewer"][0],
+        "AGY_GEMINI_DAILY_PROVIDER_ADMISSION_CAP": str(runner.DAILY_PROVIDER_ADMISSION_CAP),
+        "AGY_GEMINI_V4_BROKER": "1",
+        "AGY_GEMINI_V4_EXECUTABLE": str(executable),
+        "AGY_GEMINI_V4_EXECUTABLE_SHA256": hashlib.sha256(OFFLINE_EXECUTABLE).hexdigest(),
+        "AGY_GEMINI_NEW_ONLY": "0",
+    }
+    previous = {key: os.environ.get(key) for key in values}
+    os.environ.update(values)
+    try:
+        pipeline.model_route_config_from_environment()
+        yield route.routes["writer"][0]
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 @contextmanager
@@ -66,6 +204,10 @@ def _formal_environment(
         "PANTHEON_RUNTIME_LOG_ROOT": manifest["log_root"],
         "PANTHEON_RUNTIME_ACTIVATION_TOKEN": str(activation_token),
     }
+    for field, name in (("actor_head", "PANTHEON_RUNTIME_ACTOR_HEAD"),
+                        ("uv_executable", "PANTHEON_RUNTIME_UV_EXECUTABLE")):
+        if field in manifest:
+            values[name] = manifest[field]
     previous = {key: os.environ.get(key) for key in values}
     os.environ.update({key: str(value) for key, value in values.items()})
     try:
@@ -141,6 +283,7 @@ def _create_step(
     sandbox_root: Path,
     activation_token: Path,
 ) -> dict[str, Any]:
+    _prepare_offline_transport(sandbox_root)
     queue_root = Path(manifest["queue_root"])
     run_ids: dict[str, str] = {}
     states: dict[str, dict[str, Any]] = {}
@@ -154,21 +297,36 @@ def _create_step(
             run_id = "probe-" + hashlib.sha256(
                 f"{source['correlation_id']}:{lane}".encode()
             ).hexdigest()[:24]
-            run_dir = sandbox_root / "runs" / lane
-            run_dir.mkdir(parents=True, exist_ok=True)
-            (run_dir / "brief.json").write_text(
-                json.dumps(
-                    {
-                        "schema_version": 1,
-                        "run_id": run_id,
-                        "mode": "create",
-                        "articles": [],
-                    },
-                    sort_keys=True,
+            if lane == "i18n-new":
+                record = multilingual.enqueue_article_translations(
+                    Path(manifest["actor_root"]), queue_root,
+                    source_run_id="offline-source-published_runs",
+                    article_id=OFFLINE_ARTICLE_ID, locales=["en"], lane=lane,
+                )[0]
+                run_id = record["run_id"]
+                namespace = hashlib.sha256(run_id.encode()).hexdigest()[:24]
+                states[lane] = json.loads(
+                    (queue_root / "runs" / f"{namespace}.json").read_text(encoding="utf-8")
                 )
-                + "\n",
-                encoding="utf-8",
-            )
+                run_ids[lane] = run_id
+                continue
+            if lane == "i18n-rewrite":
+                brief_path = multilingual.prepare_translation_run(
+                    Path(manifest["actor_root"]), run_id, OFFLINE_ARTICLE_ID, ["en"],
+                    queue_root / "translation-runs",
+                )
+                brief = json.loads(brief_path.read_text(encoding="utf-8"))
+                brief["lane"] = lane
+                brief_path.write_text(json.dumps(brief), encoding="utf-8")
+                run_dir = brief_path.parent
+            else:
+                run_dir = sandbox_root / "runs" / lane
+                run_dir.mkdir(parents=True, exist_ok=True)
+                (run_dir / "brief.json").write_text(json.dumps({
+                    "schema_version": 1, "run_id": run_id,
+                    "mode": "rewrite_existing_body" if lane == "rewrite" else "create",
+                    "articles": [],
+                }) + "\n", encoding="utf-8")
             states[lane] = coordinator.register_run(
                 run_dir,
                 queue_root,
@@ -179,7 +337,8 @@ def _create_step(
         "run_ids": run_ids,
         "coordinator_states": states,
         "production_entrypoints": [
-            "scripts.agy_gemini_coordinator:register_run"
+            "scripts.agy_gemini_coordinator:register_run",
+            "scripts.agy_multilingual_pipeline:enqueue_article_translations",
         ],
     }
 
@@ -188,7 +347,7 @@ def _run_step(
     source: dict[str, Any],
     manifest_path: Path,
     manifest: dict[str, Any],
-    _sandbox_root: Path,
+    sandbox_root: Path,
     activation_token: Path,
 ) -> dict[str, Any]:
     run_ids = source.get("run_ids")
@@ -202,7 +361,7 @@ def _run_step(
             manifest,
             f"com.pantheon.agy-gemini-{lane}",
             activation_token,
-        ):
+        ), _offline_transport(sandbox_root) as model:
             runtime_manifest.validate_runtime_tick(
                 f"com.pantheon.agy-gemini-{lane}",
                 queue_root=lane_root,
@@ -214,7 +373,7 @@ def _run_step(
                 lane_root,
                 namespace=hashlib.sha256(str(run_id).encode()).hexdigest()[:24],
                 role="writer",
-                model="gemini-test-writer",
+                model=model,
                 prompt=f"bounded formal runtime {lane}",
                 response_schema=RESPONSE_SCHEMA,
             )
@@ -222,10 +381,9 @@ def _run_step(
                 lane_root,
                 lane=lane,
                 exact_run_ids=[str(run_id)],
-                generate_json=lambda *_args: {"ok": True},
             )
         if result.get("status") != "processed":
-            raise AdapterBlocked(f"{lane} production runner did not process")
+            raise AdapterBlocked(f"{lane} production runner did not process: {result}")
         results[lane] = {**result, "request_sha256": request["request_sha256"]}
     return {
         "run_ids": run_ids,

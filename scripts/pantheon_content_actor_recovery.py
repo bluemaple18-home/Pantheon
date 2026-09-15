@@ -163,7 +163,7 @@ def _provision_and_preflight(
             ],
             "PANTHEON_PYTHON_PATH": str(python),
             "AGY_GEMINI_CLI_PATH": str(node_cli),
-            "PANTHEON_GSC_COPY_ROOT": str(runtime_root / "gsc-copy"),
+            "PANTHEON_GSC_COPY_ROOT": str(queue / "gsc-copy"),
         }
     )
     imports = ";".join(f"import {module}" for module in PYTHON_REQUIRED_MODULES)

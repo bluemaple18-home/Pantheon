@@ -10,11 +10,13 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 from typing import Any
 
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
+from scripts.pantheon_content_capability_adapter import prepare_offline_actor
 
 
 SCHEMA_VERSION = 2
@@ -112,9 +114,17 @@ def run_probe(
     log_root = sandbox_root / "logs"
     for path in (sandbox_root, queue_root, state_root, log_root):
         path.mkdir(parents=True, exist_ok=True)
+    actor_root, actor_sha = prepare_offline_actor(sandbox_root, resolved_source)
+    if production_source_digest(actor_root) != actual_source_digest:
+        raise ValueError("offline actor production source differs")
+    actor_identity += f";offline-actor:{actor_sha}"
+    uv = shutil.which("uv")
+    if uv is None:
+        raise ValueError("uv executable is unavailable")
     generation = "probe-" + hashlib.sha256(execution_id.encode()).hexdigest()[:24]
     manifest = runtime_manifest.build_manifest(
-        actor_root=resolved_source,
+        actor_root=actor_root,
+        actor_head=actor_sha,
         queue_root=queue_root,
         publisher_state_root=state_root,
         log_root=log_root,
@@ -122,7 +132,7 @@ def run_probe(
         runtime_digest=actual_source_digest,
         config_version="formal-runtime-v2",
         generation=generation,
-        uv_executable=Path(sys.executable).resolve(strict=True),
+        uv_executable=Path(uv).resolve(strict=True),
     )
     manifest_path = evidence_root / "runtime-manifest.json"
     runtime_manifest.write_manifest(manifest_path, manifest)
@@ -184,10 +194,11 @@ def run_probe(
             actor_identity,
         ]
         environment = os.environ.copy()
+        environment["PYTHONDONTWRITEBYTECODE"] = "1"
         environment["PANTHEON_RUNTIME_UV_EXECUTABLE"] = manifest["uv_executable"]
         invoked = subprocess.run(
             command,
-            cwd=resolved_source,
+            cwd=actor_root,
             check=False,
             capture_output=True,
             text=True,
