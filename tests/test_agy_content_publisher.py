@@ -1309,6 +1309,56 @@ def test_policy_v2_scheduler_rejection_is_terminal_and_never_enters_retry_loop(
     assert not publisher._retry_path(state_root, "create", "policy-reject").exists()
 
 
+@pytest.mark.parametrize(
+    ("invalid_shape", "expected_code"),
+    [
+        ("body_too_long", "body_length"),
+        ("section_count", "invalid_candidate_contract"),
+    ],
+)
+def test_canonical_rewrite_profile_rejection_is_terminal_before_release_suite(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_shape: str,
+    expected_code: str,
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / f"rewrite-{invalid_shape}"
+    article = make_rewrite_article("LEGACY-POLICY-REJECT")
+    if invalid_shape == "body_too_long":
+        article["bodySections"][0]["paragraphs"][0] += "過長內容" * 300
+    else:
+        article["bodySections"] = article["bodySections"][:4]
+    _write_rewrite_run(queue_root, run_dir, article)
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+
+    assert publisher.collect_ready_rewrite_runs(
+        queue_root,
+        state_root,
+        repo_root=tmp_path,
+    ) == []
+
+    evidence_path = publisher._policy_rejection_path(
+        state_root,
+        "rewrite",
+        run_dir.name,
+    )
+    evidence = publisher._read_json(evidence_path)
+    assert evidence["terminal"] is True
+    assert evidence["retry_eligible"] is False
+    assert expected_code in evidence["failure_codes"]
+    assert not publisher._retry_path(
+        state_root,
+        "rewrite",
+        run_dir.name,
+    ).exists()
+
+
 def test_policy_v2_required_finding_cannot_use_publisher_override() -> None:
     article = make_publishable_article("POLICY-OVERRIDE")
     article["publicationPolicy"]["author"]["url"] = "https://example.com/untrusted"

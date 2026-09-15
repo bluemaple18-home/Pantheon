@@ -2348,7 +2348,67 @@ console.log(JSON.stringify({{
         assert article["updated"] >= article["published"], article
 
 
+def _assert_expansion_50e_article_shape(
+    article: dict[str, object],
+    rewrite_profile: dict[str, object],
+) -> None:
+    rewrite_body = rewrite_profile["body_characters"]
+    rewrite_sections = rewrite_profile["body_sections"]
+    assert isinstance(rewrite_body, dict)
+    assert isinstance(rewrite_sections, dict)
+    assert article["sourceSectionCount"] == 4, article
+    if article["bodyMatchesSource"]:
+        assert 800 <= article["bodyLength"] <= 1400, article
+        assert article["renderedSectionCount"] == 4, article
+        return
+    assert article["changeType"] == "substantive_rewrite", article
+    assert (
+        rewrite_body["minimum"]
+        <= article["bodyLength"]
+        <= rewrite_body["maximum"]
+    ), article
+    assert (
+        rewrite_sections["minimum"]
+        <= article["renderedSectionCount"]
+        <= rewrite_sections["maximum"]
+    ), article
+
+
+def test_expansion_50e_untouched_legacy_shape_remains_required() -> None:
+    rewrite_profile = pipeline.publication_presentation_profile(
+        "rewrite_existing_body"
+    )
+    invalid_legacy = {
+        "sourceSectionCount": 4,
+        "bodyMatchesSource": True,
+        "bodyLength": 1401,
+        "renderedSectionCount": 4,
+        "changeType": None,
+    }
+
+    with pytest.raises(AssertionError):
+        _assert_expansion_50e_article_shape(invalid_legacy, rewrite_profile)
+
+
+def test_expansion_50e_canonical_substantive_rewrite_shape_is_accepted() -> None:
+    rewrite_profile = pipeline.publication_presentation_profile(
+        "rewrite_existing_body"
+    )
+    canonical_rewrite = {
+        "sourceSectionCount": 4,
+        "bodyMatchesSource": False,
+        "bodyLength": 1548,
+        "renderedSectionCount": 5,
+        "changeType": "substantive_rewrite",
+    }
+
+    _assert_expansion_50e_article_shape(canonical_rewrite, rewrite_profile)
+
+
 def test_expansion_50e_adds_fifty_unique_full_articles() -> None:
+    rewrite_profile = pipeline.publication_presentation_profile(
+        "rewrite_existing_body"
+    )
     script = f"""
 import {{ EXPANSION_50E_ASTRO_ARTICLE_RECORDS as records, EXPANSION_50E_ASTRO_ARTICLE_BODY_LIBRARY as bodies }} from "./app/web/static/article-expansion-50e-astro.js";
 import {{ buildArticleContent }} from "./app/web/static/article-meta.js";
@@ -2366,10 +2426,14 @@ for (const paragraph of paragraphs) {{
 }}
 const rendered = batch.map((article) => {{
   const content = buildArticleContent(getArticlePath(article), "https://www.mysticpantheon.com");
+  const sourceBody = bodies[article.slug];
   return {{
     path: getArticlePath(article),
     bodyLength: [...content.bodySections.flatMap((section) => section.paragraphs).join("")].length,
-    sectionCount: content.bodySections.length,
+    sourceSectionCount: sourceBody.length,
+    renderedSectionCount: content.bodySections.length,
+    bodyMatchesSource: JSON.stringify(content.bodySections) === JSON.stringify(sourceBody),
+    changeType: article.publicationPolicy?.changeType || null,
     faqCount: content.faq.length,
     published: content.published,
     updated: content.updated,
@@ -2407,8 +2471,7 @@ console.log(JSON.stringify({{
     assert data["repeatedSentences"] == []
     assert data["forbiddenTemplates"] == []
     for article in data["rendered"]:
-        assert 800 <= article["bodyLength"] <= 1400, article
-        assert article["sectionCount"] == 4, article
+        _assert_expansion_50e_article_shape(article, rewrite_profile)
         assert 4 <= article["faqCount"] <= 5, article
         assert article["published"] == "2026-07-19", article
         assert article["updated"] >= article["published"], article
