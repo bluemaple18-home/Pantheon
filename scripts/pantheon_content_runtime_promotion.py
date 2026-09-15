@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 from typing import Any
@@ -1213,6 +1214,57 @@ def plan_promotion(request: PromotionRequest) -> dict[str, Any]:
     return _plan_payload(request)
 
 
+def _rollback_targets(request: PromotionRequest) -> dict[str, tuple[Path, Path]]:
+    return {
+        "stage": (request.private_stage_root, _stage_backup_path(request)),
+        "barrier": (barrier_path(request), _barrier_backup_path(request)),
+        "manifest": (request.manifest_path, _manifest_backup_path(request)),
+        "actor": (request.actor_root, _actor_backup_path(request)),
+    }
+
+
+def _rollback_fingerprint(path: Path, name: str) -> dict[str, Any] | None:
+    """比對原始 bytes/mode；rename 原件另綁 inode，manifest copy 綁內容。"""
+    if path.is_symlink():
+        raise PromotionError("rollback root is a symlink")
+    if not path.exists():
+        return None
+    info = path.stat()
+    kind = "directory" if path.is_dir() else "file"
+    if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
+        raise PromotionError("rollback root type is invalid")
+    entries = []
+    for item in [path, *sorted(path.rglob("*"))] if path.is_dir() else [path]:
+        mode = item.lstat().st_mode
+        if stat.S_ISLNK(mode):
+            body = os.readlink(item)
+        elif stat.S_ISREG(mode):
+            body = hashlib.sha256(item.read_bytes()).hexdigest()
+        elif stat.S_ISDIR(mode):
+            body = None
+        else:
+            raise PromotionError("rollback tree entry type is invalid")
+        entries.append([str(item.relative_to(path)), mode, body])
+    result = {"kind": kind, "mode": stat.S_IMODE(info.st_mode), "digest": _json_digest({"entries": entries})}
+    if name != "manifest":
+        result.update(device=info.st_dev, inode=info.st_ino)
+    return result
+
+
+def _rollback_record(request: PromotionRequest) -> dict[str, Any]:
+    originals = {
+        name: {"path": str(path), "fingerprint": _rollback_fingerprint(path, name)}
+        for name, (path, _backup) in _rollback_targets(request).items()
+    }
+    return {"originals": originals, "originals_digest": _json_digest(originals), "mutation_started": []}
+
+
+def _mutation_intent(request: PromotionRequest, receipt: dict[str, Any], *names: str) -> None:
+    """在可能部分成功的原件寫入前持久化 intent，不以 coarse state 猜副作用。"""
+    receipt["rollback"]["mutation_started"].extend(names)
+    _write_json(receipt_path(request), receipt)
+
+
 def _new_receipt(
     request: PromotionRequest,
     plan: dict[str, Any],
@@ -1231,6 +1283,7 @@ def _new_receipt(
         "target_manifest_digest": plan["target_manifest_digest"],
         "target_actor_sha": request.source_sha,
         "history": [{"state": state, "sampled_at": _utc_now()}],
+        "rollback": _rollback_record(request),
     }
 
 
@@ -1262,7 +1315,9 @@ def _prepare_rollback_bundle(request: PromotionRequest) -> None:
         raise PromotionError("rollback bundle already exists")
     bundle.mkdir(parents=True)
     if request.manifest_path.exists():
-        _manifest_backup_path(request).write_bytes(request.manifest_path.read_bytes())
+        backup = _manifest_backup_path(request)
+        backup.write_bytes(request.manifest_path.read_bytes())
+        backup.chmod(stat.S_IMODE(request.manifest_path.stat().st_mode))
     if request.private_stage_root.exists():
         os.replace(request.private_stage_root, _stage_backup_path(request))
     if barrier_path(request).exists():
@@ -1341,37 +1396,118 @@ def _postcheck(
 
 def _restore_manifest(request: PromotionRequest) -> None:
     backup = _manifest_backup_path(request)
-    if backup.exists():
-        request.manifest_path.write_bytes(backup.read_bytes())
-    else:
-        request.manifest_path.unlink(missing_ok=True)
+    descriptor, name = tempfile.mkstemp(dir=request.manifest_path.parent, prefix=".manifest-restore-")
+    os.close(descriptor)
+    temporary = Path(name)
+    try:
+        shutil.copy2(backup, temporary)
+        os.replace(temporary, request.manifest_path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
-def _restore_stage(request: PromotionRequest) -> None:
-    if request.private_stage_root.exists():
-        shutil.rmtree(request.private_stage_root)
-    if _stage_backup_path(request).exists():
+def _restore_stage(request: PromotionRequest, *, stage: bool = True, barrier: bool = True) -> None:
+    if stage:
+        if request.private_stage_root.exists():
+            shutil.rmtree(request.private_stage_root)
         os.replace(_stage_backup_path(request), request.private_stage_root)
-    barrier = barrier_path(request)
-    barrier.unlink(missing_ok=True)
-    if _barrier_backup_path(request).exists():
-        os.replace(_barrier_backup_path(request), barrier)
+    if barrier:
+        barrier_path(request).unlink(missing_ok=True)
+        os.replace(_barrier_backup_path(request), barrier_path(request))
 
 
 def _restore_actor(request: PromotionRequest) -> None:
-    backup = _actor_backup_path(request)
-    if not backup.exists():
-        return
     if request.actor_root.exists():
         shutil.rmtree(request.actor_root)
-    os.replace(backup, request.actor_root)
+    os.replace(_actor_backup_path(request), request.actor_root)
 
 
-def _rollback_from_state(request: PromotionRequest, state: str) -> None:
-    _restore_stage(request)
-    _restore_manifest(request)
-    # 首次 rename 已產生備份時，state 可能仍為 PREPARED；以實際備份還原。
-    _restore_actor(request)
+def _rollback_from_state(
+    request: PromotionRequest, state: str, *, original_error: Exception | None = None,
+) -> None:
+    receipt = load_receipt(request)
+    _assert_receipt_matches(request, receipt, None)
+    record = receipt.get("rollback")
+    targets = _rollback_targets(request)
+    if not isinstance(record, dict) or set(record) != {"originals", "originals_digest", "mutation_started"}:
+        raise PromotionError("rollback record is missing or invalid")
+    originals, started = record["originals"], record["mutation_started"]
+    if (not isinstance(originals, dict) or set(originals) != set(targets)
+            or _json_digest(originals) != record["originals_digest"]
+            or not isinstance(started, list) or any(type(name) is not str or name not in targets for name in started)
+            or len(started) != len(set(started))):
+        raise PromotionError("rollback record integrity mismatch")
+    actions = []
+    # 完整驗證記錄與所有實體來源後才允許任何刪除或還原。
+    for name, (path, backup) in targets.items():
+        entry = originals[name]
+        if not isinstance(entry, dict) or set(entry) != {"path", "fingerprint"} or entry["path"] != str(path):
+            raise PromotionError("rollback recorded path mismatch")
+        expected = entry["fingerprint"]
+        keys = {"kind", "mode", "digest"} | ({"device", "inode"} if name != "manifest" else set())
+        if expected is not None and (
+            not isinstance(expected, dict) or set(expected) != keys
+            or expected["kind"] != ("directory" if name in {"actor", "stage"} else "file")
+            or type(expected["mode"]) is not int or not 0 <= expected["mode"] <= 0o7777
+            or not isinstance(expected["digest"], str) or SHA256_PATTERN.fullmatch(expected["digest"]) is None
+            or any(type(expected[key]) is not int or expected[key] < 0 for key in keys & {"device", "inode"})
+        ):
+            raise PromotionError("rollback original fingerprint is invalid")
+        if name == "actor" and expected is None:
+            raise PromotionError("rollback original actor is missing")
+        if _rollback_fingerprint(path, name) == expected:
+            continue
+        if expected is None:
+            if name not in started:
+                raise PromotionError(f"rollback mutation was not recorded: {name}")
+        elif _rollback_fingerprint(backup, name) != expected or (name == "manifest" and name not in started):
+            raise PromotionError(f"rollback backup is incomplete or unowned: {name}")
+        actions.append((name, expected))
+    # 首次恢復副作用前持久標記；中止後禁止 finalize，仍可依實體證據重試。
+    if original_error is not None:
+        receipt.setdefault("error", str(original_error))
+    _record_state(request, receipt, state, rollback_status="ROLLBACK_IN_PROGRESS",
+                  state_before_rollback=state)
+    errors = []
+    for name, expected in actions:
+        try:
+            if expected is None:
+                path = targets[name][0]
+                if path.is_dir():
+                    shutil.rmtree(path)
+                else:
+                    path.unlink(missing_ok=True)
+            elif name == "manifest":
+                _restore_manifest(request)
+            elif name == "actor":
+                _restore_actor(request)
+            else:
+                _restore_stage(request, stage=name == "stage", barrier=name == "barrier")
+        except Exception as error:
+            errors.append(f"{name}: {type(error).__name__}: {error}")
+    for name, (path, _backup) in targets.items():
+        try:
+            if _rollback_fingerprint(path, name) != originals[name]["fingerprint"]:
+                errors.append(f"{name}: restored identity/bytes mismatch")
+        except Exception as error:
+            errors.append(f"{name}: verification: {type(error).__name__}: {error}")
+    if errors:
+        raise PromotionError("; ".join(errors))
+
+
+def _rollback_failed(
+    request: PromotionRequest, receipt: dict[str, Any], state: str,
+    original_error: Exception, restore_error: Exception,
+) -> None:
+    """即使寫 receipt 再次失敗，也保留原 promotion exception 與恢復錯誤。"""
+    detail = f"{type(restore_error).__name__}: {restore_error}"
+    try:
+        _record_state(request, receipt, state, rollback_status="ROLLBACK_FAILED",
+                      state_before_rollback=state, error=receipt.get("error", str(original_error)),
+                      rollback_error=detail)
+    except Exception as receipt_error:
+        detail += f"; receipt: {type(receipt_error).__name__}: {receipt_error}"
+    raise PromotionError(f"ROLLBACK_FAILED: {original_error}; restore: {detail}") from original_error
 
 
 def _assert_receipt_matches(
@@ -1406,6 +1542,7 @@ def apply_promotion(
         _prepare_rollback_bundle(request)
         if failure_injection == "actor":
             raise PromotionError("injected actor failure")
+        _mutation_intent(request, receipt, "actor")
         _promote_actor(request)
         state_before_rollback = "ACTOR_PROMOTED"
         _record_state(request, receipt, "ACTOR_PROMOTED")
@@ -1413,6 +1550,7 @@ def apply_promotion(
             raise PromotionCrashStop("stopped after ACTOR_PROMOTED")
         if failure_injection == "manifest":
             raise PromotionError("injected manifest failure")
+        _mutation_intent(request, receipt, "manifest")
         manifest = _write_runtime_manifest(request)
         state_before_rollback = "MANIFEST_WRITTEN"
         _record_state(request, receipt, "MANIFEST_WRITTEN")
@@ -1420,6 +1558,7 @@ def apply_promotion(
             raise PromotionCrashStop("stopped after MANIFEST_WRITTEN")
         if failure_injection == "stage":
             raise PromotionError("injected stage failure")
+        _mutation_intent(request, receipt, "stage", "barrier")
         _install_private_stage(request, manifest)
         state_before_rollback = "STAGE_INSTALLED"
         _record_state(request, receipt, "STAGE_INSTALLED")
@@ -1443,17 +1582,14 @@ def apply_promotion(
     except PromotionCrashStop:
         raise
     except Exception as error:
-        _rollback_from_state(request, state_before_rollback)
-        _record_state(
-            request,
-            receipt,
-            "ROLLED_BACK",
-            state_before_rollback=state_before_rollback,
-            error=str(error),
-            rollback_status="ROLLBACK_COMPLETE",
-        )
-        if isinstance(error, PromotionError):
-            raise PromotionError(f"ROLLBACK_COMPLETE: {error}") from error
+        try:
+            _rollback_from_state(request, state_before_rollback, original_error=error)
+            _record_state(
+                request, receipt, "ROLLED_BACK", state_before_rollback=state_before_rollback,
+                error=str(error), rollback_status="ROLLBACK_COMPLETE",
+            )
+        except Exception as restore_error:
+            _rollback_failed(request, receipt, state_before_rollback, error, restore_error)
         raise PromotionError(f"ROLLBACK_COMPLETE: {error}") from error
 
 
@@ -1464,12 +1600,12 @@ def status_promotion(request: PromotionRequest) -> dict[str, Any]:
     receipt = _read_json(path)
     state = str(receipt.get("state", "UNKNOWN"))
     return {
-        "status": "PASS",
+        "status": "BLOCKED" if receipt.get("rollback_status") in {"ROLLBACK_FAILED", "ROLLBACK_IN_PROGRESS"} else "PASS",
         "state": state,
         "plan_digest": receipt.get("plan_digest"),
         "correlation_id": receipt.get("correlation_id"),
         "rollback_required": state
-        in {"ACTOR_PROMOTED", "MANIFEST_WRITTEN", "STAGE_INSTALLED", "POSTCHECK_PASSED"},
+        in {"PREPARED", "ACTOR_PROMOTED", "MANIFEST_WRITTEN", "STAGE_INSTALLED", "POSTCHECK_PASSED"},
         "audit_receipt_exists": path.exists(),
         "rollback_bundle_exists": rollback_bundle_path(request).exists(),
     }
@@ -1485,14 +1621,14 @@ def rollback_promotion(
     state = str(receipt.get("state", "UNKNOWN"))
     if state in {"COMMITTED", "ROLLED_BACK"}:
         raise PromotionError(f"transaction is already {state}")
-    _rollback_from_state(request, state)
-    _record_state(
-        request,
-        receipt,
-        "ROLLED_BACK",
-        state_before_rollback=state,
-        rollback_status="ROLLBACK_COMPLETE",
-    )
+    try:
+        _rollback_from_state(request, state)
+        _record_state(
+            request, receipt, "ROLLED_BACK", state_before_rollback=state,
+            rollback_status="ROLLBACK_COMPLETE",
+        )
+    except Exception as error:
+        _rollback_failed(request, receipt, state, error, error)
     return {"status": "ROLLED_BACK", "plan_digest": receipt["plan_digest"]}
 
 
@@ -1505,6 +1641,8 @@ def finalize_promotion(
     _assert_receipt_matches(request, receipt, expected_plan_digest)
     if receipt.get("state") != "POSTCHECK_PASSED":
         raise PromotionError("finalize requires POSTCHECK_PASSED")
+    if "rollback_status" in receipt:
+        raise PromotionError("finalize is forbidden after rollback has started")
     bundle = rollback_bundle_path(request)
     if not bundle.exists():
         raise PromotionError("rollback bundle is missing")

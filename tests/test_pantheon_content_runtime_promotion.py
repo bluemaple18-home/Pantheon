@@ -2288,3 +2288,295 @@ def test_cli_help_exposes_public_transaction_commands() -> None:
     assert completed.returncode == 0
     for command in ("plan", "apply", "rollback", "finalize", "status"):
         assert command in completed.stdout
+
+
+def _rollback_originals(request: promotion.PromotionRequest) -> dict[str, object]:
+    """獨立檢查原件 bytes/mode 與搬移目錄 inode，不使用產品 rollback helper。"""
+    roots = {"manifest": request.manifest_path, "stage": request.private_stage_root,
+             "barrier": promotion.barrier_path(request), "actor": request.actor_root}
+    result = {}
+    for name, root in roots.items():
+        if not root.exists():
+            result[name] = None
+            continue
+        entries = {}
+        for path in [root, *sorted(root.rglob("*"))] if root.is_dir() else [root]:
+            entries[str(path.relative_to(root))] = (
+                path.stat().st_mode & 0o7777,
+                path.read_bytes() if path.is_file() else None,
+            )
+        result[name] = (root.stat().st_ino if root.is_dir() else None, entries)
+    return result
+
+
+@pytest.mark.parametrize("fault", ["mkdir", "manifest_read", "write_before", "write_partial", "stage_rename", "barrier_rename"])
+def test_backup_io_failure_preserves_original_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str,
+) -> None:
+    """備份未完成時不得刪除原件或提升 partial backup。"""
+    request, _ = _runtime_fixture(tmp_path)
+    barrier = promotion.barrier_path(request)
+    barrier.write_bytes(b"original-barrier\n")
+    barrier.chmod(0o640)
+    request.manifest_path.chmod(0o640)
+    plan = _planned_digest(request)
+    before = _rollback_originals(request)
+    mkdir, read, write, replace = Path.mkdir, Path.read_bytes, Path.write_bytes, promotion.os.replace
+    injected = False
+
+    def fail() -> None:
+        nonlocal injected
+        injected = True
+        raise OSError("backup-io-" + fault)
+
+    def faulty_mkdir(path, *args, **kwargs):
+        if not injected and fault == "mkdir" and path == promotion.rollback_bundle_path(request):
+            fail()
+        return mkdir(path, *args, **kwargs)
+
+    def faulty_read(path):
+        if not injected and fault == "manifest_read" and path == request.manifest_path and promotion.rollback_bundle_path(request).exists():
+            fail()
+        return read(path)
+
+    def faulty_write(path, body):
+        if not injected and path == promotion._manifest_backup_path(request) and fault.startswith("write_"):
+            if fault == "write_partial":
+                write(path, body[:7])
+            fail()
+        return write(path, body)
+
+    def faulty_replace(source, target):
+        if not injected and ((fault == "stage_rename" and source == request.private_stage_root)
+                             or (fault == "barrier_rename" and source == barrier)):
+            fail()
+        return replace(source, target)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "mkdir", faulty_mkdir)
+        patch.setattr(Path, "read_bytes", faulty_read)
+        patch.setattr(Path, "write_bytes", faulty_write)
+        patch.setattr(promotion.os, "replace", faulty_replace)
+        with pytest.raises(promotion.PromotionError, match="backup-io-"):
+            promotion.apply_promotion(request, expected_plan_digest=plan)
+    assert injected
+    assert _rollback_originals(request) == before
+    receipt = promotion.load_receipt(request)
+    assert receipt["rollback_status"] == "ROLLBACK_COMPLETE"
+
+
+@pytest.mark.parametrize("moved", ["stage", "barrier", "actor"])
+def test_crash_after_backup_rename_before_receipt_recovers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, moved: str,
+) -> None:
+    """真 rename 已完成但 coarse state 尚未落盤，explicit rollback 仍須認出原件。"""
+    request, _ = _runtime_fixture(tmp_path)
+    promotion.barrier_path(request).write_bytes(b"old-barrier")
+    plan = _planned_digest(request)
+    before = _rollback_originals(request)
+    target = {"stage": promotion._stage_backup_path(request),
+              "barrier": promotion._barrier_backup_path(request),
+              "actor": promotion._actor_backup_path(request)}[moved]
+    replace = promotion.os.replace
+
+    def crash_after_move(source, destination):
+        replace(source, destination)
+        if destination == target:
+            raise promotion.PromotionCrashStop("after real backup rename")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(promotion.os, "replace", crash_after_move)
+        with pytest.raises(promotion.PromotionCrashStop):
+            promotion.apply_promotion(request, expected_plan_digest=plan)
+    assert promotion.load_receipt(request)["state"] == "PREPARED"
+    assert promotion.status_promotion(request)["rollback_required"] is True
+    promotion.rollback_promotion(request, expected_plan_digest=plan)
+    assert _rollback_originals(request) == before
+
+
+def test_rollback_failure_retains_promotion_error_and_restore_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, _ = _runtime_fixture(tmp_path)
+    plan = _planned_digest(request)
+
+    def broken_restore(_request):
+        raise OSError("restore-io-failed")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(promotion, "_restore_manifest", broken_restore)
+        with pytest.raises(promotion.PromotionError) as caught:
+            promotion.apply_promotion(request, expected_plan_digest=plan, failure_injection="stage")
+    assert "injected stage failure" in str(caught.value)
+    assert "restore-io-failed" in str(caught.value)
+    assert "ROLLBACK_COMPLETE" not in str(caught.value)
+    assert "injected stage failure" in str(caught.value.__cause__)
+    receipt = promotion.load_receipt(request)
+    assert receipt["state"] != "ROLLED_BACK"
+    assert receipt["rollback_status"] == "ROLLBACK_FAILED"
+    assert "injected stage failure" in receipt["error"]
+    assert "restore-io-failed" in receipt["rollback_error"]
+    promotion.rollback_promotion(request, expected_plan_digest=plan)
+    assert promotion.load_receipt(request)["rollback_status"] == "ROLLBACK_COMPLETE"
+
+
+@pytest.mark.parametrize("point", ["manifest", "stage", "barrier"])
+@pytest.mark.parametrize("crash", [False, True])
+def test_partial_runtime_write_recovers_before_state_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, point: str, crash: bool,
+) -> None:
+    """原函式真正寫入後立即故障；持久化 intent 必須足以安全恢復。"""
+    request, _ = _runtime_fixture(tmp_path)
+    promotion.barrier_path(request).write_bytes(b"original-barrier")
+    plan = _planned_digest(request)
+    before = _rollback_originals(request)
+    owner, name = {
+        "manifest": (promotion, "_write_runtime_manifest"),
+        "stage": (runtime, "write_readiness_ack"),
+        "barrier": (runtime, "activate_barrier"),
+    }[point]
+    original = getattr(owner, name)
+    fired = False
+
+    def write_then_fail(*args, **kwargs):
+        nonlocal fired
+        original(*args, **kwargs)
+        fired = True
+        if crash:
+            raise promotion.PromotionCrashStop("after partial runtime write")
+        raise OSError("after partial runtime write")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(owner, name, write_then_fail)
+        with pytest.raises(promotion.PromotionCrashStop if crash else promotion.PromotionError):
+            promotion.apply_promotion(request, expected_plan_digest=plan)
+    assert fired
+    if crash:
+        promotion.rollback_promotion(request, expected_plan_digest=plan)
+    assert _rollback_originals(request) == before
+    assert promotion.load_receipt(request)["rollback_status"] == "ROLLBACK_COMPLETE"
+
+
+@pytest.mark.parametrize("damage", ["missing", "json", "record", "digest", "path", "backup"])
+def test_explicit_rollback_rejects_missing_or_corrupt_evidence_without_touching_runtime(
+    tmp_path: Path, damage: str,
+) -> None:
+    request, _ = _runtime_fixture(tmp_path)
+    plan = _planned_digest(request)
+    with pytest.raises(promotion.PromotionCrashStop):
+        promotion.apply_promotion(request, expected_plan_digest=plan, stop_after_state="MANIFEST_WRITTEN")
+    path = promotion.receipt_path(request)
+    receipt = promotion.load_receipt(request)
+    if damage == "missing":
+        path.unlink()
+    elif damage == "json":
+        path.write_text("{invalid", encoding="utf-8")
+    elif damage == "backup":
+        promotion._manifest_backup_path(request).write_bytes(b"partial")
+    else:
+        if damage == "record":
+            receipt.pop("rollback")
+        elif damage == "digest":
+            receipt["rollback"]["originals_digest"] = "0" * 64
+        else:
+            receipt["rollback"]["originals"]["stage"]["path"] = str(tmp_path / "other")
+            receipt["rollback"]["originals_digest"] = promotion._json_digest(receipt["rollback"]["originals"])
+        _write_json(path, receipt)
+    before = _rollback_originals(request)
+    with pytest.raises(promotion.PromotionError) as caught:
+        promotion.rollback_promotion(request, expected_plan_digest=plan)
+    assert "ROLLBACK_COMPLETE" not in str(caught.value)
+    assert _rollback_originals(request) == before
+
+
+def test_restore_without_exception_still_verifies_original_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, _ = _runtime_fixture(tmp_path)
+    plan = _planned_digest(request)
+    with monkeypatch.context() as patch:
+        patch.setattr(promotion, "_restore_manifest", lambda _request: None)
+        with pytest.raises(promotion.PromotionError, match="restored identity/bytes mismatch"):
+            promotion.apply_promotion(request, expected_plan_digest=plan, failure_injection="stage")
+    receipt = promotion.load_receipt(request)
+    assert receipt["rollback_status"] == "ROLLBACK_FAILED"
+    assert receipt["state"] != "ROLLED_BACK"
+    promotion.rollback_promotion(request, expected_plan_digest=plan)
+    assert promotion.load_receipt(request)["rollback_status"] == "ROLLBACK_COMPLETE"
+
+
+def test_restore_and_receipt_io_failures_do_not_hide_original_exception(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, _ = _runtime_fixture(tmp_path)
+    plan = _planned_digest(request)
+    record = promotion._record_state
+
+    def broken_restore(_request):
+        raise OSError("restore-io")
+
+    def broken_failure_receipt(*args, **kwargs):
+        if kwargs.get("rollback_status") == "ROLLBACK_FAILED":
+            raise OSError("receipt-io")
+        return record(*args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(promotion, "_restore_manifest", broken_restore)
+        patch.setattr(promotion, "_record_state", broken_failure_receipt)
+        with pytest.raises(promotion.PromotionError) as caught:
+            promotion.apply_promotion(request, expected_plan_digest=plan, failure_injection="stage")
+    assert "injected stage failure" in str(caught.value.__cause__)
+    assert all(text in str(caught.value) for text in ("restore-io", "receipt-io", "ROLLBACK_FAILED"))
+    assert promotion.load_receipt(request)["state"] != "ROLLED_BACK"
+
+
+@pytest.mark.parametrize("interruption", ["failed", "crash"])
+def test_finalize_rejects_interrupted_rollback_and_preserves_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, interruption: str,
+) -> None:
+    request, _ = _runtime_fixture(tmp_path)
+    plan = _planned_digest(request)
+    original = _rollback_originals(request)
+    promotion.apply_promotion(request, expected_plan_digest=plan)
+    restore_stage = promotion._restore_stage
+    observed_status = []
+
+    def broken_manifest(_request):
+        raise OSError("finalize-restore-error")
+
+    def crash_after_first_restore(*args, **kwargs):
+        observed_status.append(promotion.load_receipt(request).get("rollback_status"))
+        restore_stage(*args, **kwargs)
+        raise SystemExit("restore-crash")
+
+    with monkeypatch.context() as patch:
+        if interruption == "failed":
+            patch.setattr(promotion, "_restore_manifest", broken_manifest)
+        else:
+            patch.setattr(promotion, "_restore_stage", crash_after_first_restore)
+        with pytest.raises(promotion.PromotionError if interruption == "failed" else SystemExit):
+            promotion.rollback_promotion(request, expected_plan_digest=plan)
+    receipt = promotion.load_receipt(request)
+    assert receipt["state"] == "POSTCHECK_PASSED"
+    bundle = promotion.rollback_bundle_path(request)
+    backup_bytes = {str(p.relative_to(bundle)): p.read_bytes() for p in bundle.rglob("*") if p.is_file()}
+    receipt_bytes = promotion.receipt_path(request).read_bytes()
+    runtime_before_finalize = _rollback_originals(request)
+    with pytest.raises(promotion.PromotionError, match="rollback"):
+        promotion.finalize_promotion(request, expected_plan_digest=plan)
+    assert bundle.exists()
+    assert {str(p.relative_to(bundle)): p.read_bytes() for p in bundle.rglob("*") if p.is_file()} == backup_bytes
+    assert promotion.receipt_path(request).read_bytes() == receipt_bytes
+    assert _rollback_originals(request) == runtime_before_finalize
+    if interruption == "crash":
+        assert observed_status == ["ROLLBACK_IN_PROGRESS"]
+        assert receipt["rollback_status"] == "ROLLBACK_IN_PROGRESS"
+    else:
+        assert receipt["rollback_status"] == "ROLLBACK_FAILED"
+        assert "finalize-restore-error" in receipt["error"]
+    promotion.rollback_promotion(request, expected_plan_digest=plan)
+    restored = promotion.load_receipt(request)
+    assert restored["rollback_status"] == "ROLLBACK_COMPLETE"
+    assert _rollback_originals(request) == original
+    if "error" in receipt:
+        assert restored["error"] == receipt["error"]
