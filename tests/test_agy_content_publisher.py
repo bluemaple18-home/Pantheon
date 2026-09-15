@@ -2320,11 +2320,15 @@ def test_translation_gate_failure_restores_clean_repo_and_preserves_candidate_ev
         text=True,
     ).stdout.strip()
 
+    state = publisher._read_json(queue_root / "runs/translate-ko.json")
+    brief = publisher._read_json(run_dir / "brief.json")
+    review = {"run_id": "translate-ko"}
+    _write_json(run_dir / "review.json", review)
     monkeypatch.setattr(publisher, "_assert_clean_origin_head", lambda _repo, _git: base_sha)
     monkeypatch.setattr(
         publisher,
         "collect_ready_translation_runs",
-        lambda *_args, **_kwargs: [(state, {"run_id": "translate-ko"}, candidate, {"run_id": "translate-ko"})],
+        lambda *_args, **_kwargs: [(state, brief, candidate, review)],
     )
 
     def apply_translation(repo: Path, run: Path, _approver: str) -> list[Path]:
@@ -2385,6 +2389,9 @@ def test_translation_gate_failure_restores_clean_repo_and_preserves_candidate_ev
     }
     _write_json(next_run_dir / "candidate.json", next_candidate)
     next_state = {"run_id": "translate-en", "run_dir": str(next_run_dir)}
+    _write_json(queue_root / "runs/translate-en.json", next_state)
+    _write_json(next_run_dir / "brief.json", {"run_id": "translate-en"})
+    _write_json(next_run_dir / "review.json", {"run_id": "translate-en"})
     monkeypatch.setattr(
         publisher,
         "collect_ready_translation_runs",
@@ -2392,6 +2399,7 @@ def test_translation_gate_failure_restores_clean_repo_and_preserves_candidate_ev
     )
     monkeypatch.setattr(publisher, "_run_checked", lambda _repo, _args, **_kwargs: None)
 
+    subprocess.run(["git", "update-ref", "refs/remotes/origin/main", base_sha], cwd=repo_root, check=True)
     next_result = publisher.publish_ready_translation_runs(
         repo_root,
         queue_root,
@@ -5356,6 +5364,7 @@ def test_replacement_publish_reconciles_crash_after_push_before_ledger_without_s
                 return f"{'d' * 40}\trefs/tags/v{version}\n{target}\trefs/tags/v{version}^{{}}\n{'e' * 40}\trefs/tags/other\n"
             return f"{tag_object}\trefs/tags/v{version}\n{target}\trefs/tags/v{version}^{{}}\n" if present else ""
         if args and args[0] == "push":
+            _assert_lifecycle_held(repo_root / "agy-content-publisher.lifecycle.lock", True)
             pushes.append(args)
             converged = True
         return ""
@@ -5685,6 +5694,8 @@ def test_recovery_retry_uses_collector_selected_run_and_leaves_third_publishable
             ],
         }
         review = {"run_id": run_id, "articles": []}
+        _write_json(run_dir / "candidate.json", candidate)
+        _write_json(run_dir / "review.json", review)
         completed[run_id] = (state, candidate, review)
         _write_json(queue_root / "runs" / f"{index:02d}-{run_id}.json", state)
 
@@ -5767,7 +5778,9 @@ def test_recovery_fault_always_has_pre_cleanup_metadata(
 
     def fault_git(repo: Path, args: list[str], input_text: str | None = None) -> str:
         operation = (
-            "update-ref"
+            "tag-delete"
+            if args[:2] == ["update-ref", "-d"]
+            else "update-ref"
             if args and args[0] == "update-ref"
             else "restore"
             if args and args[0] == "restore"
@@ -6383,7 +6396,7 @@ def test_handoff_postpush_fault_never_rolls_back_or_republishes(tmp_path, monkey
     @publisher._recoverable_publish(phase, 'published')
     def publish(repo_root, queue_root, state_root, *, git, _transaction_base_sha=None, _mutation_journal=None):
         _mutation_journal.begin(); _mutation_journal.select_runs(['source-01'])
-        commit = publisher._stage_commit_tag_push(repo_root,'0.3.99',git,namespace_plan=namespace,push=True,release_gate=False,outcome_evidence_dir=state/'evidence',state_root=state_root,phase=phase,run_ids=['source-01'])
+        commit = publisher._stage_commit_tag_push(repo_root,'0.3.99',git,namespace_plan=namespace,push=True,release_gate=False,outcome_evidence_dir=state/'evidence',state_root=state_root,phase=phase,run_ids=['source-01'],mutation_journal=_mutation_journal)
         ledger = publisher._load_ledger(state_root)
         key = 'published_runs' if phase=='create' else 'rewrite_released_runs'
         ledger[key].append({'run_id':'source-01','article_ids':['TEST-001'],'translation_seed_status':'pending','commit_sha':commit,'version':'0.3.99'})
@@ -6514,3 +6527,805 @@ def test_scheduled_child_uses_validated_tick_authority_without_origin_main(
     else:
         assert publisher.main() == 0
         assert published == [True]
+
+
+def _assert_lifecycle_held(lock_path: Path, expected: bool) -> None:
+    """用另一個 fd 實際探測 flock，不靠函式名稱或事件旗標推測。"""
+    with lock_path.open("a+") as probe:
+        try:
+            fcntl.flock(probe.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            assert expected, "建置持有 lifecycle lock"
+        else:
+            assert not expected, "mutation 未持有 lifecycle lock"
+
+
+@pytest.mark.parametrize("phase", ["create", "rewrite", "translation"])
+@pytest.mark.parametrize("drift", [None, "actor", "runtime", "origin", "namespace", "candidate", "review", "state", "brief"])
+def test_lock_scope_build_and_commit_revalidation(tmp_path, monkeypatch, phase, drift):
+    """兩條 lane 跑真實 orchestration，Git／建置子程序只使用 synthetic runner。"""
+    if drift == "brief" and phase == "create":
+        pytest.skip("New lane 沒有 rewrite brief")
+    import shutil
+    from contextlib import contextmanager
+
+    actor = tmp_path / "actor"
+    actor.mkdir()
+    (actor / ".git").mkdir()
+    (actor / "runtime.py").write_text("runtime\n")
+    (actor / "pyproject.toml").write_text('[project]\nversion = "0.3.0"\n')
+    (actor / "package.json").write_text('{"version":"0.3.0"}\n')
+    (actor / "CHANGELOG.md").write_text("# 發布記錄\n")
+    queue = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "scope-01"
+    if phase == "create":
+        _write_run(queue, run_dir, make_publishable_article())
+    elif phase == "rewrite":
+        _write_rewrite_run(queue, run_dir, make_rewrite_article())
+    else:
+        _write_run(queue, run_dir, make_publishable_article())
+        candidate_path = run_dir / "candidate.json"
+        translated = publisher._read_json(candidate_path)
+        translated["mode"] = "translate_existing"
+        translated["articles"][0].update(locale="en", source_article_id="AUTO-001", article_id="AUTO-001")
+        _write_json(candidate_path, translated)
+        translated_review = publisher._read_json(run_dir / "review.json")
+        translated_review["articles"][0]["candidate_sha256"] = article_sha256(translated["articles"][0])
+        _write_json(run_dir / "review.json", translated_review)
+        _write_json(run_dir / "brief.json", {"run_id": "scope-01", "mode": "translate_existing", "articles": []})
+    state_path = queue / "runs" / "scope-01.json"
+    state = publisher._read_json(state_path)
+    candidate = publisher._read_json(run_dir / "candidate.json")
+    review = publisher._read_json(run_dir / "review.json")
+    ready = [(state, candidate, review)]
+    if phase == "rewrite":
+        ready = [(state, candidate, review, publisher._read_json(run_dir / "brief.json"))]
+    elif phase == "translation":
+        ready = [(state, publisher._read_json(run_dir / "brief.json"), candidate, review)]
+    lock_path = actor / ".git/agy-content-publisher.lifecycle.lock"
+    events = []
+    remote = "a" * 40
+    actor_head = remote
+    namespace = ""
+    committed = False
+
+    def git(root, args, _input=None):
+        nonlocal committed
+        if args == ["rev-parse", "--git-common-dir"]:
+            return str(actor / ".git")
+        if args == ["rev-parse", "HEAD"]:
+            return actor_head if root == actor else ("b" * 40 if committed else "a" * 40)
+        if args == ["rev-parse", "origin/main"]:
+            return remote
+        if args[:3] == ["for-each-ref", "--format=%(refname:short)", "refs/tags"]:
+            return namespace
+        if args[:3] == ["worktree", "add", "--detach"]:
+            shutil.copytree(actor, Path(args[3]), ignore=shutil.ignore_patterns(".git"))
+        if args[:3] == ["worktree", "remove", "--force"]:
+            shutil.rmtree(Path(args[3]))
+        if args[0] in {"add", "commit", "push"} or args[:2] == ["tag", "-a"]:
+            _assert_lifecycle_held(lock_path, True)
+            events.append(args[0])
+            if args[0] == "commit":
+                committed = True
+        return ""
+
+    original_lock = publisher._transaction_lifecycle_lock
+    acquisitions = 0
+
+    @contextmanager
+    def lock(*args, **kwargs):
+        nonlocal acquisitions, remote, actor_head, namespace
+        with original_lock(*args, **kwargs):
+            acquisitions += 1
+            if events == ["prerender", "feed", "preflight", "suite"]:
+                if drift == "actor":
+                    actor_head = "d" * 40
+                elif drift == "runtime":
+                    (actor / "runtime.py").write_text("changed\n")
+                elif drift == "origin":
+                    remote = "d" * 40
+                elif drift == "namespace":
+                    namespace = "v0.3.1"
+                elif drift in {"candidate", "review", "state", "brief"}:
+                    path = state_path if drift == "state" else run_dir / f"{drift}.json"
+                    path.write_text(path.read_text() + "\n")
+            yield
+
+    def build(name):
+        def run(*_args, **_kwargs):
+            _assert_lifecycle_held(lock_path, False)
+            events.append(name)
+        return run
+
+    monkeypatch.setattr(publisher, "_transaction_lifecycle_lock", lock)
+    monkeypatch.setattr(publisher, "TRANSACTION_RUNTIME_PATHS", ("runtime.py",))
+    monkeypatch.setattr(publisher, "collect_ready_translation_runs", lambda *a, **k: ready)
+    monkeypatch.setattr(publisher.multilingual, "approve_and_apply_translation_run", lambda *a: [])
+    monkeypatch.setattr(publisher.multilingual, "validate_translation_candidate", lambda *a: None)
+    monkeypatch.setattr(publisher.multilingual, "apply_approved_translations", lambda *a: [])
+    monkeypatch.setattr(publisher.pipeline, "_bump_article_cache_queries", lambda *a: [])
+    monkeypatch.setattr(publisher, "collect_ready_runs", lambda *a, **k: ready)
+    monkeypatch.setattr(publisher, "collect_ready_rewrite_runs", lambda *a, **k: ready)
+    monkeypatch.setattr(publisher, "_filter_rewrite_runs_with_current_sources", lambda *a, **k: ready)
+    monkeypatch.setattr(publisher, "legacy_article_records", lambda *a: [])
+    monkeypatch.setattr(publisher, "summarize_legacy_rewrite_backlog", lambda *a, **k: {})
+    monkeypatch.setattr(publisher, "_public_article_count", lambda *a: 1)
+    monkeypatch.setattr(publisher, "_seed_pending_translations", lambda *a: [])
+    monkeypatch.setattr(publisher.pipeline, "build_approval", lambda *a: {})
+    monkeypatch.setattr(publisher.pipeline, "apply_approved_candidates", lambda *a: [])
+    monkeypatch.setattr(publisher, "apply_rewrite_release", lambda *a: [])
+    monkeypatch.setattr(publisher, "_sync_web_test_release_fixture", lambda root, **k: root / "tests/test_web.py")
+    monkeypatch.setattr(publisher, "_sync_web_test_cache_token", lambda root, **k: root / "tests/test_web.py")
+    monkeypatch.setattr(publisher, "_run_prerender", build("prerender"))
+    monkeypatch.setattr(publisher, "_run_feed", build("feed"))
+
+    def checked(root, args, **kwargs):
+        if args in (publisher.PREFLIGHT_TEST_COMMAND, publisher.TEST_COMMAND):
+            build("preflight" if args == publisher.PREFLIGHT_TEST_COMMAND else "suite")()
+        else:
+            _assert_lifecycle_held(lock_path, True)
+    monkeypatch.setattr(publisher, "_run_checked", checked)
+    # 不啟動 recovery；本測試直接檢驗 lane 在 mutation 前拋出的拒絕。
+    publish = {"create": publisher.publish_ready_runs, "rewrite": publisher.publish_ready_rewrite_runs, "translation": publisher.publish_ready_translation_runs}[phase].__wrapped__
+    with publisher._isolated_transaction_worktree(actor, state_root, git) as root:
+        if drift is None:
+            result = publish(root, queue, state_root, git=git, push=True)
+            assert result["status"] in {"PUBLISHED", "PUBLISHED_REWRITE", "PUBLISHED_TRANSLATION"}
+            assert events == ["prerender", "feed", "preflight", "suite", "add", *(["add"] if phase == "rewrite" else []), "commit", "tag", "push"]
+        else:
+            with pytest.raises(publisher.PublishBlocked):
+                publish(root, queue, state_root, git=git, push=True)
+            assert events == ["prerender", "feed", "preflight", "suite"]
+    assert not list(state_root.glob("transaction-*"))
+
+
+@pytest.mark.parametrize("authority_enabled", [False, True])
+def test_lock_scope_scavenger_preserves_active_transaction(tmp_path, authority_enabled):
+    """包含 sandbox authority 的兩條 cleanup 路徑都必須尊重正在建置的 fd。"""
+    from contextlib import ExitStack
+    actor = tmp_path / "actor"
+    actor.mkdir()
+    state = tmp_path / "state"
+    active = state / "transaction-active"
+    stale = state / "transaction-stale"
+    for parent in (active, stale):
+        (parent / "repo").mkdir(parents=True)
+        (parent / "repo/keep").write_text("建置中\n")
+    calls = []
+    with ExitStack() as stack:
+        authority = stack.enter_context(publisher.TrustedSandboxDirectoryAuthority(tmp_path)) if authority_enabled else None
+        held = stack.enter_context((active / ".active.lock").open("a+"))
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        cleaned = publisher._cleanup_stale_transaction_worktrees(actor, state, lambda r, a, i: calls.append(a) or "", sandbox_authority=authority)
+        assert cleaned == [stale]
+        assert (active / "repo/keep").read_text() == "建置中\n"
+        assert all(str(active / "repo") not in call for call in calls)
+    cleaned = publisher._cleanup_stale_transaction_worktrees(actor, state, lambda *a: "")
+    assert cleaned == [active]
+
+
+def test_lock_scope_stage_mutations_hold_lock(tmp_path, monkeypatch):
+    lock_path = tmp_path / "agy-content-publisher.lifecycle.lock"
+    calls = []
+    def git(root, args, _input=None):
+        if args[0] in {"add", "commit", "push"} or args[:2] == ["tag", "-a"]:
+            _assert_lifecycle_held(lock_path, True)
+            calls.append(args[0])
+        return "a" * 40 if args == ["rev-parse", "HEAD"] else ""
+    monkeypatch.setattr(publisher, "_run_checked", lambda *a, **k: None)
+    publisher._stage_commit_tag_push(tmp_path, "0.3.59", git, namespace_plan=_release_stage_plan(tmp_path, "0.3.59"), push=True, release_gate=False)
+    assert calls == ["add", "commit", "tag", "push"]
+
+
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("drift", ["payload", "root_review", "ledger", "unrelated-ledger", "owner-ledger"])
+def test_lock_scope_translation_stage_identity(tmp_path, monkeypatch, native, drift):
+    """使用既有已封存的翻譯 fixture，確保續代與 native stage 都重驗。"""
+    fixture, _receipt = _sealed_replacement_publisher_fixture(tmp_path, monkeypatch, native=native)
+    root, queue, state_root = _sealed_publisher_roots(fixture)
+    ready = publisher.collect_ready_translation_runs(root, queue, state_root, exact_run_ids=[fixture["kwargs"]["expected_run_id"]])
+    def git(_root, args, _input=None):
+        return "a" * 40 if args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]) else ""
+    revalidate = publisher._freeze_publish_revalidation(root, queue, state_root, ready, "a" * 40, "translation", git)
+    with publisher._transaction_lifecycle_lock(root, git):
+        revalidate()
+        if drift in {"unrelated-ledger", "owner-ledger"}:
+            ledger = publisher._load_ledger(state_root)
+            replacement = (ready[0][0].get("_approved_revision_stage") or {}).get("public_replacement") or {}
+            owner = replacement.get("old_run_id", str(ready[0][0]["run_id"]))
+            ledger["translation_published_runs"].append({"run_id": "unrelated-run" if drift == "unrelated-ledger" else owner, "commit_sha": "peer ownership"})
+            publisher._write_json(publisher._ledger_path(state_root), ledger)
+            if drift == "unrelated-ledger":
+                revalidate()
+            else:
+                with pytest.raises(publisher.PublishBlocked):
+                    revalidate()
+            return
+        if drift == "ledger":
+            ledger = publisher._load_ledger(state_root)
+            ledger["quarantined_runs"].append({"run_id": str(ready[0][0]["run_id"]), "reason": "peer quarantine"})
+            publisher._write_json(publisher._ledger_path(state_root), ledger)
+            path = publisher._ledger_path(state_root)
+        elif drift == "root_review":
+            path = fixture["run_dir"] / "review.json"
+        else:
+            seal = publisher.multilingual.load_approved_edited_candidate_stage(fixture["run_dir"])["seal"]
+            path = Path(seal["payload_path"])
+        path.write_bytes(path.read_bytes() + b"\n")
+        with pytest.raises((publisher.PublishBlocked, ValueError)):
+            revalidate()
+
+
+@pytest.mark.parametrize("replace_owned", [False, True])
+def test_lock_scope_rollback_preserves_other_tag(tmp_path, replace_owned):
+    """本輪 tag 被替換或另有同 HEAD tag 時，rollback 不得刪到他人 ref。"""
+    root, _queue, state, base = _init_recovery_repo(tmp_path)
+    journal = publisher.MutationJournal(root, publisher.run_git)
+    journal.begin()
+    owned_file = root / "app/web/owned.txt"
+    journal.capture(lambda: owned_file.write_bytes(b"publisher\n"))
+    publisher.run_git(root, ["add", "."], None)
+    publisher.run_git(root, ["commit", "-m", "synthetic candidate"], None)
+    publisher.run_git(root, ["tag", "-a", "v0.3.59", "-m", "owned"], None)
+    journal.created_tags = {"v0.3.59": publisher.run_git(root, ["rev-parse", "refs/tags/v0.3.59"], None)}
+    publisher.run_git(root, ["tag", "-a", "v0.3.60", "-m", "other"], None)
+    other = publisher.run_git(root, ["rev-parse", "refs/tags/v0.3.60"], None)
+    if replace_owned:
+        publisher.run_git(root, ["update-ref", "refs/tags/v0.3.59", other], None)
+    def git(repo, args, input_text=None):
+        if args[0] in {"update-ref", "restore", "reset", "add"} or args[:2] == ["tag", "-d"]:
+            _assert_lifecycle_held(root / ".git/agy-content-publisher.lifecycle.lock", True)
+        return publisher.run_git(repo, args, input_text)
+    kwargs = dict(base_sha=base, phase="create", run_ids=["scope-01"], error=RuntimeError("synthetic failure"), git=git, journal=journal)
+    if replace_owned:
+        with pytest.raises(subprocess.CalledProcessError):
+            publisher._recover_failed_publish(root, state, **kwargs)
+        assert publisher.run_git(root, ["rev-parse", "refs/tags/v0.3.59"], None) == other
+    else:
+        evidence = publisher._recover_failed_publish(root, state, **kwargs)
+        assert publisher._read_json(evidence)["removed_local_tags"] == ["v0.3.59"]
+    assert publisher.run_git(root, ["rev-parse", "refs/tags/v0.3.60"], None) == other
+
+
+def test_lock_scope_teardown_waits_without_masking_result(tmp_path, monkeypatch):
+    """另輪正在 mutation 時，teardown 等待短鎖且不覆蓋已產生的結果。"""
+    import threading
+    import shutil
+    actor = tmp_path / "actor"
+    actor.mkdir()
+    (actor / ".git").mkdir()
+    state = tmp_path / "state"
+    lock_path = actor / ".git/agy-content-publisher.lifecycle.lock"
+    def git(root, args, _input=None):
+        if args == ["rev-parse", "--git-common-dir"]:
+            return str(actor / ".git")
+        if args == ["rev-parse", "origin/main"]:
+            return "a" * 40
+        if args[:3] == ["worktree", "add", "--detach"]:
+            Path(args[3]).mkdir()
+        if args[:3] == ["worktree", "remove", "--force"]:
+            _assert_lifecycle_held(lock_path, True)
+            shutil.rmtree(args[3])
+        return ""
+    monkeypatch.setattr(publisher, "_assert_transaction_runtime_matches", lambda *a: None)
+    waiting = threading.Event()
+    held = threading.Event()
+    original_flock = publisher.fcntl.flock
+    main_thread = threading.get_ident()
+    def flock(fd, flags):
+        if threading.get_ident() == main_thread and flags == fcntl.LOCK_EX:
+            waiting.set()
+        return original_flock(fd, flags)
+    monkeypatch.setattr(publisher.fcntl, "flock", flock)
+    def competing_mutation():
+        with lock_path.open("a+") as stream:
+            original_flock(stream, fcntl.LOCK_EX)
+            held.set()
+            waiting.wait(timeout=5)
+    worker = None
+    try:
+        with publisher._isolated_transaction_worktree(actor, state, git):
+            result = {"status": "PUBLISHED"}
+            worker = threading.Thread(target=competing_mutation)
+            worker.start()
+            assert held.wait(timeout=5)
+        assert waiting.is_set()
+        assert result == {"status": "PUBLISHED"}
+        assert not list(state.glob("transaction-*"))
+    finally:
+        waiting.set()
+        if worker is not None:
+            worker.join(timeout=5)
+
+
+def test_lock_scope_busy_recovery_preserves_evidence_tags_and_retry(tmp_path, monkeypatch):
+    """另一輪短暫持鎖時，recovery 必須完成證據、回收與 retry，保留原始錯誤。"""
+    import threading
+    actor, queue, state, base = _init_recovery_repo(tmp_path)
+    publisher.run_git(actor, ["branch", "-M", "main"], None)
+    publisher.run_git(actor, ["remote", "add", "origin", str(actor)], None)
+    monkeypatch.setattr(publisher, "_assert_transaction_runtime_matches", lambda *a: None)
+    holder = None
+    timer = None
+
+    @publisher._recoverable_publish("create", "published")
+    def fail(root, _queue, _state, **kwargs):
+        nonlocal holder, timer
+        journal = kwargs["_mutation_journal"]
+        journal.select_runs(["scope-busy"])
+        journal.begin()
+        journal.capture(lambda: (root / "app/web/owned.txt").write_bytes(b"candidate\n"))
+        with publisher._transaction_lifecycle_lock(root):
+            publisher.run_git(root, ["add", "."], None)
+            publisher.run_git(root, ["commit", "-m", "synthetic candidate"], None)
+            publisher.run_git(root, ["tag", "-a", "v0.0.1", "-m", "synthetic candidate"], None)
+            journal.created_tags["v0.0.1"] = publisher.run_git(root, ["rev-parse", "refs/tags/v0.0.1"], None)
+        holder = (actor / ".git/agy-content-publisher.lifecycle.lock").open("a+")
+        fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        timer = threading.Timer(0.3, lambda: fcntl.flock(holder, fcntl.LOCK_UN))
+        timer.start()
+        raise RuntimeError("synthetic release gate failed")
+
+    try:
+        with publisher._isolated_transaction_worktree(actor, state) as root:
+            result = fail(root, queue, state)
+            assert result["status"] == "failed_recovered"
+            assert publisher.run_git(root, ["rev-parse", "HEAD"], None) == base
+            assert publisher._repo_clean(root)
+            assert (root / "app/web/owned.txt").read_bytes() == b"base\n"
+        assert not list(state.glob("transaction-*"))
+        assert publisher.run_git(actor, ["tag", "--list", "v0.0.1"], None) == ""
+        failure_path = Path(result["evidence"])
+        failure = publisher._read_json(failure_path)
+        attempt = publisher._read_json(failure_path.parent / "failure-attempt.json")
+        assert failure["repo_recovered"] is True
+        assert failure["error_type"] == "RuntimeError"
+        assert failure["removed_local_tags"] == ["v0.0.1"]
+        assert attempt["error"] == "synthetic release gate failed"
+        assert (failure_path.parent / "working-tree.patch").is_file()
+        retry = publisher._read_json(publisher._retry_path(state, "create", "scope-busy"))
+        assert retry["retryable"] is True
+        assert retry["eligibility"] == "deferred"
+        assert retry["error_type"] == "RuntimeError"
+    finally:
+        if timer is not None:
+            timer.join(timeout=5)
+        if holder is not None:
+            holder.close()
+
+
+def test_concurrent_transaction_prepare_uses_decorated_new_and_rewrite(tmp_path, monkeypatch, brief_abort=None):
+    """共用 Git／state 的兩個真實 transaction 可並行 prepare，最後 writer 必須互斥。"""
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+
+    remote = tmp_path / "remote.git"
+    actor = tmp_path / "actor"
+    queue = tmp_path / "queue"
+    shared_state = tmp_path / "publisher-state"
+    subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    actor.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main", str(actor)], check=True)
+    for key, value in [("user.name", "Publisher Synthetic Test"), ("user.email", "publisher@example.invalid")]:
+        publisher.run_git(actor, ["config", key, value], None)
+    _minimal_article_static(actor)
+    _write_runtime_manifest_fixture(actor)
+    (actor / "pyproject.toml").write_text('[project]\nversion = "0.3.0"\n', encoding="utf-8")
+    (actor / "package.json").write_text('{"version":"0.3.0"}\n', encoding="utf-8")
+    (actor / "CHANGELOG.md").write_text("# 發布記錄\n", encoding="utf-8")
+    fixture = actor / "tests/test_web.py"
+    fixture.parent.mkdir(exist_ok=True)
+    fixture.write_text('ARTICLE_CACHE_TOKEN = "old"\nDAILY_PUBLIC_ARTICLE_PATHS = [\n]\n', encoding="utf-8")
+    publisher.run_git(actor, ["add", "."], None)
+    publisher.run_git(actor, ["commit", "-m", "synthetic baseline"], None)
+    publisher.run_git(actor, ["remote", "add", "origin", str(remote)], None)
+    publisher.run_git(actor, ["push", "-u", "origin", "main"], None)
+    _write_run(queue, tmp_path / "runs/new-prepare", make_publishable_article())
+
+    watched_brief = tmp_path / "runs/rewrite-prepare/brief.json"
+    updated_brief = None
+    original_hash = publisher._file_sha256
+
+    def hash_with_peer_revision(path):
+        nonlocal updated_brief
+        if path == watched_brief and updated_brief is None:
+            # 在凍結 A bytes 後的下一次取樣，插入合法 brief B 換代。
+            revision = publisher._read_json(path)
+            revision["articles"][0]["rewrite_brief"] = ["新版要求：新增具體例子並釐清適用限制。"]
+            publisher.pipeline.validate_rewrite_brief(revision)
+            updated_brief = json.dumps(revision, ensure_ascii=False).encode()
+            path.write_bytes(updated_brief)
+        return original_hash(path)
+
+    if brief_abort is not None:
+        monkeypatch.setattr(publisher, "_file_sha256", hash_with_peer_revision)
+
+    # 僅替換內容 fixture 與建置負載；公開入口、collector、journal、Git 與所有 flock 都走原碼。
+    monkeypatch.setattr(publisher.pipeline, "load_publication_reference_corpus", lambda _root: [])
+    monkeypatch.setattr(publisher.pipeline, "rewrite_aggregate_findings", lambda *a, **k: ([], []))
+    monkeypatch.setattr(publisher, "legacy_article_records", lambda _root: [{"id": "LEGACY-001", "serial": "astrology-0001", "articleCategory": "astrology"}])
+    monkeypatch.setattr(publisher.pipeline, "_existing_rewrite_inventory", lambda _root: {
+        "LEGACY-001": {
+            "record": {"id": "LEGACY-001", "product": "astrology", "articleCategory": "astrology", "serial": "astrology-0001", "slug": "legacy-001", "urlSlug": "legacy-001", "primaryKeyword": "舊文測試", "title": "舊文測試標題"},
+            "currentBody": [{"heading": "舊內容", "paragraphs": [_long("舊文原始內容。")]}],
+        }
+    })
+    monkeypatch.setattr(publisher, "_public_article_count", lambda _root: 353)
+    monkeypatch.setattr(publisher.multilingual, "enqueue_article_translations", lambda *a, **k: [])
+
+    def apply_payload(root, *_args, **_kwargs):
+        path = root / "app/web/prepared-content.txt"
+        path.write_text(root.parent.name, encoding="utf-8")
+        return [path]
+    monkeypatch.setattr(publisher.pipeline, "apply_approved_candidates", apply_payload)
+    monkeypatch.setattr(publisher, "apply_rewrite_release", apply_payload)
+
+    condition = threading.Condition()
+    events = []
+    roots = {}
+    common_dirs = {}
+    outcomes = {}
+    lock_observations = []
+    ready = {phase: threading.Event() for phase in ("new", "rewrite")}
+    start = {phase: threading.Event() for phase in ready}
+    in_suite = {phase: threading.Event() for phase in ready}
+    release_suite = {phase: threading.Event() for phase in ready}
+    rewrite_final_attempt = threading.Event()
+    new_commit_entered = threading.Event()
+    release_commit = threading.Event()
+    active_mutations = set()
+    max_mutations = 0
+    local = threading.local()
+
+    def record(phase, event, **details):
+        with condition:
+            events.append({"sequence": len(events), "phase": phase, "event": event, **details})
+            condition.notify_all()
+
+    def lock_is_held(path):
+        with path.open("a+") as probe:
+            try:
+                fcntl.flock(probe.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+        return False
+
+    def git(root, args, input_text=None):
+        nonlocal max_mutations
+        phase = local.phase
+        if phase == "rewrite" and in_suite[phase].is_set() and release_suite[phase].is_set() and args == ["rev-parse", "--git-common-dir"]:
+            rewrite_final_attempt.set()
+        mutation = args[0] in {"add", "commit", "push", "update-ref", "restore", "reset"} or args[:2] in (["tag", "-a"], ["tag", "-d"])
+        if not mutation:
+            return publisher.run_git(root, args, input_text)
+        if args[0] == "push":
+            assert Path(publisher.run_git(root, ["remote", "get-url", "origin"], None)).resolve() == remote.resolve()
+        assert lock_is_held(actor / ".git/agy-content-publisher.lifecycle.lock"), f"{phase} {args} 未持 writer lifecycle lock"
+        with condition:
+            active_mutations.add(phase)
+            max_mutations = max(max_mutations, len(active_mutations))
+            assert len(active_mutations) == 1, "不同 transaction 同時 mutation"
+        record(phase, "mutation-enter", command=args)
+        try:
+            if phase == "new" and args[0] == "commit":
+                new_commit_entered.set()
+                assert release_commit.wait(timeout=20), "test coordinator 未釋放 commit"
+            return publisher.run_git(root, args, input_text)
+        finally:
+            record(phase, "mutation-exit", command=args)
+            with condition:
+                active_mutations.remove(phase)
+
+    def checked(root, command, **_kwargs):
+        phase = local.phase
+        if command == publisher.TEST_COMMAND:
+            stage = "full-suite"
+        elif command == publisher.PREFLIGHT_TEST_COMMAND:
+            stage = "preflight"
+        elif "scripts/prerender_article_shells.py" in command:
+            stage = "prerender"
+        elif "scripts/generate_feed.py" in command:
+            stage = "feed"
+        else:
+            record(phase, "synthetic-final-check", command=command)
+            return
+        held = {
+            "lifecycle": lock_is_held(actor / ".git/agy-content-publisher.lifecycle.lock"),
+            "repo": lock_is_held(actor / ".git/agy-content-publisher.transaction.lock"),
+            "state": lock_is_held(shared_state / "publisher.lock"),
+        }
+        with condition:
+            lock_observations.append({"phase": phase, "stage": stage, "held": held})
+        subprocess.run([
+            sys.executable, "-c",
+            "from pathlib import Path; import sys; Path(sys.argv[1]).write_text(sys.argv[2], encoding='utf-8')",
+            (str(tmp_path / f"synthetic-{phase}-{stage}.txt") if stage in {"preflight", "full-suite"} else f"app/web/synthetic-{phase}-{stage}.txt"), stage,
+        ], cwd=root, check=True)
+        if brief_abort == "policy" and stage == "prerender" and phase == "rewrite":
+            in_suite[phase].set()
+            record(phase, "prerender-wait-before-failure")
+            assert release_suite[phase].wait(timeout=20)
+            failure_path = Path(command[command.index("--policy-failure-output") + 1])
+            failure_path.write_text(json.dumps({"article_ids": [make_rewrite_article()["article_id"]], "failure_codes": ["initial_html_complete"]}))
+            raise subprocess.CalledProcessError(1, command)
+        if stage == "full-suite":
+            in_suite[phase].set()
+        record(phase, stage)
+        if stage == "full-suite":
+            assert release_suite[phase].wait(timeout=20), "test coordinator 未釋放 full suite"
+            record(phase, "suite-released")
+
+    monkeypatch.setattr(publisher, "_run_checked", checked)
+    original_json = publisher._write_json
+    original_atomic = publisher._atomic_write_json
+    original_unlink = Path.unlink
+
+    def observe_state_write(path, payload, write):
+        if path.is_relative_to(shared_state) and not any(part.startswith("transaction-") for part in path.relative_to(shared_state).parts):
+            assert lock_is_held(actor / ".git/agy-content-publisher.transaction.lock")
+            assert lock_is_held(shared_state / "publisher.lock")
+            if new_commit_entered.is_set():
+                assert lock_is_held(actor / ".git/agy-content-publisher.lifecycle.lock")
+            record(local.phase, "shared-write", path=str(path), status=payload.get("status") if isinstance(payload, dict) else None)
+        return write(path, payload)
+
+    def unlink(path, *args, **kwargs):
+        if path == publisher._unresolved_push_path(shared_state):
+            assert all(lock_is_held(lock) for lock in (
+                actor / ".git/agy-content-publisher.transaction.lock",
+                shared_state / "publisher.lock",
+                actor / ".git/agy-content-publisher.lifecycle.lock",
+            ))
+            record(local.phase, "control-finalized")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(publisher, "_write_json", lambda p, v: observe_state_write(p, v, original_json))
+    monkeypatch.setattr(publisher, "_atomic_write_json", lambda p, v: observe_state_write(p, v, original_atomic))
+    monkeypatch.setattr(Path, "unlink", unlink)
+
+    def worker(phase):
+        local.phase = phase
+        try:
+            with publisher._isolated_transaction_worktree(actor, shared_state, git) as root:
+                roots[phase] = str(root)
+                common_dirs[phase] = str(Path(publisher.run_git(root, ["rev-parse", "--git-common-dir"], None)).resolve())
+                ready[phase].set()
+                record(phase, "transaction-ready", root=str(root), state_root=str(shared_state))
+                assert start[phase].wait(timeout=20), "test coordinator 未啟動入口"
+                record(phase, "decorated-entry")
+                if phase == "new":
+                    result = publisher.publish_ready_runs(root, queue, shared_state, git=git, push=True)
+                else:
+                    result = publisher.publish_ready_rewrite_runs(root, queue, shared_state, git=git, push=True, exact_run_ids=["rewrite-prepare"])
+                outcomes[phase] = result
+                record(phase, "returned", status=result.get("status"))
+        except Exception as error:
+            outcomes[phase] = {"exception": type(error).__name__, "message": str(error)}
+            record(phase, "raised", **outcomes[phase])
+        finally:
+            record(phase, "finished")
+
+    concurrent_prepare = False
+    coordinator_errors = []
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = []
+        try:
+            # 先逐一完成 worktree setup，排除 setup 的 nonblocking admission 與 prepare 競爭混淆。
+            for phase in ("new", "rewrite"):
+                futures.append(pool.submit(worker, phase))
+                assert ready[phase].wait(timeout=20), f"{phase} worktree setup 失敗：{outcomes}"
+            assert roots["new"] != roots["rewrite"]
+            assert common_dirs["new"] == common_dirs["rewrite"] == str((actor / ".git").resolve())
+            start["new"].set()
+            with condition:
+                assert condition.wait_for(lambda: in_suite["new"].is_set() or "new" in outcomes, timeout=20)
+            assert in_suite["new"].is_set(), f"New 未進 full suite：{outcomes}"
+            _write_rewrite_run(queue, tmp_path / "runs/rewrite-prepare", make_rewrite_article())
+            start["rewrite"].set()
+            with condition:
+                assert condition.wait_for(lambda: in_suite["rewrite"].is_set() or "rewrite" in outcomes, timeout=20)
+                concurrent_prepare = in_suite["rewrite"].is_set()
+            record("coordinator", "prepare-overlap", observed=concurrent_prepare)
+            if not concurrent_prepare:
+                # busy 路徑先等 B teardown 結束，避免另一個短 lifecycle 競爭掩蓋 prepare 缺陷。
+                futures[1].result(timeout=20)
+            release_suite["new"].set()
+            assert new_commit_entered.wait(timeout=20), f"New 未進最後 mutation：{outcomes}"
+            release_suite["rewrite"].set()
+            if concurrent_prepare:
+                assert rewrite_final_attempt.wait(timeout=20), "Rewrite 未到最後 writer admission"
+            release_commit.set()
+        except AssertionError as error:
+            coordinator_errors.append(str(error))
+        finally:
+            for event in [*start.values(), *release_suite.values(), release_commit]:
+                event.set()
+            for future in futures:
+                future.result(timeout=30)
+
+    trace = {"roots": roots, "common_dirs": common_dirs, "state_root": str(shared_state), "concurrent_prepare": concurrent_prepare, "outcomes": outcomes, "lock_observations": lock_observations, "max_mutation_concurrency": max_mutations, "coordinator_errors": coordinator_errors, "events": events}
+    (tmp_path / "concurrent-prepare.json").write_text(json.dumps(trace, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print("CONCURRENT_PREPARE_TRACE=" + json.dumps(trace, ensure_ascii=False))
+    assert not coordinator_errors, coordinator_errors
+    assert concurrent_prepare, f"A 停在 full suite，B 必須能進 prerender/full suite；實際 B={outcomes.get('rewrite')}，locks={lock_observations}"
+    assert all(not any(item["held"].values()) for item in lock_observations), "prepare 仍持共用長鎖"
+    assert max_mutations == 1
+    assert outcomes["new"].get("status") == "PUBLISHED"
+    assert not any(event["phase"] == "rewrite" and event["event"] == "mutation-enter" and event["command"][0] in {"commit", "push"} for event in events), "落後於 New release 的 Rewrite 必須拒絕 Git publication"
+    assert publisher.run_git(actor, ["ls-remote", "origin", "refs/heads/main"], None).split()[0] == outcomes["new"]["commit_sha"]
+    assert publisher._repo_clean(actor)
+    ledger = publisher._load_ledger(shared_state)
+    winner = ledger["published_runs"]
+    assert len(winner) == 1 and winner[0]["run_id"] == "new-prepare"
+    assert winner[0]["commit_sha"] == outcomes["new"]["commit_sha"]
+    assert winner[0]["translation_seed_status"] == "seeded"
+    assert ledger["rewrite_released_runs"] == []
+    evidence = publisher._read_json(shared_state / "evidence" / f"publish-{outcomes['new']['version']}" / "publish-evidence.json")
+    assert evidence == outcomes["new"]
+    assert not publisher._unresolved_push_path(shared_state).exists()
+    assert any(event["event"] == "control-finalized" for event in events)
+    loser = outcomes["rewrite"]
+    assert loser["status"] == ("policy_rejected" if brief_abort == "policy" else "failed_recovered")
+    retry_path = publisher._retry_path(shared_state, "rewrite", "rewrite-prepare")
+    retry = publisher._read_json(retry_path) if retry_path.exists() else None
+    if brief_abort is None:
+        assert retry["eligibility"] == "deferred" and retry["evidence"] == loser["evidence"]
+    else:
+        assert updated_brief is not None and watched_brief.read_bytes() == updated_brief
+        assert not any(entry["run_id"] == "rewrite-prepare" for entry in ledger["quarantined_runs"]), "舊 brief 失敗不得隔離新版輸入"
+        assert not publisher._policy_rejection_path(shared_state, "rewrite", "rewrite-prepare").exists()
+        assert retry is None, "abort 不得接受比 prepare 更新的 brief 摘要"
+    failure = publisher._read_json(Path(loser["evidence"]))
+    assert failure["repo_recovered"] is True and failure["removed_local_tags"] == []
+    if brief_abort is None:
+        assert publisher._read_json(Path(loser["evidence"]).parent / "failure-attempt.json")["error"].startswith("publisher origin/main")
+    assert not list(shared_state.glob("transaction-*"))
+    assert (tmp_path / "runs/rewrite-prepare/candidate.json").is_file()
+    state_result = {"winner_ledger": winner, "winner_evidence": evidence, "control_exists": False, "loser_retry": retry, "loser_failure": failure, "transactions_remaining": []}
+    (tmp_path / "concurrent-state.json").write_text(json.dumps(state_result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print("CONCURRENT_STATE_TRACE=" + json.dumps(state_result, ensure_ascii=False))
+
+
+@pytest.mark.parametrize("brief_abort", ["ordinary", "policy"])
+def test_abort_brief_snapshot_preserves_payload_digest(tmp_path, monkeypatch, brief_abort):
+    """兩次讀取間的合法 brief 換代，普通／policy abort 都不得污染新版。"""
+    test_concurrent_transaction_prepare_uses_decorated_new_and_rewrite(tmp_path, monkeypatch, brief_abort=brief_abort)
+
+
+@pytest.mark.parametrize("change", ["unrelated", "published", "superseded", "retry", "quarantine", "policy", "foreign-control", "candidate", "review", "brief", "candidate-policy", "review-policy", "brief-policy"])
+def test_decorated_isolated_publish_revalidates_selected_shared_state(tmp_path, monkeypatch, change):
+    """真實 prepare 中另一個 writer 修改 state；final 不可沿用 stale selection。"""
+    from concurrent.futures import ThreadPoolExecutor
+    policy_failure = change.endswith("-policy")
+    change = change.removesuffix("-policy")
+    actor, queue, state_root, _base = _init_recovery_repo(tmp_path)
+    _minimal_article_static(actor)
+    _write_runtime_manifest_fixture(actor)
+    (actor / "pyproject.toml").write_text('[project]\nversion = "0.3.0"\n')
+    (actor / "package.json").write_text('{"version":"0.3.0"}\n')
+    (actor / "CHANGELOG.md").write_text("# 發布記錄\n")
+    fixture = actor / "tests/test_web.py"
+    fixture.parent.mkdir(exist_ok=True)
+    fixture.write_text('ARTICLE_CACHE_TOKEN = "old"\nDAILY_PUBLIC_ARTICLE_PATHS = [\n]\n')
+    publisher.run_git(actor, ["add", "."], None)
+    publisher.run_git(actor, ["commit", "-m", "synthetic runtime fixture"], None)
+    publisher.run_git(actor, ["branch", "-M", "main"], None)
+    publisher.run_git(actor, ["remote", "add", "origin", str(actor)], None)
+    run_dir = tmp_path / "runs/selected-run"
+    _write_run(queue, run_dir, make_publishable_article())
+    _write_json(run_dir / "brief.json", {"run_id": "selected-run", "mode": "create"})
+    monkeypatch.setattr(publisher.pipeline, "load_publication_reference_corpus", lambda *a: [])
+    monkeypatch.setattr(publisher, "_public_article_count", lambda *a: 1)
+    monkeypatch.setattr(publisher.pipeline, "apply_approved_candidates", lambda root, *a: [(root / "app/web/owned.txt")])
+    initial_candidate = (run_dir / "candidate.json").read_bytes()
+    peer_entry = {"run_id": "selected-run", "article_ids": ["AUTO-001"]}
+    peer_control = {"status": "PUSH_OUTCOME_UNKNOWN", "phase": "rewrite", "run_ids": ["peer-run"], "candidate_sha": "f" * 40}
+    base = publisher.run_git(actor, ["rev-parse", "HEAD"], None)
+    mutations = []
+
+    def other_writer():
+        with publisher._publisher_writer_scope(actor, state_root, publisher.run_git):
+            ledger = publisher._load_ledger(state_root)
+            if change in {"published", "superseded"}:
+                ledger[f"{change}_runs"].append(peer_entry)
+            elif change == "quarantine":
+                ledger["quarantined_runs"].append({"run_id": "selected-run", "reason": "peer quarantine"})
+            elif change == "unrelated":
+                ledger["translation_published_runs"].append({"run_id": "other-lane-run"})
+            publisher._write_json(publisher._ledger_path(state_root), ledger)
+            if change == "retry":
+                publisher._write_json(publisher._retry_path(state_root, "create", "selected-run"), {"retryable": False, "eligibility": "non_retryable"})
+            elif change == "policy":
+                candidate = publisher._read_json(run_dir / "candidate.json")
+                publisher._write_json(publisher._policy_rejection_path(state_root, "create", "selected-run"), {"terminal": True, "input_hash": hashlib.sha256(publisher.pipeline.compact_json_bytes(candidate)).hexdigest()})
+            elif change == "foreign-control":
+                publisher._atomic_write_json(publisher._unresolved_push_path(state_root), peer_control)
+            elif change in {"candidate", "review", "brief"}:
+                path = run_dir / f"{change}.json"
+                path.write_bytes(path.read_bytes() + b"\n")
+
+    def checked(root, command, **kwargs):
+        if command == publisher.TEST_COMMAND:
+            for lock in (actor / ".git/agy-content-publisher.transaction.lock", state_root / "publisher.lock", actor / ".git/agy-content-publisher.lifecycle.lock"):
+                _assert_lifecycle_held(lock, False)
+            assert not (run_dir / "approval.json").exists()
+            assert list(root.parent.glob("prepare/*/approval.json"))
+            assert not (state_root / "evidence").exists()
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                pool.submit(other_writer).result(timeout=10)
+            if policy_failure:
+                raise publisher.PolicyRejected([publisher.pipeline._policy_finding("AUTO-001", "stale_policy", "舊候選失敗", severity="required")])
+
+    def git(root, args, input_text=None):
+        if args[0] in {"commit", "push"} or args[:2] == ["tag", "-a"]:
+            mutations.append(args)
+        return publisher.run_git(root, args, input_text)
+
+    monkeypatch.setattr(publisher, "_run_checked", checked)
+    with publisher._isolated_transaction_worktree(actor, state_root, git) as root:
+        result = publisher.publish_ready_runs(root, queue, state_root, git=git, exact_run_ids=["selected-run"], run_tests=True, release_gate=False)
+    ledger = publisher._load_ledger(state_root)
+    if change == "unrelated":
+        assert result["status"] == "PUBLISHED"
+        assert ledger["translation_published_runs"] == [{"run_id": "other-lane-run"}]
+        assert len(ledger["published_runs"]) == 1
+        assert (run_dir / "approval.json").is_file()
+    else:
+        assert result["status"] == ("policy_rejected" if policy_failure else "failed_recovered")
+        assert mutations == []
+        assert publisher._read_json(Path(result["evidence"]))["repo_recovered"] is True
+        assert (Path(result["evidence"]).parent / "prepare/selected-run/approval.json").is_file()
+        assert not (run_dir / "approval.json").exists()
+    if change in {"published", "superseded"}:
+        assert ledger[f"{change}_runs"] == [peer_entry]
+    if change == "quarantine":
+        assert ledger["quarantined_runs"] == [{"run_id": "selected-run", "reason": "peer quarantine"}]
+    if change in {"candidate", "review", "brief"}:
+        assert ledger["quarantined_runs"] == []
+        assert not publisher._policy_rejection_path(state_root, "create", "selected-run").exists()
+    if change in {"published", "superseded", "quarantine", "policy", "candidate", "review", "brief"}:
+        assert not publisher._retry_path(state_root, "create", "selected-run").exists()
+    if change == "retry":
+        assert publisher._read_json(publisher._retry_path(state_root, "create", "selected-run")) == {"retryable": False, "eligibility": "non_retryable"}
+    if change == "foreign-control":
+        assert publisher._read_json(publisher._unresolved_push_path(state_root)) == peer_control
+    assert (run_dir / "candidate.json").read_bytes() == initial_candidate + (b"\n" if change == "candidate" else b"")
+    assert publisher.run_git(actor, ["rev-parse", "HEAD"], None) == base
+    assert not list(state_root.glob("transaction-*"))
+
+
+@pytest.mark.parametrize("change", ["unchanged", "published", "retry", "stage", "brief", "owner"])
+def test_translation_deferred_flush_revalidates_abort_authority(tmp_path, monkeypatch, change):
+    """deferred 與 retry/policy 共用同一輸入及 lifecycle 權限檢查。"""
+    fixture, _receipt = _sealed_replacement_publisher_fixture(tmp_path, monkeypatch, native=True)
+    root, queue, state = _sealed_publisher_roots(fixture)
+    ready = publisher.collect_ready_translation_runs(root, queue, state, exact_run_ids=[fixture["kwargs"]["expected_run_id"]])
+    run_id = str(ready[0][0]["run_id"])
+    def git(_root, args, _input=None):
+        return "a" * 40 if args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]) else ""
+    journal = publisher.MutationJournal(root, git)
+    journal.selected_inputs = ready
+    journal.select_runs([run_id])
+    with journal.state_scope(state):
+        publisher._freeze_publish_revalidation(root, queue, state, ready, "a" * 40, "translation", git, journal=journal)
+        journal.deferred.append((run_id, "本輪 translation apply failure"))
+        ledger = publisher._load_ledger(state)
+        if change in {"published", "owner"}:
+            owner = run_id if change == "published" else ready[0][0]["_approved_revision_stage"]["public_replacement"]["old_run_id"]
+            ledger["translation_published_runs"].append({"run_id": owner, "commit_sha": "peer"})
+            publisher._write_json(publisher._ledger_path(state), ledger)
+        elif change == "retry":
+            publisher._write_json(publisher._retry_path(state, "translation", run_id), {"retryable": False, "eligibility": "non_retryable"})
+        elif change in {"stage", "brief"}:
+            path = fixture["run_dir"] / ("editorial-staging/current.json" if change == "stage" else "brief.json")
+            path.write_bytes(path.read_bytes().replace(b"{", b'{"peer_generation": true,', 1))
+        before = publisher._ledger_path(state).read_bytes()
+        journal.flush_deferred()
+        after = publisher._load_ledger(state)
+        if change == "unchanged":
+            assert any(entry.get("reason") == "本輪 translation apply failure" for entry in after["translation_deferred_runs"])
+        else:
+            assert publisher._ledger_path(state).read_bytes() == before
+        assert journal.deferred == []
