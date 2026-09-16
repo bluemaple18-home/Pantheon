@@ -427,16 +427,21 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
 fi
 ACTIVATION_CORRELATION_ID="activation-${RUNTIME_GENERATION}-$$"
 ACTIVATION_PHASE="correlation_validation"
+NORMAL_ADMISSION_JSON=""
 write_failure_receipt() {
   local STATUS="$1"
   local RETURN_CODE="$2"
   local EXIT_PHASE="$3"
   local ROLLBACK_CHECK_IDS_JSON="${4:-[]}"
+  local ADMISSION_FIELD=""
+  if [[ -n "${NORMAL_ADMISSION_JSON:-}" ]]; then
+    ADMISSION_FIELD=",\"admission\":${NORMAL_ADMISSION_JSON}"
+  fi
   local RECEIPT_TEMP="${STAGE_DIR}/failure-receipt.json.tmp.$$"
-  printf '{"schema_version":1,"status":"%s","failed":true,"correlation_id":"%s","stage_identity":{"manifest_digest":"%s","generation":"%s"},"exit_reason":{"phase":"%s","exit_code":%d},"rollback_check_ids":%s}\n' \
+  printf '{"schema_version":1,"status":"%s","failed":true,"correlation_id":"%s","stage_identity":{"manifest_digest":"%s","generation":"%s"},"exit_reason":{"phase":"%s","exit_code":%d},"rollback_check_ids":%s%s}\n' \
     "${STATUS}" "${ACTIVATION_CORRELATION_ID}" "${RUNTIME_MANIFEST_DIGEST}" \
     "${RUNTIME_GENERATION}" "${EXIT_PHASE}" "${RETURN_CODE}" \
-    "${ROLLBACK_CHECK_IDS_JSON}" > "${RECEIPT_TEMP}"
+    "${ROLLBACK_CHECK_IDS_JSON}" "${ADMISSION_FIELD}" > "${RECEIPT_TEMP}"
   chmod 600 "${RECEIPT_TEMP}"
   mv "${RECEIPT_TEMP}" "${STAGE_DIR}/failure-receipt.json"
 }
@@ -903,6 +908,314 @@ STARTED_LABELS=()
 normalize_control_identity() {
   sed -E '/^[[:space:]]*(state|pid|runs|last exit code|last terminating signal|successful exits|forks|execs|initialized|trampolined|started|proxy started) = /d' "$1"
 }
+normal_activation_boundary() {
+  "${PYTHON_BIN}" - "${STAGE_DIR}" "${BARRIER_TIMEOUT_SECONDS}" "gui/${USER_ID}" "${RUNTIME_MANIFEST_FILE}" "$@" <<'PY'
+import ctypes
+import errno
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import time
+
+stage, budget, domain, manifest_file, mode, *arguments = sys.argv[1:]
+manifest = json.loads(Path(manifest_file).read_text())
+owned_roots = [str(Path(manifest[key]).resolve()) for key in ('actor_root', 'queue_root', 'publisher_state_root', 'log_root')]
+path = Path(stage) / 'normal-rollback-drain.json'
+record = json.loads(path.read_text()) if path.exists() else {'processes': {}, 'groups': [], 'seen_labels': []}
+if mode == 'drain' and 'deadline' not in record:
+    record['deadline'] = time.monotonic() + int(budget)
+deadline = record.get('deadline', time.monotonic() + int(budget))
+
+
+def save():
+    temporary = path.with_suffix('.tmp')
+    with temporary.open('w') as stream:
+        json.dump(record, stream)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, path)
+
+
+def remaining():
+    value = deadline - time.monotonic()
+    if value <= 0:
+        raise RuntimeError('normal rollback drain deadline exceeded')
+    return min(value, 5)
+
+
+def command(argv):
+    try:
+        result = subprocess.run(argv, capture_output=True, text=True, timeout=remaining())
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError(f'command outcome UNKNOWN: {argv[:2]}') from error
+    return result
+
+
+class Birth(ctypes.Structure):
+    # Darwin PROC_PIDTBSDINFO；微秒出生身分，不能以 PID 字串代替。
+    _fields_ = [(name, ctypes.c_uint32) for name in (
+        'flags', 'status', 'xstatus', 'pid', 'ppid', 'uid', 'gid', 'ruid', 'rgid', 'svuid', 'svgid', 'reserved')]
+    _fields_ += [('comm', ctypes.c_char * 16), ('name', ctypes.c_char * 32)]
+    _fields_ += [(name, ctypes.c_uint32) for name in ('nfiles', 'pgid', 'jobc', 'tdev', 'tpgid')]
+    _fields_ += [('nice', ctypes.c_int32), ('sec', ctypes.c_uint64), ('usec', ctypes.c_uint64)]
+
+
+def identity(pid, row):
+    value = Birth()
+    lib = ctypes.CDLL('/usr/lib/libproc.dylib', use_errno=True)
+    lib.proc_pidinfo.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_int]
+    ctypes.set_errno(0)
+    count = lib.proc_pidinfo(pid, 3, 0, ctypes.byref(value), ctypes.sizeof(value))
+    error = ctypes.get_errno()
+    previous = record['processes'].get(str(pid))
+    if count != ctypes.sizeof(value):
+        # 已觀察程序在 ps→libproc 間自然退出：保留 lineage，再取完整快照。
+        if error == errno.ESRCH and previous:
+            record['resample_required'] = True
+            return None
+        raise RuntimeError(f'process identity UNKNOWN: {pid}: bytes={count}, errno={error}')
+    birth = [value.sec, value.usec]
+    if value.pid != pid or not value.sec:
+        raise RuntimeError(f'process identity UNKNOWN: {pid}')
+    if previous and previous['birth'] != birth:
+        raise RuntimeError(f'PID reuse: {pid}')
+    if not previous and (value.ppid != row['ppid'] or value.pgid != row['pgid']):
+        raise RuntimeError(f'unobserved process ancestry UNKNOWN: {pid}')
+    return birth
+
+
+def services():
+    result = {}
+    for label in arguments:
+        reply = command(['launchctl', 'print', f'{domain}/{label}'])
+        if reply.returncode in (3, 113):
+            result[label] = None
+            continue
+        if reply.returncode:
+            raise RuntimeError(f'service state UNKNOWN: {label}: {reply.returncode}')
+        pids = re.findall(r'^\tpid = (\d+)$', reply.stdout, re.M)
+        states = re.findall(r'^\tstate = (.+)$', reply.stdout, re.M)
+        runs = re.findall(r'^\truns = (\d+)$', reply.stdout, re.M)
+        if len(pids) > 1 or len(states) != 1 or len(runs) != 1:
+            raise RuntimeError(f'service process evidence UNKNOWN: {label}')
+        if pids:
+            result[label] = int(pids[0])
+        elif states[0] in ('waiting', 'not running', 'exited'):
+            # 快速正常退出不代表異常；下面仍掃 runtime 歸屬的 orphan/children。
+            result[label] = None
+        else:
+            raise RuntimeError(f'service PID UNKNOWN: {label}')
+    return result
+
+
+def observe():
+    first = services()
+    reply = command(['/bin/ps', '-axo', 'pid=,ppid=,pgid=,stat=,command='])
+    if reply.returncode:
+        raise RuntimeError('process snapshot UNKNOWN')
+    rows = {}
+    for line in reply.stdout.splitlines():
+        fields = line.split(None, 4)
+        if len(fields) != 5 or not all(value.isdigit() for value in fields[:3]):
+            raise RuntimeError('process snapshot grammar UNKNOWN')
+        pid, parent, group = map(int, fields[:3])
+        rows[pid] = {'ppid': parent, 'pgid': group, 'zombie': fields[3].startswith('Z'), 'command': fields[4]}
+    # 排除操作本身的 ancestors/diagnostic children，不擴成全機 orphan 審計。
+    excluded = {os.getpid()}
+    parent = os.getpid()
+    while parent in rows and rows[parent]['ppid'] not in excluded:
+        parent = rows[parent]['ppid']
+        excluded.add(parent)
+    diagnostic = {os.getpid()}
+    while True:
+        added = {pid for pid, row in rows.items() if row['ppid'] in diagnostic} - diagnostic
+        if not added:
+            break
+        diagnostic |= added
+    excluded |= diagnostic
+    cwd = command(['/usr/sbin/lsof', '-a', '-u', str(os.getuid()), '-d', 'cwd', '-Fpn'])
+    if cwd.returncode:
+        raise RuntimeError('runtime cwd observation UNKNOWN')
+    selected = None
+    for line in cwd.stdout.splitlines():
+        if line.startswith('p') and line[1:].isdigit():
+            selected = int(line[1:])
+        elif line == 'fcwd':
+            continue
+        elif line.startswith('n') and selected is not None:
+            if selected in rows:
+                rows[selected]['cwd'] = line[1:]
+        else:
+            raise RuntimeError('cwd observation grammar UNKNOWN')
+    owned = {pid for pid, row in rows.items() if pid not in excluded and any(
+        row.get('cwd') == root or row.get('cwd', '').startswith(root + '/')
+        or root + '/' in row['command'] for root in owned_roots)}
+    second = services()
+    seeds = {pid for pid in [*first.values(), *second.values()] if pid is not None}
+    if any(str(pid) not in record['processes'] for pid in seeds - rows.keys()):
+        raise RuntimeError('unobserved service PID missing from process snapshot')
+    # 已觀察 root 自然退出時保留其 PGID/子孫；須再取穩定快照才可宣稱排空。
+    record['resample_required'] = first != second
+    active = owned | (seeds & rows.keys()) | {int(pid) for pid in record['processes'] if int(pid) in rows}
+    groups = set(record['groups'])
+    while True:
+        previous = set(active)
+        groups |= {rows[pid]['pgid'] for pid in active}
+        if any(group <= 1 or group == os.getpgrp() for group in groups):
+            raise RuntimeError('service process group ownership UNKNOWN')
+        active |= {pid for pid, row in rows.items() if pid not in excluded and (row['ppid'] in active or row['pgid'] in groups)}
+        if previous == active:
+            break
+    alive = []
+    for pid in active:
+        row = rows[pid]
+        birth = identity(pid, row)
+        if birth is None:
+            continue
+        previous = record['processes'].get(str(pid))
+        if previous and previous['birth'] != birth:
+            raise RuntimeError(f'PID reuse: {pid}')
+        record['processes'][str(pid)] = {'birth': birth, **row}
+        if not row['zombie']:
+            alive.append(pid)
+    for label, pid in {**first, **second}.items():
+        if pid is not None and str(pid) in record['processes'] and label not in record['seen_labels']:
+            record['seen_labels'].append(label)
+    record.update(groups=sorted(groups), active=sorted(alive), sampled_at=time.time())
+    save()
+    return alive
+
+
+try:
+    if record.get('status') == 'UNKNOWN_OR_FAILED':
+        raise RuntimeError('prior normal process evidence is unresolved: ' + record.get('error', 'unknown'))
+    if mode == 'absent':
+        result = command(['launchctl', 'print', *arguments])
+        if result.returncode not in (3, 113):
+            raise RuntimeError(f'service absence UNKNOWN: {result.returncode}')
+    elif mode == 'control':
+        # 只對直接建立的 launchctl client 設 timeout；不 signal payload。
+        result = command(['launchctl', *arguments])
+        sys.stdout.write(result.stdout)
+        sys.stderr.write(result.stderr)
+        if result.returncode:
+            raise RuntimeError(f'launchctl control failed: {result.returncode}')
+    elif mode == 'observe':
+        observe()
+    elif mode == 'drain':
+        while observe() or record['resample_required']:
+            time.sleep(min(.1, remaining()))
+        record['status'] = 'DRAINED'
+        save()
+    else:
+        raise RuntimeError('unknown normal activation boundary')
+except Exception as error:
+    record.update(status='UNKNOWN_OR_FAILED', error=f'{type(error).__name__}: {error}')
+    save()
+    print(record['error'], file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+rollback_launchctl() {
+  if [[ "${ACTIVATION_ONLY}" == "1" ]]; then
+    launchctl "$@"
+  else
+    normal_activation_boundary control "$@"
+  fi
+}
+# 最後 admission commit：先在非 live 路徑還原、驗證，再以實體身分判定發布結果。
+restore_normal_admission() {
+  (cd "${REPO_ROOT}" && "${PYTHON_BIN}" - "${STAGE_DIR}" \
+    "${PREVIOUS_BARRIER_PATH}" "${BARRIER_TIMEOUT_SECONDS}" <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+
+stage, live = Path(sys.argv[1]), Path(sys.argv[2])
+deadline = time.monotonic() + float(sys.argv[3])
+result = {"state": "UNKNOWN", "recovery_owner": "operator",
+          "automatic_cleanup_allowed": False, "live_path": str(live),
+          "expected_identity": None, "actual_identity": None, "error": None}
+validated = False
+
+def identity(path):
+    # 不追 symlink；只有同一 validated inode、bytes、owner、mode 才能認定 OPEN。
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as stream:
+        before = os.fstat(stream.fileno())
+        if not stat.S_ISREG(before.st_mode):
+            raise ValueError("barrier identity is not a regular file")
+        digest = hashlib.sha256(stream.read()).hexdigest()
+        after = os.fstat(stream.fileno())
+        if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
+                after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+            raise ValueError("barrier changed during identity read")
+    current = os.lstat(path)
+    if (current.st_dev, current.st_ino) != (after.st_dev, after.st_ino):
+        raise ValueError("barrier path changed during identity read")
+    return {"device": after.st_dev, "inode": after.st_ino, "uid": after.st_uid,
+            "mode": stat.S_IMODE(after.st_mode), "sha256": digest}
+
+def run(argv):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("admission commit deadline exceeded")
+    completed = subprocess.run(argv, capture_output=True, text=True,
+                               timeout=min(remaining, 5))
+    if completed.returncode:
+        raise RuntimeError(f"{argv[0]} exit={completed.returncode}: {completed.stderr.strip()} {completed.stdout.strip()}")
+    return completed
+
+try:
+    result["phase"] = "stage"
+    fd, name = tempfile.mkstemp(prefix=".rollback-barrier-", dir=live.parent)
+    os.close(fd)
+    candidate = Path(name)
+    result["candidate_path"] = name
+    run(["install", "-m", "600", str(stage / "previous-barrier"), name])
+    expected = identity(candidate)
+    result["phase"] = "validate"
+    validation = run([sys.executable, "-m", "scripts.pantheon_content_runtime_manifest", "barrier-validate",
+         "--barrier", name, "--manifest", str(stage / "previous-runtime-manifest.json"),
+         "--expected-digest", (stage / "previous-manifest-digest").read_text().strip()])
+    result["validation"] = validation.stdout.strip()
+    if (expected["sha256"] != hashlib.sha256((stage / "previous-barrier").read_bytes()).hexdigest()
+            or expected["uid"] != os.getuid() or expected["mode"] != 0o600):
+        raise ValueError("restored candidate identity mismatch")
+    if identity(candidate) != expected:
+        raise ValueError("candidate changed during validation")
+    result["expected_identity"] = expected
+    validated = True
+    result["phase"] = "publish"
+    # 同目錄 hard link 不覆寫 live；報錯或逾時後仍必須查實體結果。
+    run(["ln", name, str(live)])
+except Exception as exc:
+    result["error"] = f"{type(exc).__name__}: {exc}"
+try:
+    result["actual_identity"] = identity(live)
+    result["state"] = "OPEN" if validated and result["actual_identity"] == result["expected_identity"] else "UNKNOWN"
+except FileNotFoundError:
+    result["state"] = "CLOSED"
+except Exception as exc:
+    result["observation_error"] = f"{type(exc).__name__}: {exc}"
+if result["state"] != "OPEN" and result["error"] is None:
+    result["error"] = "published barrier identity not proven"
+# 已 OPEN 或 UNKNOWN 不可撤銷已 admission 的工作；保留候選與備份供操作者接手。
+print(json.dumps(result, separators=(",", ":")))
+sys.exit(1 if result["error"] else 0)
+PY
+  )
+}
+
 rollback_activation() {
   local RETURN_CODE="$1"
   local EXIT_PHASE="$2"
@@ -929,15 +1242,47 @@ rollback_activation() {
   trap - ERR
   set +e
   rm -f "${ACTIVATION_BARRIER}" || record_rollback_failure "rollback.barrier.remove"
+  # normal 已可能 admission；fence/drain 不成立就保留備份，禁止競爭的舊版啟動。
+  stop_normal_rollback_if_failed() {
+    if [[ "${ACTIVATION_ONLY}" != "1" && "${ROLLBACK_FAILED}" == "1" ]]; then
+      write_failure_receipt "ROLLBACK_FAILED" "${RETURN_CODE}" "${EXIT_PHASE}" \
+        "$(rollback_check_ids_json)"
+      exit "${RETURN_CODE}"
+    fi
+  }
+  if [[ "${ACTIVATION_ONLY}" != "1" ]]; then
+    [[ ! -e "${ACTIVATION_BARRIER}" && ! -L "${ACTIVATION_BARRIER}" ]] \
+      || record_rollback_failure "rollback.fence.unknown"
+    if [[ -f "${STAGE_DIR}/previous-barrier-path" ]]; then
+      PREVIOUS_BARRIER_PATH="$(cat "${STAGE_DIR}/previous-barrier-path")"
+      if [[ "${PREVIOUS_BARRIER_PATH}" != "${ACTIVATION_BARRIER}" ]]; then
+        rm -f "${PREVIOUS_BARRIER_PATH}" || record_rollback_failure "rollback.previous_fence.remove"
+        [[ ! -e "${PREVIOUS_BARRIER_PATH}" && ! -L "${PREVIOUS_BARRIER_PATH}" ]] \
+          || record_rollback_failure "rollback.previous_fence.unknown"
+      fi
+    fi
+    stop_normal_rollback_if_failed
+    normal_activation_boundary drain "${LABELS[@]}" || record_rollback_failure "rollback.drain"
+    stop_normal_rollback_if_failed
+  fi
   # Bash 3.2 的 nounset 不接受直接展開空陣列。
   for LABEL in ${STARTED_LABELS[@]+"${STARTED_LABELS[@]}"}; do
-    if ! launchctl bootout "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
+    if [[ "${ACTIVATION_ONLY}" != "1" ]]; then
+      normal_activation_boundary drain "${LABELS[@]}" || record_rollback_failure "rollback.drain"
+      stop_normal_rollback_if_failed
+    fi
+    if ! rollback_launchctl bootout "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
       record_rollback_failure "rollback.bootout"
     fi
-    if launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
+    if [[ "${ACTIVATION_ONLY}" != "1" ]]; then
+      normal_activation_boundary absent "gui/${USER_ID}/${LABEL}" \
+        || record_rollback_failure "rollback.bootout.unknown"
+    elif launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
       record_rollback_failure "rollback.bootout.loaded"
     fi
+    stop_normal_rollback_if_failed
   done
+  stop_normal_rollback_if_failed
   for INDEX in 0 1 2 3 4 5 6; do
     LABEL="${LABELS[${INDEX}]}"
     TARGET="${TARGET_PLISTS[${INDEX}]}"
@@ -950,10 +1295,11 @@ rollback_activation() {
       rm -f "${TARGET}" || record_rollback_failure "rollback.restore.remove"
       [[ ! -e "${TARGET}" ]] || record_rollback_failure "rollback.restore.remove"
     fi
+    stop_normal_rollback_if_failed
     if [[ "$(cat "${STAGE_DIR}/${LABEL}.previous_loaded")" == "1" \
       && -f "${TARGET}" ]]; then
-      if ! launchctl bootstrap "gui/${USER_ID}" "${TARGET}" >/dev/null 2>&1 \
-        || ! launchctl print "gui/${USER_ID}/${LABEL}" \
+      if ! rollback_launchctl bootstrap "gui/${USER_ID}" "${TARGET}" >/dev/null 2>&1 \
+        || ! rollback_launchctl print "gui/${USER_ID}/${LABEL}" \
           > "${STAGE_DIR}/${LABEL}.actual_identity" 2>/dev/null; then
         record_rollback_failure "rollback.bootstrap"
       else
@@ -963,12 +1309,24 @@ rollback_activation() {
           "${STAGE_DIR}/${LABEL}.actual_identity.stable" \
           || record_rollback_failure "rollback.identity"
       fi
+    elif [[ "${ACTIVATION_ONLY}" != "1" ]]; then
+      normal_activation_boundary absent "gui/${USER_ID}/${LABEL}" \
+        || record_rollback_failure "rollback.identity.unloaded"
     elif launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null 2>&1; then
       record_rollback_failure "rollback.identity.unloaded"
     fi
   done
+  stop_normal_rollback_if_failed
   if [[ -f "${STAGE_DIR}/previous-barrier" ]]; then
     PREVIOUS_BARRIER_PATH="$(cat "${STAGE_DIR}/previous-barrier-path")"
+    if [[ "${ACTIVATION_ONLY}" != "1" ]]; then
+      NORMAL_ADMISSION_JSON="$(restore_normal_admission)" \
+        || record_rollback_failure "rollback.barrier.admission_commit"
+      if [[ -z "${NORMAL_ADMISSION_JSON}" ]]; then
+        NORMAL_ADMISSION_JSON='{"state":"UNKNOWN","recovery_owner":"operator","automatic_cleanup_allowed":false,"error":"admission result unavailable"}'
+        record_rollback_failure "rollback.barrier.admission_unknown"
+      fi
+    else
     install -m 600 "${STAGE_DIR}/previous-barrier" "${PREVIOUS_BARRIER_PATH}" \
       || record_rollback_failure "rollback.barrier.restore"
     if ! (cd "${REPO_ROOT}" && "${PYTHON_BIN}" -m \
@@ -978,6 +1336,7 @@ rollback_activation() {
       --expected-digest "$(cat "${STAGE_DIR}/previous-manifest-digest")") \
       >/dev/null; then
       record_rollback_failure "rollback.barrier.validate"
+    fi
     fi
   elif grep -q '^1$' "${STAGE_DIR}"/*.previous_loaded \
     && [[ ! -f "${STAGE_DIR}/legacy-capacity-adoption" ]]; then
@@ -1483,6 +1842,9 @@ for INDEX in 0 1 2 3 4 5 6; do
   STARTED_LABELS+=("${LABEL}")
   launchctl bootstrap "gui/${USER_ID}" "${TARGET}"
   launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null
+  if [[ "${ACTIVATION_ONLY}" != "1" ]]; then
+    normal_activation_boundary observe "${LABELS[@]}" || false
+  fi
 done
 ACTIVATION_PHASE="live_aggregate_validation"
 LIVE_AGGREGATE_ARGS=()

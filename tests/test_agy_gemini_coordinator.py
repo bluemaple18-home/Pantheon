@@ -7,6 +7,7 @@ import plistlib
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -8981,6 +8982,8 @@ def test_aggregate_activation_rejects_before_mutation_with_failure_receipt(
 @pytest.mark.parametrize(
     ("rollback_fail_at", "expected_rollback_status", "fail_before_bootstrap"),
     [(0, "ROLLBACK_COMPLETE", False), (4, "ROLLBACK_FAILED", False),
+     (-1, "ROLLBACK_FAILED", False), (-2, "ROLLBACK_FAILED", False),
+     (-3, "ROLLBACK_FAILED", False), (-4, "ROLLBACK_FAILED", False),
      (0, "ROLLBACK_COMPLETE", True)],
 )
 def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
@@ -8988,6 +8991,7 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
     rollback_fail_at: int,
     expected_rollback_status: str,
     fail_before_bootstrap: bool,
+    admission_fault: str | None = None,
 ) -> None:
     """REG-PANTHEON-FOUR-LANE-INSTALL-ROLLBACK-001 動態 rollback。"""
     repo_root = Path(__file__).resolve().parents[1]
@@ -9050,13 +9054,18 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         "if [ \"$1\" = \"print\" ]; then\n"
         "  case \"$2\" in *com.pantheon.agy-gemini-runner) exit 113;; esac\n"
         "  label=${2##*/}\n"
+        f"  if [ '{rollback_fail_at}' = '-3' ] && [ -f '{tmp_path}/unknown-after-bootout' ]; then exit 2; fi\n"
         f"  [ -f '{loaded}/'$label ] || exit 113\n"
-        "  printf '%s\\n' 'pid = 4242'\n"
+        "  printf '%s\\n' '\tstate = waiting' '\truns = 0'\n"
         "  exit 0\n"
         "fi\n"
         "if [ \"$1\" = \"bootout\" ]; then\n"
         "  label=${2##*/}\n"
         f"  rm -f '{loaded}/'$label\n"
+        f"  if [ -f '{bootstrap_count}' ] && [ \"$(cat '{bootstrap_count}')\" -ge 3 ]; then\n"
+        f"    if [ '{rollback_fail_at}' = '-2' ]; then exit 29; fi\n"
+        f"    if [ '{rollback_fail_at}' = '-3' ]; then touch '{tmp_path}/unknown-after-bootout'; fi\n"
+        "  fi\n"
         # 第二個舊服務已卸載後失敗，此時尚未 bootstrap，必須完整復原。
         f"  if [ '{int(fail_before_bootstrap)}' = '1' ] && [ \"$label\" = '{labels[1]}' ]; then exit 23; fi\n"
         "  exit 0\n"
@@ -9074,6 +9083,63 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         encoding="utf-8",
     )
     launchctl.chmod(0o700)
+    if rollback_fail_at in {-1, -4}:
+        install_shim = tmp_path / 'bin/install'
+        match = '/backups/' if rollback_fail_at == -1 else '/previous-barrier '
+        install_shim.write_text('#!/bin/sh\n' + f'case "$*" in *"{match}"*) exit 31;; esac\nexec /usr/bin/install "$@"\n')
+        install_shim.chmod(0o700)
+
+    if admission_fault:
+        # 真舊 payload 在 restore-bootstrap 後等候有效 bytes；不控制 native 服務。
+        waiter = tmp_path / "old-waiter.py"
+        waiter.write_text(
+            "import pathlib,time\n"
+            f"barrier=pathlib.Path({str(barrier)!r})\n"
+            f"saved={barrier.read_bytes()!r}\n"
+            f"root=pathlib.Path({str(tmp_path)!r})\n"
+            "(root/'old-started').touch()\n"
+            "deadline=time.monotonic()+20\n"
+            "while time.monotonic()<deadline and not (root/'release-old').exists():\n"
+            " try:\n"
+            "  if barrier.read_bytes()==saved:\n"
+            "   (root/'old-admitted').touch()\n"
+            "   while time.monotonic()<deadline and not (root/'release-old').exists(): time.sleep(.01)\n"
+            "   break\n"
+            " except FileNotFoundError: pass\n"
+            " time.sleep(.01)\n"
+            "(root/'old-done').touch()\n"
+        )
+        body = launchctl.read_text().replace(
+            f"  touch '{loaded}/'$label\n",
+            f"  touch '{loaded}/'$label\n"
+            f"  if [ \"$count\" -eq 10 ]; then '{sys.executable}' '{waiter}' >/dev/null 2>&1 & fi\n",
+        )
+        launchctl.write_text(body)
+        handshake = (
+            f"i=0; while [ ! -f '{tmp_path}/old-admitted' ] && [ $i -lt 500 ]; do sleep .01; i=$((i+1)); done\n"
+            f"[ -f '{tmp_path}/old-admitted' ] || exit 32\n"
+            f"printf 'publication-effect-error\\n' >> '{mutation_log}'\nexit 31\n"
+        )
+        install_shim = tmp_path / 'bin/install'
+        # R0 的實體重現：live install 生效後報錯；R1 改在 candidate，仍保持 closed。
+        install_shim.write_text(
+            '#!/bin/sh\ncase "$*" in *"/previous-barrier "*)\n'
+            + ('exit 31\n' if admission_fault == 'before-write' else
+               '/usr/bin/install "$@" || exit $?\n' +
+               ('printf broken > "$4"; exit 0\n' if admission_fault == 'invalid-stage' else
+                ('exit 31\n' if admission_fault == 'stage-effect' else
+                 f'if [ "$4" = "{barrier}" ]; then\n' + handshake + 'fi\nexit 0\n')))
+            + ';; esac\nexec /usr/bin/install "$@"\n'
+        )
+        install_shim.chmod(0o700)
+        publish = tmp_path / 'bin/ln'
+        publish.write_text(
+            '#!/bin/sh\n/bin/ln "$@" || exit $?\n'
+            + handshake.replace('exit 31\n', 'chmod 644 "$2"\nexit 31\n')
+            if admission_fault == 'publish-unknown' else
+            '#!/bin/sh\n/bin/ln "$@" || exit $?\n' + handshake
+        )
+        publish.chmod(0o700)
 
     staged = subprocess.run(
         ["/bin/bash", str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"), "--install"],
@@ -9103,10 +9169,30 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         text=True,
     )
 
+    if admission_fault:
+        (tmp_path / 'release-old').touch()
+        deadline = time.monotonic() + 5
+        while not (tmp_path / 'old-done').exists() and time.monotonic() < deadline:
+            time.sleep(.01)
+        assert (tmp_path / 'old-done').exists()
+        (tmp_path / 'activate.stderr').write_text(activated.stderr)
     assert activated.returncode == (23 if fail_before_bootstrap else 1), activated.stderr
-    for label in labels:
-        assert (launch_agents / f"{label}.plist").read_bytes() == previous
-    assert runtime_manifest.validate_barrier(barrier, manifest)["status"] == "PASS"
+    if expected_rollback_status == "ROLLBACK_COMPLETE":
+        for label in labels:
+            assert (launch_agents / f"{label}.plist").read_bytes() == previous
+        assert runtime_manifest.validate_barrier(barrier, manifest)["status"] == "PASS"
+    else:
+        if admission_fault in {'publish-effect', 'publish-unknown'}:
+            if admission_fault == 'publish-effect':
+                assert runtime_manifest.validate_barrier(barrier, manifest)["status"] == "PASS"
+            assert barrier.read_bytes() == (stage_dir / 'previous-barrier').read_bytes()
+            assert (tmp_path / 'old-admitted').exists()
+        else:
+            assert not barrier.exists()
+            if admission_fault:
+                assert not (tmp_path / 'old-admitted').exists()
+        for label in labels:
+            assert (stage_dir / 'backups' / f'{label}.plist').read_bytes() == previous
     failure_receipt = launch_agents / ".pantheon-four-lane-stage" / "failure-receipt.json"
     receipt = json.loads(failure_receipt.read_text(encoding="utf-8"))
     assert receipt["status"] == expected_rollback_status
@@ -9123,12 +9209,37 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
     }
     mutations = mutation_log.read_text(encoding="utf-8")
     assert mutations.count("bootout") >= 2
-    assert mutations.count("bootstrap") >= len(labels)
+    if expected_rollback_status == "ROLLBACK_COMPLETE":
+        assert mutations.count("bootstrap") >= len(labels)
     if expected_rollback_status == "ROLLBACK_COMPLETE":
         assert all((loaded / label).is_file() for label in labels)
         assert receipt["rollback_check_ids"] == []
     if fail_before_bootstrap:
         assert mutations.count("bootstrap") == len(labels)
+
+
+@pytest.mark.parametrize("fault", ["before-write", "stage-effect", "invalid-stage", "publish-effect", "publish-unknown"])
+def test_normal_rollback_final_admission_commit(tmp_path: Path, fault: str) -> None:
+    """R1：非 live 還原失敗保持 closed；發布生效後報錯如實交回控制權。"""
+    test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
+        tmp_path, 0, "ROLLBACK_FAILED", False, admission_fault=fault,
+    )
+    stage = tmp_path / 'home/Library/LaunchAgents/.pantheon-four-lane-stage'
+    receipt = json.loads((stage / 'failure-receipt.json').read_text())
+    admission = receipt['admission']
+    assert admission['state'] == {'publish-effect': 'OPEN', 'publish-unknown': 'UNKNOWN'}.get(fault, 'CLOSED')
+    assert admission['recovery_owner'] == 'operator'
+    assert admission['automatic_cleanup_allowed'] is False
+    assert admission['error']
+    assert receipt['exit_reason'] == {'phase': 'bootstrap_staged_services', 'exit_code': 1}
+    if fault in {'publish-effect', 'publish-unknown'}:
+        mutations = (tmp_path / 'launchctl-mutations.log').read_text()
+        assert mutations.split('publication-effect-error')[-1].strip() == ''
+        assert (admission['expected_identity'] == admission['actual_identity']) == (fault == 'publish-effect')
+        assert admission['phase'] == 'publish'
+        assert '31' in admission['error']
+    elif fault == 'invalid-stage':
+        assert admission['phase'] == 'validate'
 
 
 def test_four_lane_activation_success_commits_matching_private_stage(
@@ -9164,7 +9275,7 @@ def test_four_lane_activation_success_commits_matching_private_stage(
         "  case \"$2\" in *com.pantheon.agy-gemini-runner) exit 113;; esac\n"
         "  label=${2##*/}\n"
         f"  [ -f '{loaded}/'$label ] || exit 113\n"
-        "  printf '%s\\n' 'service = fixture'\n"
+        "  printf '%s\\n' '\tstate = waiting' '\truns = 0'\n"
         "  exit 0\n"
         "fi\n"
         "if [ \"$1\" = \"bootout\" ]; then\n"
@@ -13456,3 +13567,162 @@ def test_disclosure_amendment_registry_job_drift_stops_before_consume_or_write(d
     ) == []
     registry_path = coordinator._state_path(coordinator.pipeline.DISCLOSURE_AMENDMENT_RUN_ID, queue)
     assert all(path.read_bytes() == value for path, value in before.items() if path != registry_path)
+
+
+@pytest.mark.parametrize('fault', ['aggregate', 'partial', 'preadmitted-child', 'timeout', 'unknown', 'fence', 'fast-exit', 'fast-exit-child', 'identity', 'diagnostic-timeout'])
+def test_normal_failure_waits_for_real_payload_before_restore(tmp_path: Path, fault: str) -> None:
+    """真 installer/aggregate/ERR 與本地 payload；launchctl 永不轉送 native。"""
+    import time
+    repo = Path(__file__).resolve().parents[1]
+    script = repo / 'scripts/install_agy_gemini_coordinator_launchd.sh'
+    pool, _ = _write_installer_pool(tmp_path)
+    env, home, _ = _installer_test_env(tmp_path, pool=pool, state=tmp_path / 'state.json')
+    env['PANTHEON_USER_HOME_DIR'] = str(home)
+    env['PANTHEON_ACTIVATION_BARRIER_TIMEOUT_SECONDS'] = '2' if fault in {'timeout', 'unknown', 'fence', 'identity', 'diagnostic-timeout'} else '10'
+    manifest = runtime_manifest.load_manifest(Path(env['PANTHEON_RUNTIME_MANIFEST_FILE']))
+    stage = home / 'Library/LaunchAgents/.pantheon-four-lane-stage'
+    ready = tmp_path / 'ready-fixture'
+    for label in runtime_manifest.SERVICE_LABELS:
+        runtime_manifest.write_readiness_ack(ready, manifest, label)
+    barrier = Path(manifest['publisher_state_root']) / f"four-lane-activation-{manifest['generation']}.barrier"
+    runtime_manifest.activate_barrier(barrier, ready, manifest)
+    (tmp_path / 'case.json').write_text(json.dumps({'fault': fault, 'barrier': str(barrier), 'cwd': manifest['queue_root'], 'ready': str(stage / 'readiness' / manifest['generation'])}))
+    (tmp_path / 'loaded').mkdir()
+    payload = tmp_path / 'payload.py'
+    payload.write_text('''import json,os,subprocess,sys,time
+from pathlib import Path
+root=Path(__file__).resolve().parent
+case=json.loads((root/'case.json').read_text());barrier=Path(case['barrier'])
+def event(name):
+ with (root/'timeline.jsonl').open('a') as f:f.write(json.dumps({'event':name,'time':time.monotonic(),'pid':os.getpid()})+'\\n')
+end=time.monotonic()+15
+if case['fault']=='fast-exit':
+ event('payload-start');(root/'started').touch();(root/'done').touch();event('payload-done');raise SystemExit(0)
+if case['fault']=='fast-exit-child' and len(sys.argv)==1:
+ event('payload-start');(root/'started').touch()
+ child=subprocess.Popen([sys.executable,str(__file__),'child'],cwd=case['cwd'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+ (root/'child-pid').write_text(str(child.pid));event('parent-exit');raise SystemExit(0)
+if len(sys.argv)>1:
+ event('child-start')
+ if case['fault']=='fast-exit-child':
+  while not (root/'failure-injected').exists() and not (root/'release').exists() and time.monotonic()<end:time.sleep(.01)
+  while barrier.exists() and not (root/'release').exists() and time.monotonic()<end:time.sleep(.01)
+  event('fence-observed')
+ time.sleep(0.6)
+ (root/'child-done').touch();event('child-done')
+ raise SystemExit(0)
+event('payload-start');(root/'started').touch()
+while not (root/'failure-injected').exists() and not (root/'release').exists() and time.monotonic()<end:time.sleep(.01)
+while barrier.exists() and not (root/'release').exists() and time.monotonic()<end:time.sleep(.01)
+event('fence-observed')
+if case['fault']=='preadmitted-child':
+ child=subprocess.Popen([sys.executable,str(__file__),'child'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+ (root/'child-pid').write_text(str(child.pid))
+ # wrapper 已通過 admission；fence 後才建立 payload，parent 自然先離開。
+ event('parent-exit');raise SystemExit(0)
+if case['fault']=='timeout':
+ while not (root/'release').exists() and time.monotonic()<end:time.sleep(.01)
+else:time.sleep(.6)
+(root/'done').touch();event('payload-done')
+''')
+    shim = tmp_path / 'bin/launchctl'
+    shim.write_text('#!' + sys.executable + '\n' + '''import json,os,plistlib,shutil,subprocess,sys,time
+from pathlib import Path
+root=Path(__file__).resolve().parents[1];args=sys.argv[1:]
+case=json.loads((root/'case.json').read_text());barrier=Path(case['barrier'])
+def event(name,**kw):
+ with (root/'timeline.jsonl').open('a') as f:f.write(json.dumps({'event':name,'time':time.monotonic(),**kw})+'\\n')
+if args[0]=='print':
+ label=args[1].split('/')[-1];path=root/'loaded'/label
+ if not path.exists():sys.exit(113)
+ if case['fault']=='unknown' and not barrier.exists():sys.exit(2)
+ if case['fault']=='diagnostic-timeout' and not barrier.exists():time.sleep(4)
+ pid=path.read_text()
+ if (root/'done').exists() or (root/'child-pid').exists():pid=''
+ print(chr(9)+'state = '+('running' if pid else 'waiting'))
+ print(chr(9)+'runs = '+('1' if path.read_text() else '0'))
+ print(chr(9)+'coalition = {');print(chr(9)*2+'state = running');print(chr(9)+'}')
+ if pid:
+  # 已結束的本地程序仍可能為 zombie；由正式診斷確認，而非假造不存在。
+  print(chr(9)+'pid = '+pid)
+ sys.exit(0)
+if args[0]=='bootstrap':
+ target=Path(args[2]);label=target.stem
+ if not (root/'started').exists():
+  p=subprocess.Popen([sys.executable,str(root/'payload.py')],start_new_session=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+  (root/'loaded'/label).write_text(str(p.pid));(root/'payload-pid').write_text(str(p.pid))
+  end=time.monotonic()+3
+  while not (root/'started').exists() and time.monotonic()<end:time.sleep(.01)
+  if not (root/'started').exists():raise SystemExit(81)
+  if case['fault'] in {'fast-exit','fast-exit-child'}:p.wait(timeout=3)
+ else:(root/'loaded'/label).write_text('')
+ count=len(list((root/'loaded').iterdir()))
+ if case['fault']=='partial' and count==2:
+  (root/'failure-injected').touch();event('failure-injected');sys.exit(23)
+ if count==7 and case['fault']=='fast-exit':
+  shutil.copytree(root/'ready-fixture',case['ready'],dirs_exist_ok=True);sys.exit(0)
+ if count==7:
+  if case['fault']=='identity':
+   journal=target.parent/'.pantheon-four-lane-stage/normal-rollback-drain.json'
+   record=json.loads(journal.read_text())
+   for process in record['processes'].values():process['birth'][1]+=1
+   journal.write_text(json.dumps(record))
+  value=plistlib.loads(target.read_bytes());value['EnvironmentVariables']['PANTHEON_RUNTIME_MANIFEST_DIGEST']='0'*64
+  target.write_bytes(plistlib.dumps(value))
+  (root/'failure-injected').touch();event('failure-injected')
+ sys.exit(0)
+if args[0]=='bootout':
+ label=args[1].split('/')[-1]
+ done=(root/('child-done' if case['fault'] in {'preadmitted-child','fast-exit-child'} else 'done')).exists()
+ event('bootout',label=label,done=done)
+ (root/'loaded'/label).unlink(missing_ok=True);sys.exit(0)
+raise SystemExit('unexpected command; native forwarding forbidden')
+''')
+    shim.chmod(0o700)
+    if fault == 'fence':
+        rm = tmp_path / 'bin/rm'
+        rm.write_text('#!/bin/sh\n' + f'case "$*" in *"{barrier}"*) exit 37;; esac\nexec /bin/rm "$@"\n')
+        rm.chmod(0o700)
+    try:
+        installed = subprocess.run(['/bin/bash', str(script), '--install'], cwd=tmp_path,
+            env=env, capture_output=True, text=True, timeout=30)
+        assert installed.returncode == 0, installed.stderr
+        for label in ('com.pantheon.agy-content-publisher', 'com.pantheon.content-capacity-guard'):
+            _write_aggregate_stage_plist(stage / f'{label}.plist', label=label, manifest=manifest)
+        result = subprocess.run(['/bin/bash', str(script), '--activate'], cwd=tmp_path,
+            env=env, capture_output=True, text=True, timeout=30)
+        (tmp_path / 'activate.stdout').write_text(result.stdout)
+        (tmp_path / 'activate.stderr').write_text(result.stderr)
+        if fault == 'fast-exit':
+            assert result.returncode == 0, result.stderr
+            assert not stage.exists()
+            assert runtime_manifest.validate_barrier(barrier, manifest)['status'] == 'PASS'
+            return
+        assert result.returncode != 0
+        receipt = json.loads((stage / 'failure-receipt.json').read_text())
+        assert receipt['exit_reason']['phase'] == ('bootstrap_staged_services' if fault in {'partial', 'identity'} else 'live_aggregate_validation')
+        events = [json.loads(line) for line in (tmp_path / 'timeline.jsonl').read_text().splitlines()]
+        boots = [event for event in events if event['event'] == 'bootout']
+        assert any(event['event'] == 'payload-start' for event in events)
+        assert any(event['event'] == 'failure-injected' for event in events)
+        if fault in {'timeout', 'unknown', 'fence', 'identity', 'diagnostic-timeout'}:
+            assert not boots, events
+            assert receipt['status'] == 'ROLLBACK_FAILED'
+            assert (stage / 'backups').is_dir()
+            if fault != 'fence':
+                assert not barrier.exists()
+        else:
+            assert boots and all(event['done'] for event in boots), events
+            assert receipt['status'] == 'ROLLBACK_COMPLETE', receipt
+            started_at = next(event['time'] for event in events if event['event'] == 'payload-start')
+            failed_at = next(event['time'] for event in events if event['event'] == 'failure-injected')
+            completed_at = next(event['time'] for event in events if event['event'] in {'child-done', 'payload-done'})
+            assert started_at < failed_at < completed_at < min(event['time'] for event in boots)
+    finally:
+        (tmp_path / 'release').touch()
+        # 只解除合成 payload 自己的等待；不以 kill 掩蓋 drain 結果。
+        until = time.monotonic() + 4
+        while (tmp_path / 'started').exists() and time.monotonic() < until:
+            if (tmp_path / ('child-done' if fault in {'preadmitted-child', 'fast-exit-child'} else 'done')).exists():
+                break
+            time.sleep(.02)
