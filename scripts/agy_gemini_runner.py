@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Iterable
+from contextlib import ExitStack
 import fcntl
 import hashlib
 import json
@@ -1759,7 +1760,13 @@ def process_once(
     production_manifest_sha256: str | None = None
     cooldown_seconds: int | None = None
     clock_function = clock or time.time
+    work_scope = ExitStack()
     try:
+        # admission 失敗沿用原 failed 回傳；lease 留到錯誤紀錄與 finally 結束。
+        if os.environ.get("PANTHEON_FORMAL_RUNTIME") == "1":
+            work_scope.enter_context(formal_runtime.runtime_work_lease(
+                Path(os.environ.get("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT", ""))
+            ))
         service_label = (
             f"com.pantheon.agy-gemini-{lane}"
             if lane is not None
@@ -2166,8 +2173,11 @@ def process_once(
         try:
             _close_production_attempt(production_attempt_evidence)
         finally:
-            if translation_lock_fd is not None:
-                os.close(translation_lock_fd)
+            try:
+                if translation_lock_fd is not None:
+                    os.close(translation_lock_fd)
+            finally:
+                work_scope.close()
 
 
 def parse_args() -> argparse.Namespace:
@@ -2193,6 +2203,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+@formal_runtime.with_runtime_work_lease
 def main() -> int:
     args = parse_args()
     queue_root = args.queue_root.resolve()

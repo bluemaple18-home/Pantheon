@@ -1511,6 +1511,7 @@ def validate_preactivation_transition(
     }
 
 
+@formal_runtime.with_runtime_work_lease
 def check_once(
     queue_root: Path,
     publisher_root: Path,

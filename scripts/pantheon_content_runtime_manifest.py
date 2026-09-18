@@ -4,6 +4,11 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+import fcntl
+from functools import wraps
 import hashlib
 import json
 import os
@@ -15,7 +20,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from typing import Any
+from typing import Any, ParamSpec, TypeVar
 
 
 SCHEMA_VERSION = 2
@@ -38,6 +43,77 @@ PUBLISHER_EXACT_RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}
 
 class RuntimeManifestError(ValueError):
     """共用 runtime manifest 不完整或 identity 漂移。"""
+
+
+class RuntimeWorkBusy(RuntimeManifestError):
+    """停機持有獨占 lease；入口尚未開始受保護工作。"""
+
+
+_WORK_LEASE: ContextVar[int | None] = ContextVar("runtime_work_lease", default=None)
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+def _verify_work_lease(fd: int, path: Path) -> None:
+    held, current = os.fstat(fd), path.lstat()
+    if (not stat.S_ISREG(current.st_mode) or current.st_uid != os.getuid()
+            or current.st_nlink != 1
+            or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)):
+        raise RuntimeManifestError("runtime work lease identity drift")
+
+
+@contextmanager
+def runtime_work_lease(state_root: Path) -> Iterator[int]:
+    """跨 generation 共用同一 inode；正常工作共享，停機獨占。"""
+    if not state_root.is_absolute() or state_root.resolve(strict=True) != state_root:
+        raise RuntimeManifestError("runtime work lease state root is invalid")
+    path = state_root / "runtime-work.lock"
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    context_token = None
+    try:
+        _verify_work_lease(fd, path)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise RuntimeWorkBusy("runtime shutdown holds work exclusion") from error
+        _verify_work_lease(fd, path)
+        context_token = _WORK_LEASE.set(fd)
+        yield fd
+    finally:
+        if context_token is not None:
+            _WORK_LEASE.reset(context_token)
+        # fork/dup/pass_fds 共享 lock；LOCK_UN 會提早解除仍活著的後代。
+        os.close(fd)
+
+
+def runtime_work_pass_fds() -> tuple[int, ...]:
+    """只供明示接入的 subprocess 接點使用；不代表任意後代皆會繼承。"""
+    fd = _WORK_LEASE.get()
+    if fd is None:
+        inherited = os.environ.get("PANTHEON_RUNTIME_WORK_LEASE_FD")
+        if inherited is None:
+            return ()
+        try:
+            fd = int(inherited)
+        except ValueError as error:
+            raise RuntimeManifestError("runtime work lease descriptor is invalid") from error
+        root = Path(os.environ.get("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT", ""))
+        if not root.is_absolute():
+            raise RuntimeManifestError("runtime work lease state root is invalid")
+        _verify_work_lease(fd, root / "runtime-work.lock")
+    return (fd,)
+
+
+def with_runtime_work_lease(operation: Callable[_P, _R]) -> Callable[_P, _R]:
+    """既有 formal caller 的薄 lifetime 邊界；不移動各 caller 的 mutation 鎖。"""
+    @wraps(operation)
+    def guarded(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+        if os.environ.get("PANTHEON_FORMAL_RUNTIME") != "1":
+            return operation(*args, **kwargs)
+        root = Path(os.environ.get("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT", ""))
+        with runtime_work_lease(root):
+            return operation(*args, **kwargs)
+    return guarded
 
 
 def _canonical_directory(path: Path, field: str) -> str:
@@ -947,53 +1023,67 @@ def main() -> int:
         if not args.ready_root.is_absolute():
             return 64
         try:
-            manifest = load_manifest(args.manifest, args.expected_digest)
-            validate_runtime_tick(
-                args.service_label,
-                queue_root=(
-                    Path(manifest["queue_root"])
-                    / "lanes"
-                    / args.service_label.removeprefix("com.pantheon.agy-gemini-")
-                    if args.service_label.startswith("com.pantheon.agy-gemini-")
-                    and args.service_label != "com.pantheon.agy-gemini-coordinator"
-                    else Path(manifest["queue_root"])
-                ),
-                state_root=Path(manifest["publisher_state_root"]),
-                actor_root=Path(manifest["actor_root"]),
-                log_root=Path(manifest["log_root"]),
-                require_activation_token=False,
-            )
-            validate_execution_python_identity(manifest, command)
-            write_readiness_ack(args.ready_root, manifest, args.service_label)
-        except RuntimeManifestError:
-            return 78
-        deadline = time.monotonic() + args.timeout
-        while not args.barrier.exists():
-            if time.monotonic() >= deadline:
-                return 75
-            time.sleep(0.2)
-        try:
-            validate_barrier(args.barrier, manifest)
-            validate_execution_python_identity(manifest, command)
-        except RuntimeManifestError:
-            return 78
-        os.environ["PANTHEON_RUNTIME_ACTIVATION_TOKEN"] = str(args.barrier)
-        if args.activation_only:
-            print(
-                json.dumps(
-                    {
-                        "status": "PASS",
-                        "activation_only": True,
-                        "service_label": args.service_label,
-                        "manifest_digest": manifest["manifest_digest"],
-                        "generation": manifest["generation"],
-                    },
-                    sort_keys=True,
+            state_root = Path(os.environ.get("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT", ""))
+            with runtime_work_lease(state_root) as lease_fd:
+                manifest = load_manifest(args.manifest, args.expected_digest)
+                if state_root != Path(manifest["publisher_state_root"]):
+                    raise RuntimeManifestError("runtime work lease state root mismatch")
+                validate_runtime_tick(
+                    args.service_label,
+                    queue_root=(
+                        Path(manifest["queue_root"])
+                        / "lanes"
+                        / args.service_label.removeprefix("com.pantheon.agy-gemini-")
+                        if args.service_label.startswith("com.pantheon.agy-gemini-")
+                        and args.service_label != "com.pantheon.agy-gemini-coordinator"
+                        else Path(manifest["queue_root"])
+                    ),
+                    state_root=Path(manifest["publisher_state_root"]),
+                    actor_root=Path(manifest["actor_root"]),
+                    log_root=Path(manifest["log_root"]),
+                    require_activation_token=False,
                 )
-            )
-            return 0
-        os.execv(command[0], command)
-        return 70
+                validate_execution_python_identity(manifest, command)
+                write_readiness_ack(args.ready_root, manifest, args.service_label)
+                deadline = time.monotonic() + args.timeout
+                while not args.barrier.exists():
+                    if time.monotonic() >= deadline:
+                        return 75
+                    time.sleep(0.2)
+                validate_barrier(args.barrier, manifest)
+                validate_execution_python_identity(manifest, command)
+                os.environ["PANTHEON_RUNTIME_ACTIVATION_TOKEN"] = str(args.barrier)
+                if args.activation_only:
+                    print(
+                        json.dumps(
+                            {
+                                "status": "PASS",
+                                "activation_only": True,
+                                "service_label": args.service_label,
+                                "manifest_digest": manifest["manifest_digest"],
+                                "generation": manifest["generation"],
+                            },
+                            sort_keys=True,
+                        )
+                    )
+                    return 0
+                previous_fd = os.environ.get("PANTHEON_RUNTIME_WORK_LEASE_FD")
+                os.environ["PANTHEON_RUNTIME_WORK_LEASE_FD"] = str(lease_fd)
+                try:
+                    # execv 保留此 FD；成功後由同一服務程序的生命週期持有。
+                    os.set_inheritable(lease_fd, True)
+                    os.execv(command[0], command)
+                finally:
+                    # exec 失敗或測試替身返回時，避免留下已失效的 FD 編號。
+                    if previous_fd is None:
+                        os.environ.pop("PANTHEON_RUNTIME_WORK_LEASE_FD", None)
+                    else:
+                        os.environ["PANTHEON_RUNTIME_WORK_LEASE_FD"] = previous_fd
+                return 70
+        except RuntimeWorkBusy:
+            return 75
+        except (RuntimeManifestError, OSError):
+            return 78
     try:
         if args.command == "create":
             manifest = build_manifest(

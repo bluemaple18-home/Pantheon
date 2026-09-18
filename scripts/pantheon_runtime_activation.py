@@ -91,17 +91,18 @@ def run_after_activation_token(
     log_root: Path,
     operation: Callable[[], T],
 ) -> T:
-    """只有 token 與 service identity 重驗通過才執行 queue/state I/O。"""
-    validate_service_before_io(
-        token_path,
-        manifest,
-        service_label,
-        queue_root=queue_root,
-        state_root=state_root,
-        actor_root=actor_root,
-        log_root=log_root,
-    )
-    return operation()
+    """共享 lease 涵蓋驗證到 callback 返回；非同步後代須另有繼承／等待證據。"""
+    with formal_runtime.runtime_work_lease(state_root):
+        validate_service_before_io(
+            token_path,
+            manifest,
+            service_label,
+            queue_root=queue_root,
+            state_root=state_root,
+            actor_root=actor_root,
+            log_root=log_root,
+        )
+        return operation()
 
 
 def validate_rollback_loaded_identities(

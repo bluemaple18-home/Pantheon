@@ -6256,6 +6256,7 @@ def seed_legacy_rewrite_runs(
     }
 
 
+@formal_runtime.with_runtime_work_lease
 def cycle_once(
     queue_root: Path,
     *,
@@ -7087,6 +7088,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+@formal_runtime.with_runtime_work_lease
 def main() -> int:
     args = parse_args()
     queue_root = args.queue_root.resolve()

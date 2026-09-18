@@ -1402,19 +1402,199 @@ def _assert_no_unresolved_push(state_root: Path) -> None:
         raise PublishBlocked(f"unresolved push control record blocks publisher mutation: {path}")
 
 
-def _reconcile_unresolved_push(repo_root: Path, state_root: Path, git: GitRunner) -> dict[str, Any]:
-    """只在 remote、ledger 與 publish evidence 全部收斂後清除 push control。"""
-    path = _unresolved_push_path(state_root)
-    if not path.is_file():
-        raise PublishBlocked("no unresolved push control record to reconcile")
-    control = _read_json(path)
-    candidate_sha = str(control.get("candidate_sha") or "")
-    version = str(control.get("version") or "")
-    phase = str(control.get("phase") or "")
-    run_ids = [str(run_id) for run_id in control.get("run_ids", [])]
-    if not candidate_sha or not version or phase not in {"create", "rewrite", "translation"} or not run_ids:
-        raise PublishBlocked("unresolved push control record is invalid")
+def _publication_records(
+    phase: str, candidates: list[dict[str, Any]], *, version: str,
+    commit_sha: str, base_sha: str, changed: list[str], article_count: int,
+    published_at: str, pushed: bool, policy_version: str | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """正常發布與補帳共用的 canonical 身份欄位；翻譯交接另外記錄。"""
+    id_key = "id" if phase == "create" else "article_id"
+    entries = [
+        {"run_id": candidate["run_id"], "version": version, "commit_sha": commit_sha,
+         "published_at": published_at,
+         "article_ids": [str(article[id_key]) for article in candidate["articles"]],
+         "translation_seed_status": "pending"}
+        for candidate in candidates
+    ]
+    article_ids = [article_id for entry in entries for article_id in entry["article_ids"]]
+    evidence = {
+        "schema_version": SCHEMA_VERSION,
+        "status": "PUBLISHED" if phase == "create" else "PUBLISHED_REWRITE",
+        "base_sha": base_sha, "commit_sha": commit_sha, "version": version,
+        "run_ids": [entry["run_id"] for entry in entries],
+        "article_ids": sorted(article_ids) if phase == "create" else article_ids,
+        "changed": sorted(set(changed)), "public_article_count": article_count,
+        "seeded_translation_runs": [], "pushed": pushed,
+        "policy_version": policy_version if policy_version is not None else pipeline.publication_policy_version(),
+        "validator_result": "PASS", "failure_codes": [],
+        "input_hash": hashlib.sha256(pipeline.compact_json_bytes(candidates)).hexdigest(),
+    }
+    return entries, evidence
 
+
+@contextmanager
+def _committed_article_view(repo_root: Path, sha: str, git: GitRunner) -> Iterator[Path]:
+    """只在暫存目錄展開 committed article 讀取所需檔案，不切換工作區。"""
+    with tempfile.TemporaryDirectory(prefix="publisher-reconcile-") as directory:
+        root = Path(directory)
+        for name in git(repo_root, ["ls-tree", "-r", "--name-only", sha], None).splitlines():
+            relative = Path(name)
+            if relative.is_absolute() or ".." in relative.parts:
+                raise PublishBlocked("committed article path is invalid")
+            if name != "package.json" and not (name.startswith("app/") and relative.suffix in {".js", ".json"}):
+                continue
+            target = root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(git(repo_root, ["show", "--format=", f"{sha}:{name}"], None), encoding="utf-8")
+        yield root
+
+
+def _reconciliation_records(
+    repo_root: Path, state_root: Path, queue_root: Path | None,
+    control: dict[str, Any], git: GitRunner,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """舊 control 由 queue、hash-bound review、parent source 與 committed release 交叉證明。"""
+    phase, sha, version, run_ids = (control[key] for key in ("phase", "candidate_sha", "version", "run_ids"))
+    if queue_root is None or phase not in {"create", "rewrite"}:
+        raise PublishBlocked("reconciliation source unavailable: complete create/rewrite queue artifacts required")
+    states: dict[str, Path] = {}
+    for path in _run_files(queue_root):
+        run_id = _read_json(path).get("run_id")
+        if run_id in run_ids:
+            if run_id in states:
+                raise PublishBlocked("reconciliation queue run identity is ambiguous")
+            states[run_id] = path
+    candidates = []
+    for run_id in run_ids:
+        if run_id not in states:
+            raise PublishBlocked("reconciliation source unavailable: queue run missing")
+        _, candidate, review = _load_completed_run(states[run_id])
+        if candidate.get("mode") != {"create": "create", "rewrite": "rewrite_existing_body"}[phase] or not _review_is_clean_approve(review):
+            raise PublishBlocked("reconciliation candidate mode or review differs")
+        candidates.append(candidate)
+    parents = git(repo_root, ["rev-list", "--parents", "-n", "1", sha], None).split()
+    if len(parents) != 2 or parents[0] != sha or not re.fullmatch(r"[0-9a-f]{40}", parents[1]):
+        raise PublishBlocked("reconciliation requires the exact single-parent release commit")
+    base_sha = parents[1]
+    def committed(name: str) -> str:
+        return git(repo_root, ["show", "--format=", f"{sha}:{name}"], None)
+    if json.loads(committed("package.json")).get("version") != version or not re.search(r'^version = "' + re.escape(version) + r'"$', committed("pyproject.toml"), re.MULTILINE):
+        raise PublishBlocked("reconciliation committed version differs")
+    changelog = committed("CHANGELOG.md")
+    sections = re.split(r"(?m)^## ", changelog)[1:]
+    if not sections or not sections[0].startswith(f"[{version}] - "):
+        raise PublishBlocked("reconciliation release changelog differs")
+    section = sections[0]
+    declared_runs = re.findall(r"run_id：([^。\n]+)。", section)
+    if declared_runs != [", ".join(run_ids)] or f"`v{version}`" not in section:
+        raise PublishBlocked("reconciliation committed run identities differ")
+    evidence_dir = Path(control["publish_evidence"]).parent
+    evidence_rel = evidence_dir.relative_to(repo_root).as_posix() if evidence_dir.is_relative_to(repo_root) else str(evidence_dir)
+    if f"- 證據：`{evidence_rel}`" not in section:
+        raise PublishBlocked("reconciliation committed evidence path differs")
+    changed = git(repo_root, ["diff", "--name-only", base_sha, sha, "--"], None).splitlines()
+    if phase == "rewrite":
+        with _committed_article_view(repo_root, base_sha, git) as base:
+            inventory = _assert_rewrite_source_matches(base, candidates)
+        modules = [name for name in changed if re.fullmatch(r"app/web/static/article-rewrite-[a-z0-9-]+\.js", name)]
+        if len(modules) != 1:
+            raise PublishBlocked("reconciliation rewrite release module is ambiguous")
+        release_id = Path(modules[0]).name.removeprefix("article-rewrite-").removesuffix(".js")
+        if committed(modules[0]).strip() != _rewrite_release_module(release_id, candidates, inventory).strip():
+            raise PublishBlocked("reconciliation committed candidate payload differs")
+    else:
+        for candidate in candidates:
+            slug, identifier = pipeline._safe_identifier(candidate["run_id"])
+            name = f"app/web/static/article-expansion-agy-{slug}.js"
+            records = [{key: value for key, value in article.items() if key != "bodySections"} for article in candidate["articles"]]
+            bodies = {str(article["slug"]): article["bodySections"] for article in candidate["articles"]}
+            expected = (
+                "// AGY 核准文章批次；由 scripts/agy_seo_copy_pipeline.py 產生。\n\n"
+                f"export const AGY_{identifier}_ARTICLE_RECORDS = {json.dumps(records, ensure_ascii=False, indent=2)};\n\n"
+                f"export const AGY_{identifier}_ARTICLE_BODY_LIBRARY = {json.dumps(bodies, ensure_ascii=False, indent=2)};\n"
+            )
+            if name not in changed or committed(name).strip() != expected.strip():
+                raise PublishBlocked("reconciliation committed candidate payload differs")
+    with _committed_article_view(repo_root, sha, git) as released:
+        inventory = pipeline._existing_rewrite_inventory(released)
+    article_ids = []
+    for candidate in candidates:
+        for article in candidate["articles"]:
+            article_id = article["id" if phase == "create" else "article_id"]
+            current = inventory.get(article_id)
+            if article_id in article_ids or current is None or current["currentBody"] != article["bodySections"] or current["record"].get("publicationPolicy") != article["publicationPolicy"]:
+                raise PublishBlocked("reconciliation active release candidate differs")
+            if phase == "create":
+                record = current["record"]
+                # registry 會擴充 tags；其餘 candidate 原始欄位仍須逐項相符。
+                original_tags = record.get("originalTags", record.get("tags"))
+                active_tags = record.get("tags")
+                if (any(record.get(key) != value for key, value in article.items()
+                        if key not in {"bodySections", "tags"})
+                    or original_tags != article["tags"]
+                    or not isinstance(active_tags, list)
+                    or any(tag not in active_tags for tag in article["tags"])
+                    or current.get("canonicalPath") != _article_path(article)):
+                    raise PublishBlocked("reconciliation active create identity or canonical path differs")
+            if phase == "rewrite" and _rewrite_identity_for_inventory_item(current) != article["identity"]:
+                raise PublishBlocked("reconciliation active release identity differs")
+            article_ids.append(article_id)
+    count = re.findall(r"公開文章總數：(\d+)", section)
+    if count != [str(len(inventory))]:
+        raise PublishBlocked("reconciliation committed article count differs")
+    policies = {article["publicationPolicy"]["policyVersion"] for candidate in candidates for article in candidate["articles"]}
+    if len(policies) != 1:
+        raise PublishBlocked("reconciliation candidate policy versions differ")
+    entries, evidence = _publication_records(
+        phase, candidates, version=version, commit_sha=sha, base_sha=base_sha,
+        changed=changed, article_count=len(inventory), pushed=True,
+        published_at=git(repo_root, ["show", "-s", "--format=%cI", sha], None),
+        policy_version=policies.pop(),
+    )
+    # 舊版本沒有保存歷史 backlog／seed 結果；不以現在的 queue 偽造當時狀態。
+    evidence["reconciliation_source"] = "committed_release_and_retained_queue"
+    if phase == "rewrite":
+        evidence["legacy_cutoff_count"] = LEGACY_ARTICLE_COUNT_CUTOFF
+    return entries, evidence
+
+
+def _reconcile_unresolved_push(
+    repo_root: Path, state_root: Path, git: GitRunner, *, queue_root: Path | None = None,
+) -> dict[str, Any]:
+    """共用 publisher 鎖，先驗明遠端與來源，再補 canonical 帳證並回讀。"""
+    journal = MutationJournal(repo_root, git)
+    with journal.state_scope(state_root) as admitted:
+        if not admitted:
+            raise PublishBlocked("reconciliation publisher lock is busy")
+        journal.acquire_writer()
+        try:
+            return _reconcile_unresolved_push_locked(repo_root, state_root, git, queue_root=queue_root)
+        except PublishBlocked:
+            raise
+        except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:
+            raise PublishBlocked(f"reconciliation source unavailable or invalid: {type(error).__name__}") from error
+
+
+def _reconcile_unresolved_push_locked(
+    repo_root: Path, state_root: Path, git: GitRunner, *, queue_root: Path | None,
+) -> dict[str, Any]:
+    path = _unresolved_push_path(state_root)
+    if not path.exists():
+        return {"schema_version": SCHEMA_VERSION, "status": "idle"}
+    control = _read_json(path)
+    candidate_sha, version, phase, run_ids = (control.get(key) for key in ("candidate_sha", "version", "phase", "run_ids"))
+    if (control.get("schema_version") != SCHEMA_VERSION
+        or not isinstance(candidate_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", candidate_sha)
+        or not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version)
+        or phase not in {"create", "rewrite", "translation"}
+        or not isinstance(run_ids, list) or not run_ids
+        or any(not isinstance(value, str) or not value for value in run_ids)
+        or len(set(run_ids)) != len(run_ids)):
+        raise PublishBlocked("unresolved push control record is invalid")
+    label = {"create": "publish", "rewrite": "rewrite", "translation": "translation"}[phase]
+    evidence_path = state_root / "evidence" / f"{label}-{version}" / f"{label}-evidence.json"
+    if Path(str(control.get("publish_evidence") or "")).resolve() != evidence_path.resolve():
+        raise PublishBlocked("reconciliation canonical evidence path differs")
     git(repo_root, ["fetch", "origin", "main"], None)
     remote_main = git(repo_root, ["rev-parse", "origin/main"], None)
     remote_tags = git(
@@ -1433,46 +1613,74 @@ def _reconcile_unresolved_push(repo_root: Path, state_root: Path, git: GitRunner
     if remote_main != candidate_sha or remote_tag != candidate_sha:
         raise PublishBlocked("unresolved push remote refs have not converged")
 
-    ledger_key = {
-        "create": "published_runs",
-        "rewrite": "rewrite_released_runs",
-        "translation": "translation_published_runs",
-    }[phase]
+
+    if phase == "translation":
+        # 保留舊 translation 的完整帳證收斂路徑；缺帳仍交既有 prepared seam。
+        ledger = _load_ledger(state_root)
+        converged_runs = {
+            str(item.get("run_id")) for item in ledger["translation_published_runs"]
+            if item.get("version") == version and item.get("commit_sha") == candidate_sha
+        }
+        if not set(run_ids).issubset(converged_runs) or not evidence_path.is_file():
+            raise PublishBlocked("translation reconciliation requires existing converged ledger and evidence; use prepared seam for recovery")
+        evidence = _read_json(evidence_path)
+        if (evidence.get("status") != "PUBLISHED_TRANSLATION"
+            or evidence.get("commit_sha") != candidate_sha or evidence.get("version") != version
+            or not set(run_ids).issubset(set(evidence.get("run_ids", [])))):
+            raise PublishBlocked("unresolved push translation publish evidence has not converged")
+        if _load_ledger(state_root) != ledger or _read_json(evidence_path) != evidence or _read_json(path) != control:
+            raise PublishBlocked("translation reconciliation account/control readback differs")
+        path.unlink()
+        return {"schema_version": SCHEMA_VERSION, "status": "PUSH_OUTCOME_RECONCILED",
+                "candidate_sha": candidate_sha, "version": version, "phase": phase, "run_ids": run_ids}
+
+    entries, expected = _reconciliation_records(repo_root, state_root, queue_root, control, git)
+    ledger_key = {"create": "published_runs", "rewrite": "rewrite_released_runs"}[phase]
     ledger = _load_ledger(state_root)
-    converged_runs = {
-        str(item.get("run_id"))
-        for item in ledger[ledger_key]
-        if item.get("version") == version and item.get("commit_sha") == candidate_sha
-    }
-    if not set(run_ids).issubset(converged_runs):
-        raise PublishBlocked("unresolved push ledger has not converged")
-
-    evidence_path = Path(str(control.get("publish_evidence") or ""))
-    if not evidence_path.is_file():
-        raise PublishBlocked("unresolved push publish evidence has not converged")
-    evidence = _read_json(evidence_path)
-    expected_status = {
-        "create": "PUBLISHED",
-        "rewrite": "PUBLISHED_REWRITE",
-        "translation": "PUBLISHED_TRANSLATION",
-    }[phase]
-    if (
-        evidence.get("status") != expected_status
-        or evidence.get("commit_sha") != candidate_sha
-        or evidence.get("version") != version
-        or not set(run_ids).issubset({str(run_id) for run_id in evidence.get("run_ids", [])})
-    ):
-        raise PublishBlocked("unresolved push publish evidence has not converged")
-
+    # run 與 release 的 owner 跨 phase／lifecycle 唯一；歷史文章可由不同 run 合法重寫。
+    for bucket in ("published_runs", "rewrite_released_runs", "translation_published_runs",
+                   "superseded_runs", "quarantined_runs", "translation_deferred_runs"):
+        items = ledger[bucket]
+        if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+            raise PublishBlocked("reconciliation ledger ownership records are invalid")
+        for item in items:
+            owns_run = item.get("run_id") in run_ids
+            owns_release = item.get("version") == version or item.get("commit_sha") == candidate_sha
+            if (bucket != ledger_key and (owns_run or owns_release)) or (owns_release and not owns_run):
+                raise PublishBlocked("reconciliation ledger phase/lifecycle ownership conflicts")
+    missing = []
+    for entry in entries:
+        matches = [item for item in ledger[ledger_key] if item.get("run_id") == entry["run_id"]]
+        if len(matches) > 1 or (matches and any(matches[0].get(key) != entry[key] for key in ("run_id", "version", "commit_sha", "article_ids"))):
+            raise PublishBlocked("reconciliation existing ledger identity differs")
+        if matches and (not matches[0].get("published_at") or matches[0].get("translation_seed_status") not in {"pending", "seeded"}):
+            raise PublishBlocked("reconciliation existing ledger contract is incomplete")
+        if not matches:
+            missing.append(entry)
+    evidence_exists = evidence_path.exists()
+    evidence = _read_json(evidence_path) if evidence_exists else None
+    if evidence_exists and not isinstance(evidence, dict):
+        raise PublishBlocked("reconciliation existing publish evidence must be an object")
+    identity_keys = ("schema_version", "status", "base_sha", "commit_sha", "version", "run_ids", "article_ids", "public_article_count", "pushed", "policy_version", "validator_result", "failure_codes", "input_hash")
+    if evidence is not None and any(evidence.get(key) != expected[key] for key in identity_keys):
+        raise PublishBlocked("reconciliation existing publish evidence identity differs")
+    if evidence is not None and (not isinstance(evidence.get("changed"), list) or any(not isinstance(name, str) or not name or Path(name).is_absolute() or ".." in Path(name).parts for name in evidence["changed"]) or not isinstance(evidence.get("seeded_translation_runs"), list)):
+        raise PublishBlocked("reconciliation existing publish evidence contract is incomplete")
+    # 所有衝突都在第一筆寫入之前拒絕；中途停止只留下可再次核對的 canonical 檔。
+    if missing:
+        ledger[ledger_key].extend(missing)
+        _atomic_write_json(_ledger_path(state_root), ledger)
+    if _load_ledger(state_root) != ledger:
+        raise PublishBlocked("reconciliation ledger readback differs")
+    if evidence is None:
+        expected.update(_translation_seed_evidence(state_root))
+        _atomic_write_json(evidence_path, expected)
+        evidence = expected
+    if _load_ledger(state_root) != ledger or _read_json(evidence_path) != evidence or _read_json(path) != control:
+        raise PublishBlocked("reconciliation evidence/control readback differs")
     path.unlink()
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "status": "PUSH_OUTCOME_RECONCILED",
-        "candidate_sha": candidate_sha,
-        "version": version,
-        "phase": phase,
-        "run_ids": run_ids,
-    }
+    return {"schema_version": SCHEMA_VERSION, "status": "PUSH_OUTCOME_RECONCILED",
+            "candidate_sha": candidate_sha, "version": version, "phase": phase, "run_ids": run_ids}
 
 
 def _retry_eligibility(state_root: Path, phase: str, run_id: str) -> str:
@@ -4152,6 +4360,14 @@ def _run_checked(
     }
     if env is not None:
         run_kwargs["env"] = env
+    lease_fds = formal_runtime.runtime_work_pass_fds()
+    if lease_fds:
+        run_kwargs["pass_fds"] = lease_fds
+        child_env = dict(os.environ if env is None else env)
+        # 巢狀 lease 的 FD 可能不同；只修正子程序副本，保留明確移除的 runtime 環境。
+        if "PANTHEON_RUNTIME_WORK_LEASE_FD" in child_env:
+            child_env["PANTHEON_RUNTIME_WORK_LEASE_FD"] = str(lease_fds[0])
+        run_kwargs["env"] = child_env
     subprocess.run(args, **run_kwargs)
 
 
@@ -4568,6 +4784,30 @@ def _next_rewrite_release_id(repo_root: Path, release_day: date | None = None) -
     return f"agy-rewrite-{day_token}-{max(sequences, default=0) + 1:02d}"
 
 
+def _rewrite_release_module(release_id: str, candidates: list[dict[str, Any]], inventory: dict[str, Any]) -> str:
+    """重用實際發布的 module 契約，以完整 payload 比對既有 commit。"""
+    _, identifier = pipeline._safe_identifier(release_id)
+    export_name = f"AGY_{identifier}_REWRITE_BODY_OVERRIDES"
+    policy_export_name = f"AGY_{identifier}_REWRITE_POLICY_OVERRIDES"
+    bodies: dict[str, list[dict[str, Any]]] = {}
+    policies: dict[str, dict[str, Any]] = {}
+    for candidate in candidates:
+        for article in candidate["articles"]:
+            article_id = str(article["article_id"])
+            slug = str(inventory[article_id]["record"]["slug"])
+            if slug in bodies:
+                raise PublishBlocked(f"duplicate rewrite slug in release batch: {slug}")
+            bodies[slug] = article["bodySections"]
+            policies[article_id] = {
+                "updated": article["publicationPolicy"]["modified"],
+                "publicationPolicy": article["publicationPolicy"],
+            }
+    return (
+        f"export const {export_name} = {json.dumps(bodies, ensure_ascii=False, indent=2)};\n\n"
+        f"export const {policy_export_name} = {json.dumps(policies, ensure_ascii=False, indent=2)};\n"
+    )
+
+
 def apply_rewrite_release(repo_root: Path, release_id: str, candidates: list[dict[str, Any]]) -> list[Path]:
     if not candidates:
         return []
@@ -4600,24 +4840,7 @@ def apply_rewrite_release(repo_root: Path, release_id: str, candidates: list[dic
     module = repo_root / "app/web/static" / f"article-rewrite-{file_slug}.js"
     if module.exists():
         raise PublishBlocked(f"rewrite release id already exists: {release_id}")
-    bodies: dict[str, list[dict[str, Any]]] = {}
-    policies: dict[str, dict[str, Any]] = {}
-    for candidate in candidates:
-        for article in candidate["articles"]:
-            article_id = str(article["article_id"])
-            slug = str(inventory[article_id]["record"]["slug"])
-            if slug in bodies:
-                raise PublishBlocked(f"duplicate rewrite slug in release batch: {slug}")
-            bodies[slug] = article["bodySections"]
-            policies[article_id] = {
-                "updated": article["publicationPolicy"]["modified"],
-                "publicationPolicy": article["publicationPolicy"],
-            }
-    module.write_text(
-        f"export const {export_name} = {json.dumps(bodies, ensure_ascii=False, indent=2)};\n\n"
-        f"export const {policy_export_name} = {json.dumps(policies, ensure_ascii=False, indent=2)};\n",
-        encoding="utf-8",
-    )
+    module.write_text(_rewrite_release_module(release_id, candidates, inventory), encoding="utf-8")
     meta_path = repo_root / "app/web/static/article-meta.js"
     import_line = f'import {{ {export_name} }} from "./{module.name}?v={release_id}";\n'
     meta = meta_path.read_text(encoding="utf-8")
@@ -4652,6 +4875,7 @@ def apply_rewrite_release(repo_root: Path, release_id: str, candidates: list[dic
     return changed
 
 
+@formal_runtime.with_runtime_work_lease
 @_recoverable_publish("create", "published")
 def publish_ready_runs(
     repo_root: Path,
@@ -4788,21 +5012,12 @@ def publish_ready_runs(
             run_ids=run_ids,
         )
         ledger = _load_ledger(state_root)
-        articles_by_run = {
-            str(state["run_id"]): [str(article["id"]) for article in candidate["articles"]]
-            for state, candidate, _ in ready
-        }
-        for run_id in run_ids:
-            ledger["published_runs"].append(
-                {
-                    "run_id": run_id,
-                    "version": version,
-                    "commit_sha": commit_sha,
-                    "published_at": _now(),
-                    "article_ids": articles_by_run[run_id],
-                    "translation_seed_status": "pending",
-                }
-            )
+        entries, evidence = _publication_records(
+            "create", [candidate for _, candidate, _ in ready], version=version,
+            commit_sha=commit_sha, base_sha=base_sha, changed=changed,
+            article_count=article_count, published_at=_now(), pushed=push,
+        )
+        ledger["published_runs"].extend(entries)
         _write_json(_ledger_path(state_root), ledger)
         seeded_translation_runs = (
             []
@@ -4812,31 +5027,7 @@ def publish_ready_runs(
                 *_seed_pending_translations(repo_root, queue_root, state_root),
             ]
         )
-        evidence = {
-            "schema_version": SCHEMA_VERSION,
-            "status": "PUBLISHED",
-            "base_sha": base_sha,
-            "commit_sha": commit_sha,
-            "version": version,
-            "run_ids": run_ids,
-            "changed": sorted(set(changed)),
-            "public_article_count": article_count,
-            "seeded_translation_runs": seeded_translation_runs,
-            "pushed": push,
-            "policy_version": pipeline.publication_policy_version(),
-            "validator_result": "PASS",
-            "article_ids": sorted(
-                str(article["id"])
-                for candidate in [candidate for _, candidate, _ in ready]
-                for article in candidate["articles"]
-            ),
-            "failure_codes": [],
-            "input_hash": hashlib.sha256(
-                pipeline.compact_json_bytes(
-                    [candidate for _, candidate, _ in ready]
-                )
-            ).hexdigest(),
-        }
+        evidence["seeded_translation_runs"] = seeded_translation_runs
         evidence.update(_translation_seed_evidence(state_root))
         _write_json(evidence_dir / "publish-evidence.json", evidence)
         if push:
@@ -4844,6 +5035,7 @@ def publish_ready_runs(
         return evidence
 
 
+@formal_runtime.with_runtime_work_lease
 @_recoverable_publish("rewrite", "rewritten")
 def publish_ready_rewrite_runs(
     repo_root: Path,
@@ -4978,45 +5170,19 @@ def publish_ready_rewrite_runs(
             run_ids=run_ids,
         )
         ledger = _load_ledger(state_root)
-        for run_id in run_ids:
-            ledger["rewrite_released_runs"].append(
-                {
-                    "run_id": run_id,
-                    "version": version,
-                    "commit_sha": commit_sha,
-                    "published_at": _now(),
-                    "article_ids": [
-                        str(article["article_id"])
-                        for candidate in candidates
-                        for article in candidate["articles"]
-                        if str(candidate["run_id"]) == run_id
-                    ],
-                    "translation_seed_status": "pending",
-                }
-            )
+        entries, evidence = _publication_records(
+            "rewrite", candidates, version=version, commit_sha=commit_sha,
+            base_sha=base_sha, changed=changed, article_count=article_count,
+            published_at=_now(), pushed=push,
+        )
+        ledger["rewrite_released_runs"].extend(entries)
         _write_json(_ledger_path(state_root), ledger)
         seeded_translation_runs = _seed_pending_translations(repo_root, queue_root, state_root)
-        evidence = {
-            "schema_version": SCHEMA_VERSION,
-            "status": "PUBLISHED_REWRITE",
-            "base_sha": base_sha,
-            "commit_sha": commit_sha,
-            "version": version,
-            "run_ids": run_ids,
-            "article_ids": article_ids,
-            "changed": sorted(set(changed)),
-            "public_article_count": article_count,
+        evidence.update({
             "legacy_cutoff_count": LEGACY_ARTICLE_COUNT_CUTOFF,
             "legacy_rewrite_backlog": backlog_summary,
             "seeded_translation_runs": seeded_translation_runs,
-            "pushed": push,
-            "policy_version": pipeline.publication_policy_version(),
-            "validator_result": "PASS",
-            "failure_codes": [],
-            "input_hash": hashlib.sha256(
-                pipeline.compact_json_bytes(candidates)
-            ).hexdigest(),
-        }
+        })
         evidence.update(_translation_seed_evidence(state_root))
         _write_json(evidence_dir / "rewrite-evidence.json", evidence)
         if push:
@@ -5024,6 +5190,7 @@ def publish_ready_rewrite_runs(
         return evidence
 
 
+@formal_runtime.with_runtime_work_lease
 @_recoverable_publish("translation", "translated")
 def publish_ready_translation_runs(
     repo_root: Path,
@@ -5258,6 +5425,7 @@ def publish_ready_translation_runs(
         return evidence
 
 
+@formal_runtime.with_runtime_work_lease
 def publish_ready_all(
     repo_root: Path,
     queue_root: Path,
@@ -5338,6 +5506,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--include-rewrites", action="store_true")
     parser.add_argument("--new-only", action="store_true")
     parser.add_argument("--legacy-report", action="store_true")
+    parser.add_argument("--reconcile-unresolved-push", action="store_true",
+                        help="獨立維護模式：核對已發布結果並補齊帳證；不得搭配發布模式")
     parser.add_argument("--push", action="store_true")
     parser.add_argument("--deployment-preflight", action="store_true")
     parser.add_argument(
@@ -5374,8 +5544,25 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+@formal_runtime.with_runtime_work_lease
 def main() -> int:
     args = parse_args()
+    reconcile_push = bool(getattr(args, "reconcile_unresolved_push", False))
+    if reconcile_push and (
+        any(getattr(args, name, False) for name in (
+            "push", "dry_run", "rewrite_release", "include_rewrites", "new_only",
+            "legacy_report", "deployment_preflight", "manifest_authorized_deployment_preflight",
+            "skip_tests", "skip_release_gate", "recover_exhausted_create_run",
+            "recover_exhausted_rewrite_run",
+        ))
+        or any(getattr(args, name, None) is not None for name in (
+            "exact_run_id", "exact_fresh_ja_run_id", "prepare_exact_fresh_ja_source_run_id",
+            "prepare_exact_fresh_ja_article_id", "runtime_manifest_authority",
+            "expected_manifest_digest", "expected_retry_error", "expected_quarantine_reason",
+            "expected_recovery_digest", "recovery_reason",
+        ))
+    ):
+        raise SystemExit("--reconcile-unresolved-push cannot be combined with other operation modes or selectors")
     new_only = bool(getattr(args, "new_only", False))
     exact_run_ids = _normalize_exact_run_ids(
         getattr(args, "exact_run_id", None)
@@ -5439,7 +5626,8 @@ def main() -> int:
     queue_root = args.queue_root.resolve()
     state_root = (repo_root / args.state_root).resolve() if not args.state_root.is_absolute() else args.state_root.resolve()
     runtime_receipt = _validate_formal_runtime(repo_root, queue_root, state_root)
-    _trim_configured_launchd_logs()
+    if not reconcile_push:
+        _trim_configured_launchd_logs()
     contract_values = (
         getattr(args, "expected_repo_root", None),
         getattr(args, "expected_queue_root", None),
@@ -5452,6 +5640,8 @@ def main() -> int:
         value is not None for value in contract_values
     ):
         raise SystemExit("deployment contract requires all expected values")
+    if reconcile_push and not all(value is not None for value in contract_values):
+        raise SystemExit("--reconcile-unresolved-push requires a complete deployment contract")
     if getattr(args, "deployment_preflight", False) and not all(
         value is not None for value in contract_values
     ):
@@ -5511,6 +5701,11 @@ def main() -> int:
         if getattr(args, "deployment_preflight", False):
             print(json.dumps(preflight, ensure_ascii=False))
             return 0
+    if reconcile_push:
+        _validate_formal_runtime(repo_root, queue_root, state_root)
+        result = _reconcile_unresolved_push(repo_root, state_root, run_git, queue_root=queue_root)
+        print(json.dumps(result, ensure_ascii=False))
+        return 0 if result.get("status") in {"PUSH_OUTCOME_RECONCILED", "idle"} else 1
     if recovery_run_ids:
         if not args.dry_run and not all(
             value is not None for value in contract_values
