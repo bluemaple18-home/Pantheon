@@ -2,6 +2,78 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.544] - 2026-09-15
+
+- Release tag：`v0.3.544`
+- 公開文章總數：684（新增多語版本，不新增繁中 registry 條目）
+- 發布範圍：發布通過母語品質、Reviewer 與 deterministic gate 的多語文章 1 個 run；語系：en；run_id：auto-i18n-en-a0f9348ededecfd9168d。
+- 驗證：publisher clean-origin gate、來源漂移 gate、多語 deterministic gate、focused multilingual pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/translation-0.3.544`
+
+## [0.3.543] - 2026-09-15
+
+- Release tag：`v0.3.543`
+- 公開文章總數：684
+- 發布範圍：自動發布 Gemini Reviewer APPROVE 且 deterministic gate 通過的新文章 1 個 run；run_id：auto-new-v1-20260914-129-01。
+- 驗證：publisher clean-origin gate、Reviewer hash gate、deterministic quality gate、batch uniqueness gate、focused article pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/publish-0.3.543`
+
+## [0.3.542] - 2026-09-15
+
+- Release tag：`v0.3.542`
+- 公開文章總數：683（新增多語版本，不新增繁中 registry 條目）
+- 發布範圍：發布通過母語品質、Reviewer 與 deterministic gate 的多語文章 1 個 run；語系：ko；run_id：auto-i18n-ko-fcb1f6d56da40280aa2a。
+- 驗證：publisher clean-origin gate、來源漂移 gate、多語 deterministic gate、focused multilingual pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/translation-0.3.542`
+
+## [0.3.541] - 2026-09-15
+
+- Release tag：`v0.3.541`
+- 公開文章總數：683
+- 發布範圍：自動發布 Gemini Reviewer APPROVE 且 deterministic gate 通過的新文章 1 個 run；run_id：auto-new-v1-20260915-183-01。
+- 驗證：publisher clean-origin gate、Reviewer hash gate、deterministic quality gate、batch uniqueness gate、focused article pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/publish-0.3.541`
+
+## [0.3.540] - 2026-09-15
+
+- Release tag：`v0.3.540`
+- 公開文章總數：682（新增多語版本，不新增繁中 registry 條目）
+- 發布範圍：發布通過母語品質、Reviewer 與 deterministic gate 的多語文章 1 個 run；語系：ko；run_id：auto-i18n-ko-27c2bd62594539a63725。
+- 驗證：publisher clean-origin gate、來源漂移 gate、多語 deterministic gate、focused multilingual pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/translation-0.3.540`
+
+## [0.3.539] - 2026-09-15
+
+- Release tag：`v0.3.539`
+- 公開文章總數：682
+- 發布範圍：自動發布 Gemini Reviewer APPROVE 且 deterministic gate 通過的新文章 1 個 run；run_id：auto-new-v1-20260915-179-01。
+- 驗證：publisher clean-origin gate、Reviewer hash gate、deterministic quality gate、batch uniqueness gate、focused article pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/publish-0.3.539`
+
+## [0.3.538] - 2026-09-15
+
+- Release tag：`v0.3.538`
+- 公開文章總數：681（新增多語版本，不新增繁中 registry 條目）
+- 發布範圍：發布通過母語品質、Reviewer 與 deterministic gate 的多語文章 1 個 run；語系：en；run_id：auto-i18n-en-6ff9fe32eebfe2f806a5。
+- 驗證：publisher clean-origin gate、來源漂移 gate、多語 deterministic gate、focused multilingual pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/translation-0.3.538`
+
+## [0.3.537] - 2026-09-15
+
+- Release tag：`v0.3.537`
+- 公開文章總數：681
+- 發布範圍：自動發布 Gemini Reviewer APPROVE 且 deterministic gate 通過的新文章 1 個 run；run_id：auto-new-v1-20260915-168-01。
+- 驗證：publisher clean-origin gate、Reviewer hash gate、deterministic quality gate、batch uniqueness gate、focused article pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/publish-0.3.537`
+
+## [0.3.536] - 2026-09-15
+
+- Release tag：`v0.3.536`
+- 公開文章總數：680（新增多語版本，不新增繁中 registry 條目）
+- 發布範圍：發布通過母語品質、Reviewer 與 deterministic gate 的多語文章 1 個 run；語系：ko；run_id：auto-i18n-ko-221b9d99949b53f1e1f9。
+- 驗證：publisher clean-origin gate、來源漂移 gate、多語 deterministic gate、focused multilingual pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/translation-0.3.536`
+
 ## [0.3.535] - 2026-09-15
 
 - Release tag：`v0.3.535`
