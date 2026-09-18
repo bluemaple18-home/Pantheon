@@ -972,10 +972,26 @@ def identity(pid, row):
     error = ctypes.get_errno()
     previous = record['processes'].get(str(pid))
     if count != ctypes.sizeof(value):
-        # 已觀察程序在 ps→libproc 間自然退出：保留 lineage，再取完整快照。
-        if error == errno.ESRCH and previous:
-            record['resample_required'] = True
-            return None
+        # ps 首見或既有程序在 ps→libproc 間自然退出時，須再以 PID existence
+        # 確認 ESRCH；權限、查詢錯誤或 PID 已重用都保持 UNKNOWN。
+        if error == errno.ESRCH:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                if not previous:
+                    # birth 已無法取得，但保存本輪 ps 的 lineage/PGID，讓下一輪
+                    # 仍可追蹤其後代；若同 PID 再出現，birth=None 會 fail-closed。
+                    record['processes'][str(pid)] = {'birth': None, **row}
+                record['resample_required'] = True
+                return None
+            except OSError as probe_error:
+                raise RuntimeError(
+                    f'process identity UNKNOWN: {pid}: bytes={count}, errno={error}, '
+                    f'confirmation_errno={probe_error.errno}'
+                ) from probe_error
+            raise RuntimeError(
+                f'process identity UNKNOWN: {pid}: bytes={count}, errno={error}, still_present=1'
+            )
         raise RuntimeError(f'process identity UNKNOWN: {pid}: bytes={count}, errno={error}')
     birth = [value.sec, value.usec]
     if value.pid != pid or not value.sec:
@@ -1060,13 +1076,15 @@ def observe():
     # 已觀察 root 自然退出時保留其 PGID/子孫；須再取穩定快照才可宣稱排空。
     record['resample_required'] = first != second
     active = owned | (seeds & rows.keys()) | {int(pid) for pid in record['processes'] if int(pid) in rows}
+    tracked = {int(pid) for pid in record['processes']}
     groups = set(record['groups'])
     while True:
         previous = set(active)
         groups |= {rows[pid]['pgid'] for pid in active}
         if any(group <= 1 or group == os.getpgrp() for group in groups):
             raise RuntimeError('service process group ownership UNKNOWN')
-        active |= {pid for pid, row in rows.items() if pid not in excluded and (row['ppid'] in active or row['pgid'] in groups)}
+        active |= {pid for pid, row in rows.items() if pid not in excluded and (
+            row['ppid'] in active or row['ppid'] in tracked or row['pgid'] in groups)}
         if previous == active:
             break
     alive = []

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import ast
+import ctypes
+import errno
 import hashlib
 import json
 import os
@@ -13567,6 +13570,97 @@ def test_disclosure_amendment_registry_job_drift_stops_before_consume_or_write(d
     ) == []
     registry_path = coordinator._state_path(coordinator.pipeline.DISCLOSURE_AMENDMENT_RUN_ID, queue)
     assert all(path.read_bytes() == value for path, value in before.items() if path != registry_path)
+
+
+def _normal_activation_boundary_namespace() -> dict[str, object]:
+    """只抽出 installer 的程序觀測函式，讓 race 可 deterministic 驗證。"""
+    script = Path(__file__).resolve().parents[1] / 'scripts/install_agy_gemini_coordinator_launchd.sh'
+    source = script.read_text()
+    body = source.split('normal_activation_boundary() {', 1)[1].split("<<'PY'\n", 1)[1].split('\nPY\n}', 1)[0]
+    tree = ast.parse(body)
+    keep = []
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            keep.append(node)
+        elif isinstance(node, ast.ClassDef) and node.name == 'Birth':
+            keep.append(node)
+        elif isinstance(node, ast.FunctionDef) and node.name in {'identity', 'observe'}:
+            keep.append(node)
+    namespace: dict[str, object] = {}
+    exec(compile(ast.Module(body=keep, type_ignores=[]), str(script), 'exec'), namespace)
+    return namespace
+
+
+def test_normal_boundary_first_seen_esrch_is_confirmed_and_retains_lineage(monkeypatch) -> None:
+    """ps 首見後自然退出要雙重確認，並保留 lineage 供下一輪追子程序。"""
+    boundary = _normal_activation_boundary_namespace()
+    record = {'processes': {}, 'groups': [], 'seen_labels': [], 'resample_required': False}
+    boundary['record'] = record
+
+    class Query:
+        def __call__(self, *args):
+            ctypes.set_errno(errno.ESRCH)
+            return 0
+
+    monkeypatch.setattr(boundary['ctypes'], 'CDLL', lambda *args, **kwargs: type('Lib', (), {'proc_pidinfo': Query()})())
+    monkeypatch.setattr(boundary['os'], 'kill', lambda pid, sig: (_ for _ in ()).throw(ProcessLookupError(errno.ESRCH, 'gone')))
+    row = {'ppid': 100, 'pgid': 101, 'zombie': False, 'command': 'short-lived'}
+
+    assert boundary['identity'](8858, row) is None
+    assert record['resample_required'] is True
+    assert record['processes']['8858']['birth'] is None
+    assert record['processes']['8858']['ppid'] == 100
+    assert record['processes']['8858']['pgid'] == 101
+
+
+@pytest.mark.parametrize('confirm', ['still-present', 'permission'])
+def test_normal_boundary_first_seen_esrch_ambiguous_confirmation_stays_unknown(monkeypatch, confirm: str) -> None:
+    boundary = _normal_activation_boundary_namespace()
+    boundary['record'] = {'processes': {}, 'groups': [], 'seen_labels': [], 'resample_required': False}
+
+    class Query:
+        def __call__(self, *args):
+            ctypes.set_errno(errno.ESRCH)
+            return 0
+
+    monkeypatch.setattr(boundary['ctypes'], 'CDLL', lambda *args, **kwargs: type('Lib', (), {'proc_pidinfo': Query()})())
+    if confirm == 'still-present':
+        monkeypatch.setattr(boundary['os'], 'kill', lambda pid, sig: None)
+    else:
+        monkeypatch.setattr(boundary['os'], 'kill', lambda pid, sig: (_ for _ in ()).throw(PermissionError(errno.EPERM, 'denied')))
+    with pytest.raises(RuntimeError, match='UNKNOWN'):
+        boundary['identity'](8858, {'ppid': 100, 'pgid': 101, 'zombie': False, 'command': 'short-lived'})
+
+
+def test_normal_boundary_retained_parent_lineage_tracks_reparented_child(monkeypatch) -> None:
+    boundary = _normal_activation_boundary_namespace()
+    record = {
+        'processes': {'8858': {'birth': None, 'ppid': 100, 'pgid': 101, 'zombie': False, 'command': 'gone-parent'}},
+        'groups': [101], 'seen_labels': [], 'resample_required': False,
+    }
+    boundary.update(record=record, arguments=[], domain='gui/501', owned_roots=['/runtime'])
+    boundary['services'] = lambda: {}
+    boundary['save'] = lambda: None
+    boundary['identity'] = lambda pid, row: [12, pid]
+    monkeypatch.setattr(boundary['os'], 'getpgrp', lambda: 99999)
+
+    class Result:
+        returncode = 0
+        stdout = ''
+
+    def command(argv):
+        result = Result()
+        if argv[0] == '/bin/ps':
+            result.stdout = '9001 8858 9001 S child-worker\n'
+        elif argv[0] == '/usr/sbin/lsof':
+            result.stdout = 'p9001\nfcwd\nn/outside\n'
+        else:
+            raise AssertionError(argv)
+        return result
+
+    boundary['command'] = command
+    assert boundary['observe']() == [9001]
+    assert record['processes']['9001']['ppid'] == 8858
 
 
 @pytest.mark.parametrize('fault', ['aggregate', 'partial', 'preadmitted-child', 'timeout', 'unknown', 'fence', 'fast-exit', 'fast-exit-child', 'identity', 'diagnostic-timeout'])
