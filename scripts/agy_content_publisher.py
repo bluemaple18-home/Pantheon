@@ -90,6 +90,7 @@ SUCCESS_STATUSES = {
 }
 RETRY_DELAY_SECONDS = 300
 MAX_RETRY_ATTEMPTS = 3
+REVIEWER_QUARANTINE_REASON = "reviewer did not cleanly approve every article"
 PRERENDER_TIMEOUT_SECONDS = 300
 PUBLISHER_LOG_MAX_BYTES = 32 * 1024 * 1024
 PUBLISHER_LOG_RETAIN_BYTES = 4 * 1024 * 1024
@@ -1778,6 +1779,236 @@ def _retry_recovery_lock(
         yield
 
 
+def recover_create_review_quarantine(
+    repo_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    *,
+    run_id: str,
+    expected_quarantine_reason: str,
+    reason: str,
+    expected_recovery_digest: str | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """以 reviewer-only 重驗證證據解除單一 create review quarantine。"""
+    normalized = _normalize_exact_run_ids([run_id])
+    assert normalized is not None
+    run_id = next(iter(normalized))
+    expected_quarantine_reason = expected_quarantine_reason.strip()
+    reason = reason.strip()
+    if expected_quarantine_reason != REVIEWER_QUARANTINE_REASON:
+        raise PublishBlocked("review quarantine recovery reason is not supported")
+    if len(reason) < 8 or len(reason) > 500:
+        raise PublishBlocked("review quarantine recovery reason length is invalid")
+
+    with _retry_recovery_lock(state_root, dry_run=dry_run):
+        _assert_no_unresolved_push(state_root)
+        ledger_path = _ledger_path(state_root)
+        ledger = _load_ledger(state_root)
+        ledger_bytes = ledger_path.read_bytes() if ledger_path.is_file() else b""
+        matching_quarantines = [
+            item
+            for item in ledger["quarantined_runs"]
+            if str(item.get("run_id")) == run_id
+        ]
+        if len(matching_quarantines) != 1:
+            raise PublishBlocked(
+                f"review quarantine recovery requires one quarantine: {run_id}"
+            )
+        quarantine = matching_quarantines[0]
+        if str(quarantine.get("reason") or "") != expected_quarantine_reason:
+            raise PublishBlocked(
+                f"review quarantine recovery reason differs: {run_id}"
+            )
+
+        state_paths: list[Path] = []
+        for state_path in _run_files(queue_root):
+            try:
+                if str(_read_json(state_path).get("run_id") or "") == run_id:
+                    state_paths.append(state_path)
+            except (OSError, json.JSONDecodeError):
+                continue
+        if len(state_paths) != 1:
+            raise PublishBlocked(
+                f"review quarantine recovery requires one queue state: {run_id}"
+            )
+        state_path = state_paths[0]
+        state_bytes = state_path.read_bytes()
+        state, candidate, review = _load_completed_run(state_path)
+        if candidate.get("mode") != "create":
+            raise PublishBlocked(
+                f"review quarantine recovery requires create mode: {run_id}"
+            )
+        if not _review_is_clean_approve(review):
+            raise PublishBlocked(
+                f"review quarantine recovery reviewer approval is not clean: {run_id}"
+            )
+        article_ids = sorted(str(article["id"]) for article in candidate["articles"])
+        lifecycle = _ledger_run_lifecycle(
+            ledger,
+            run_id=run_id,
+            article_ids=article_ids,
+        )
+        if lifecycle is not None:
+            raise PublishBlocked(
+                f"review quarantine recovery run already has lifecycle: {run_id}"
+            )
+        reference_articles = pipeline.load_publication_reference_corpus(repo_root)
+        findings = (
+            pipeline.quality_findings(
+                candidate["articles"],
+                reference_articles=reference_articles,
+            )
+            if reference_articles
+            else pipeline.quality_findings(candidate["articles"])
+        )
+        if findings:
+            raise PublishBlocked(
+                f"review quarantine recovery candidate no longer passes policy: {run_id}"
+            )
+
+        run_dir = Path(str(state["run_dir"]))
+        result = state.get("result") if isinstance(state.get("result"), dict) else {}
+        candidate_path = Path(str(result.get("candidate") or run_dir / "candidate.json"))
+        review_path = run_dir / "review.json"
+        source_review_path = run_dir / "review-existing-source.json"
+        rereview_receipt_path = run_dir / "review-existing-receipt.json"
+        for path, label in (
+            (candidate_path, "candidate"),
+            (review_path, "review"),
+            (source_review_path, "source review"),
+            (rereview_receipt_path, "reviewer receipt"),
+        ):
+            if not path.is_file():
+                raise PublishBlocked(
+                    f"review quarantine recovery {label} is missing: {run_id}"
+                )
+        candidate_bytes = candidate_path.read_bytes()
+        review_bytes = review_path.read_bytes()
+        source_review_bytes = source_review_path.read_bytes()
+        rereview_receipt_bytes = rereview_receipt_path.read_bytes()
+        source_review = json.loads(source_review_bytes)
+        pipeline.validate_review(source_review, candidate["articles"])
+        if _review_is_clean_approve(source_review):
+            raise PublishBlocked(
+                f"review quarantine recovery source review was already clean: {run_id}"
+            )
+        rereview_receipt = json.loads(rereview_receipt_bytes)
+        candidate_sha256 = hashlib.sha256(
+            pipeline.compact_json_bytes(candidate)
+        ).hexdigest()
+        source_review_sha256 = _bytes_sha256(source_review_bytes)
+        review_sha256 = _bytes_sha256(review_bytes)
+        if (
+            rereview_receipt.get("schema_version") != SCHEMA_VERSION
+            or rereview_receipt.get("operation") != "review-existing"
+            or rereview_receipt.get("run_id") != run_id
+            or rereview_receipt.get("mode") != "create"
+            or rereview_receipt.get("candidate_sha256") != candidate_sha256
+            or rereview_receipt.get("source_review_sha256") != source_review_sha256
+            or rereview_receipt.get("review_sha256") != review_sha256
+        ):
+            raise PublishBlocked(
+                f"review quarantine recovery reviewer receipt differs: {run_id}"
+            )
+
+        recovery_digest = hashlib.sha256(
+            pipeline.compact_json_bytes(
+                {
+                    "run_id": run_id,
+                    "expected_quarantine_reason": expected_quarantine_reason,
+                    "reason": reason,
+                    "quarantine": quarantine,
+                    "ledger_sha256": _bytes_sha256(ledger_bytes),
+                    "state_sha256": _bytes_sha256(state_bytes),
+                    "candidate_file_sha256": _bytes_sha256(candidate_bytes),
+                    "candidate_sha256": candidate_sha256,
+                    "review_sha256": review_sha256,
+                    "source_review_sha256": source_review_sha256,
+                    "rereview_receipt_sha256": _bytes_sha256(
+                        rereview_receipt_bytes
+                    ),
+                }
+            )
+        ).hexdigest()
+        if dry_run:
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "status": "dry-run",
+                "operation": "recover-create-review-quarantine",
+                "mutation_permitted": False,
+                "run_id": run_id,
+                "recovery_digest": recovery_digest,
+            }
+        if expected_recovery_digest != recovery_digest:
+            raise PublishBlocked(
+                "review quarantine recovery state differs from approved dry-run"
+            )
+        for path, expected in (
+            (state_path, state_bytes),
+            (candidate_path, candidate_bytes),
+            (review_path, review_bytes),
+            (source_review_path, source_review_bytes),
+            (rereview_receipt_path, rereview_receipt_bytes),
+        ):
+            if path.read_bytes() != expected:
+                raise PublishBlocked(
+                    f"review quarantine recovery input changed before mutation: {run_id}"
+                )
+        if ledger_path.read_bytes() != ledger_bytes:
+            raise PublishBlocked("review quarantine recovery ledger changed before mutation")
+
+        recovery_id = recovery_digest[:20]
+        recovery_receipt_path = (
+            state_root
+            / "evidence"
+            / "review-quarantine-recovery"
+            / f"{recovery_id}-{run_id}.json"
+        )
+        recovery_receipt = {
+            "schema_version": SCHEMA_VERSION,
+            "status": "RECOVERY_AUTHORIZED",
+            "operation": "recover-create-review-quarantine",
+            "recovery_id": recovery_id,
+            "run_id": run_id,
+            "reason": reason,
+            "quarantine": quarantine,
+            "candidate_sha256": candidate_sha256,
+            "source_review_sha256": source_review_sha256,
+            "review_sha256": review_sha256,
+            "reviewer_receipt_sha256": _bytes_sha256(rereview_receipt_bytes),
+            "authorized_at": _now(),
+        }
+        _atomic_write_json(recovery_receipt_path, recovery_receipt)
+        ledger["quarantined_runs"] = [
+            item
+            for item in ledger["quarantined_runs"]
+            if str(item.get("run_id")) != run_id
+        ]
+        _atomic_write_json(ledger_path, ledger)
+        if any(
+            str(item.get("run_id")) == run_id
+            for item in _load_ledger(state_root)["quarantined_runs"]
+        ):
+            raise PublishBlocked(
+                f"review quarantine recovery ledger readback failed: {run_id}"
+            )
+        recovery_receipt["status"] = "RECOVERED"
+        recovery_receipt["completed_at"] = _now()
+        _atomic_write_json(recovery_receipt_path, recovery_receipt)
+        if _read_json(recovery_receipt_path).get("status") != "RECOVERED":
+            raise PublishBlocked(
+                f"review quarantine recovery receipt readback failed: {run_id}"
+            )
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "status": "RECOVERED",
+            "operation": "recover-create-review-quarantine",
+            "run_id": run_id,
+            "receipt": str(recovery_receipt_path),
+        }
+
+
 def recover_exhausted_create_retries(
     repo_root: Path,
     queue_root: Path,
@@ -3427,7 +3658,7 @@ def collect_ready_runs(
         if not _retry_eligible(state_root, "create", run_id):
             continue
         if not _review_is_clean_approve(review):
-            _record_quarantine(state_root, state, "reviewer did not cleanly approve every article")
+            _record_quarantine(state_root, state, REVIEWER_QUARANTINE_REASON)
             continue
         findings = (
             pipeline.quality_findings(
@@ -5526,6 +5757,7 @@ def parse_args() -> argparse.Namespace:
         action="append",
         default=[],
     )
+    parser.add_argument("--recover-review-quarantine-run")
     parser.add_argument("--expected-retry-error")
     parser.add_argument("--expected-quarantine-reason")
     parser.add_argument("--expected-recovery-digest")
@@ -5553,7 +5785,7 @@ def main() -> int:
             "push", "dry_run", "rewrite_release", "include_rewrites", "new_only",
             "legacy_report", "deployment_preflight", "manifest_authorized_deployment_preflight",
             "skip_tests", "skip_release_gate", "recover_exhausted_create_run",
-            "recover_exhausted_rewrite_run",
+            "recover_exhausted_rewrite_run", "recover_review_quarantine_run",
         ))
         or any(getattr(args, name, None) is not None for name in (
             "exact_run_id", "exact_fresh_ja_run_id", "prepare_exact_fresh_ja_source_run_id",
@@ -5602,8 +5834,11 @@ def main() -> int:
         raise SystemExit("exact fresh JA prepare only registers a local queue run")
     create_recovery_run_ids = list(getattr(args, "recover_exhausted_create_run", []) or [])
     rewrite_recovery_run_ids = list(getattr(args, "recover_exhausted_rewrite_run", []) or [])
+    review_quarantine_run_id = getattr(args, "recover_review_quarantine_run", None)
     if create_recovery_run_ids and rewrite_recovery_run_ids:
         raise SystemExit("create and rewrite retry recovery cannot be combined")
+    if review_quarantine_run_id and (create_recovery_run_ids or rewrite_recovery_run_ids):
+        raise SystemExit("review quarantine recovery cannot be combined with retry recovery")
     recovery_phase = "rewrite" if rewrite_recovery_run_ids else "create"
     recovery_run_ids = rewrite_recovery_run_ids or create_recovery_run_ids
     if recovery_run_ids and (
@@ -5613,6 +5848,13 @@ def main() -> int:
         or args.legacy_report
     ):
         raise SystemExit("retry recovery cannot be combined with release modes")
+    if review_quarantine_run_id and (
+        args.rewrite_release
+        or args.include_rewrites
+        or new_only
+        or args.legacy_report
+    ):
+        raise SystemExit("review quarantine recovery cannot be combined with release modes")
     if fresh_ja_run_id is not None:
         publisher_fn = None
     elif args.include_rewrites:
@@ -5743,6 +5985,44 @@ def main() -> int:
             dry_run=args.dry_run,
             phase=recovery_phase,
             expected_quarantine_reason=getattr(args, "expected_quarantine_reason", None),
+        )
+        print(json.dumps(result, ensure_ascii=False))
+        return 0
+    if review_quarantine_run_id:
+        if not args.dry_run and not all(
+            value is not None for value in contract_values
+        ):
+            raise SystemExit(
+                "review quarantine recovery requires a complete deployment contract"
+            )
+        expected_quarantine_reason = str(
+            getattr(args, "expected_quarantine_reason", "") or ""
+        )
+        recovery_reason = str(getattr(args, "recovery_reason", "") or "")
+        if not expected_quarantine_reason or not recovery_reason:
+            raise SystemExit(
+                "review quarantine recovery requires --expected-quarantine-reason "
+                "and --recovery-reason"
+            )
+        expected_recovery_digest = getattr(
+            args,
+            "expected_recovery_digest",
+            None,
+        )
+        if not args.dry_run and not expected_recovery_digest:
+            raise SystemExit(
+                "review quarantine recovery requires --expected-recovery-digest "
+                "from a current dry-run"
+            )
+        result = recover_create_review_quarantine(
+            repo_root,
+            queue_root,
+            state_root,
+            run_id=str(review_quarantine_run_id),
+            expected_quarantine_reason=expected_quarantine_reason,
+            reason=recovery_reason,
+            expected_recovery_digest=expected_recovery_digest,
+            dry_run=args.dry_run,
         )
         print(json.dumps(result, ensure_ascii=False))
         return 0

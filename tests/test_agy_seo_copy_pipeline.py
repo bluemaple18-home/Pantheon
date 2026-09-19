@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import hashlib
 import json
 import os
 import subprocess
@@ -864,6 +865,106 @@ def test_review_must_bind_each_candidate_hash() -> None:
     }
     with pytest.raises(ValueError, match="candidate hash"):
         validate_review(review, [article])
+
+
+def _create_review_fixture(
+    article_id: str,
+    run_id: str,
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    article = make_article(article_id)
+    brief = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "mode": "create",
+        "articles": [
+            {
+                "matrix": {
+                    "id": article["id"],
+                    "primaryKeyword": article["primaryKeyword"],
+                },
+                "target": {
+                    field: article[field]
+                    for field in [
+                        "id",
+                        "section",
+                        "product",
+                        "slug",
+                        "serial",
+                        "urlSlug",
+                        "primaryKeyword",
+                        "published",
+                        "updated",
+                    ]
+                },
+                "policy": pipeline.compact_publication_policy(),
+            }
+        ],
+    }
+    candidate = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "mode": "create",
+        "articles": [article],
+    }
+    return article, brief, candidate
+
+
+def test_create_review_contract_separates_non_blocking_observations() -> None:
+    article, brief, candidate = _create_review_fixture(
+        "OBSERVATION-001",
+        "observation-run",
+    )
+    external = {
+        "articles": [
+            {
+                "slot": "article-01",
+                "verdict": "APPROVE",
+                "findings": [],
+                "non_blocking_observations": [
+                    {
+                        "code": "scene_density_check",
+                        "message": "具體生活場景足夠。",
+                    }
+                ],
+            }
+        ]
+    }
+
+    schema_item = pipeline.create_external_review_schema()["properties"]["articles"]["items"]
+    review = pipeline.hydrate_review(brief, candidate, external)
+
+    assert "non_blocking_observations" in schema_item["required"]
+    assert review["articles"][0]["verdict"] == "APPROVE"
+    assert review["articles"][0]["findings"] == []
+    assert review["articles"][0]["non_blocking_observations"] == external["articles"][0][
+        "non_blocking_observations"
+    ]
+    validate_review(review, [article])
+
+
+def test_create_review_contract_rejects_approve_with_blocking_findings() -> None:
+    _article, brief, candidate = _create_review_fixture(
+        "OBSERVATION-BLOCK-001",
+        "observation-block-run",
+    )
+    external = {
+        "articles": [
+            {
+                "slot": "article-01",
+                "verdict": "APPROVE",
+                "findings": [
+                    {"code": "scene_density_check", "message": "具體場景充足。"}
+                ],
+                "non_blocking_observations": [],
+            }
+        ]
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="APPROVE must not contain blocking findings",
+    ):
+        pipeline.hydrate_review(brief, candidate, external)
 
 
 def test_writer_and_reviewer_requests_have_independent_contexts() -> None:
@@ -3099,7 +3200,7 @@ def test_all_provider_bound_content_schemas_defer_string_lengths_to_local_gate()
         "create-repair-body": pipeline.external_create_repair_schema(
             {"article-01": ("bodySections",)}
         ),
-        "review": pipeline.external_review_schema(),
+        "review": pipeline.create_external_review_schema(),
         "rewrite-review": pipeline.rewrite_external_review_schema(),
     }
 
@@ -5336,6 +5437,143 @@ def test_review_existing_reuses_candidate_without_writer_call(tmp_path: Path, mo
 
     assert review["articles"][0]["verdict"] == "APPROVE"
     assert json.loads((tmp_path / "candidate.json").read_text()) == candidate
+
+
+def test_review_existing_preserves_source_review_and_binds_reviewer_only_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    article, brief, candidate = _create_review_fixture(
+        "EXISTING-OBSERVATION-001",
+        "existing-observation-run",
+    )
+    source_review = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "articles": [
+            {
+                "article_id": article["id"],
+                "candidate_sha256": article_sha256(article),
+                "verdict": "APPROVE",
+                "hard_failure": False,
+                "findings": [
+                    {
+                        "code": "scene_density_check",
+                        "message": "具體場景充足。",
+                    }
+                ],
+            }
+        ],
+    }
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    pipeline.write_json(tmp_path / "candidate.json", candidate)
+    pipeline.write_json(tmp_path / "review.json", source_review)
+    source_review_bytes = (tmp_path / "review.json").read_bytes()
+    monkeypatch.setattr(pipeline, "quality_findings", lambda _: [])
+
+    class ReviewerOnly:
+        def generate_json(
+            self,
+            role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            assert role == "reviewer"
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "APPROVE",
+                        "findings": [],
+                        "non_blocking_observations": [
+                            {
+                                "code": "scene_density_check",
+                                "message": "具體場景充足。",
+                            }
+                        ],
+                    }
+                ]
+            }
+
+    review = pipeline.review_existing_candidate(tmp_path, ReviewerOnly())
+
+    assert review["articles"][0]["findings"] == []
+    assert (tmp_path / "review-existing-source.json").read_bytes() == source_review_bytes
+    receipt = json.loads(
+        (tmp_path / "review-existing-receipt.json").read_text(encoding="utf-8")
+    )
+    assert receipt["operation"] == "review-existing"
+    assert receipt["run_id"] == brief["run_id"]
+    assert receipt["mode"] == "create"
+    assert receipt["candidate_sha256"] == hashlib.sha256(
+        pipeline.compact_json_bytes(candidate)
+    ).hexdigest()
+    assert receipt["source_review_sha256"] == hashlib.sha256(
+        source_review_bytes
+    ).hexdigest()
+    assert receipt["review_sha256"] == hashlib.sha256(
+        (tmp_path / "review.json").read_bytes()
+    ).hexdigest()
+
+
+def test_review_existing_refuses_to_replace_preserved_source_review(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    article, brief, candidate = _create_review_fixture(
+        "EXISTING-PRESERVED-001",
+        "existing-preserved-run",
+    )
+    source_review = {
+        "schema_version": 1,
+        "run_id": brief["run_id"],
+        "articles": [
+            {
+                "article_id": article["id"],
+                "candidate_sha256": article_sha256(article),
+                "verdict": "APPROVE",
+                "findings": [{"code": "positive_check", "message": "通過。"}],
+            }
+        ],
+    }
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    pipeline.write_json(tmp_path / "candidate.json", candidate)
+    pipeline.write_json(tmp_path / "review.json", source_review)
+    monkeypatch.setattr(pipeline, "quality_findings", lambda _: [])
+
+    class ReviewerOnly:
+        def generate_json(
+            self,
+            _role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            return {
+                "articles": [
+                    {
+                        "slot": "article-01",
+                        "verdict": "APPROVE",
+                        "findings": [],
+                        "non_blocking_observations": [
+                            {"code": "positive_check", "message": "通過。"}
+                        ],
+                    }
+                ]
+            }
+
+    pipeline.review_existing_candidate(tmp_path, ReviewerOnly())
+
+    class ReviewerMustNotRun:
+        def generate_json(
+            self,
+            _role: str,
+            _prompt: str,
+            _schema: dict[str, object],
+        ) -> dict[str, object]:
+            raise AssertionError("preserved source mismatch must fail before Reviewer")
+
+    with pytest.raises(ValueError, match="preserved evidence"):
+        pipeline.review_existing_candidate(tmp_path, ReviewerMustNotRun())
 
 
 def test_review_existing_rewrite_rejects_misplaced_machine_finding(

@@ -1906,7 +1906,14 @@ def validate_review(review: dict[str, Any], candidates: list[dict[str, Any]]) ->
     for item in review["articles"]:
         if not isinstance(item, dict):
             raise ValueError("review article must be an object")
-        allowed = {"article_id", "candidate_sha256", "verdict", "hard_failure", "findings"}
+        allowed = {
+            "article_id",
+            "candidate_sha256",
+            "verdict",
+            "hard_failure",
+            "findings",
+            "non_blocking_observations",
+        }
         if set(item) - allowed or not {"article_id", "candidate_sha256", "verdict", "findings"} <= set(item):
             raise ValueError("review article fields are invalid")
         article_id = str(item["article_id"])
@@ -1928,6 +1935,19 @@ def validate_review(review: dict[str, Any], candidates: list[dict[str, Any]]) ->
                 )
             ):
                 raise ValueError("review finding fields are invalid")
+        observations = item.get("non_blocking_observations", [])
+        if not isinstance(observations, list):
+            raise ValueError("review non-blocking observations must be a list")
+        for observation in observations:
+            if (
+                not isinstance(observation, dict)
+                or set(observation) != {"code", "message"}
+                or not all(
+                    isinstance(observation[field], str) and observation[field].strip()
+                    for field in ("code", "message")
+                )
+            ):
+                raise ValueError("review non-blocking observation fields are invalid")
         seen.add(article_id)
     if seen != set(expected):
         raise ValueError("review is missing candidate articles")
@@ -1947,6 +1967,15 @@ def render_review_markdown(review: dict[str, Any], candidates: list[dict[str, An
         else:
             lines.append("- 無 finding。")
         lines.append("")
+        observations = item.get("non_blocking_observations") or []
+        if observations:
+            lines.extend(["### Non-blocking observations", ""])
+            for observation in observations:
+                lines.append(
+                    f"- `{observation.get('code', 'observation')}`："
+                    f"{observation.get('message', '')}"
+                )
+            lines.append("")
         candidate = candidate_by_id.get(str(item["article_id"]))
         if candidate is not None:
             if "identity" in candidate and "bodySections" in candidate:
@@ -4203,6 +4232,27 @@ def external_review_schema() -> dict[str, Any]:
     return {"type": "object", "additionalProperties": False, "properties": {"articles": {"type": "array", "items": item, "minItems": 1, "maxItems": 5}}, "required": ["articles"]}
 
 
+def create_external_review_schema() -> dict[str, Any]:
+    finding = {"type": "object", "additionalProperties": False, "properties": {"code": {"type": "string"}, "message": {"type": "string"}}, "required": ["code", "message"]}
+    item = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "slot": {"type": "string"},
+            "verdict": {"type": "string", "enum": ["APPROVE", "REJECT"]},
+            "findings": {"type": "array", "items": finding},
+            "non_blocking_observations": {"type": "array", "items": finding},
+        },
+        "required": [
+            "slot",
+            "verdict",
+            "findings",
+            "non_blocking_observations",
+        ],
+    }
+    return {"type": "object", "additionalProperties": False, "properties": {"articles": {"type": "array", "items": item, "minItems": 1, "maxItems": 5}}, "required": ["articles"]}
+
+
 def rewrite_external_review_schema() -> dict[str, Any]:
     finding = {"type": "object", "additionalProperties": False, "properties": {"code": {"type": "string"}, "message": {"type": "string"}}, "required": ["code", "message"]}
     objective_observation = {
@@ -4249,16 +4299,28 @@ def hydrate_review(brief: dict[str, Any], candidate: dict[str, Any], external: d
     articles = []
     for index, article in enumerate(candidate["articles"]):
         item = by_slot[_slot(index)]
-        if set(item) != {"slot", "verdict", "findings"}:
+        if set(item) not in (
+            {"slot", "verdict", "findings"},
+            {"slot", "verdict", "findings", "non_blocking_observations"},
+        ):
             raise ValueError("external review fields are strict")
-        articles.append(
-            {
-                "article_id": _candidate_id(article),
-                "candidate_sha256": article_sha256(article),
-                "verdict": item["verdict"],
-                "findings": item["findings"],
-            }
-        )
+        verdict = item["verdict"]
+        findings = item["findings"]
+        structured = "non_blocking_observations" in item
+        observations = item.get("non_blocking_observations", [])
+        if structured and verdict == "APPROVE" and findings:
+            raise ValueError("create reviewer APPROVE must not contain blocking findings")
+        if structured and verdict == "REJECT" and not findings:
+            raise ValueError("create reviewer REJECT must contain blocking findings")
+        hydrated = {
+            "article_id": _candidate_id(article),
+            "candidate_sha256": article_sha256(article),
+            "verdict": verdict,
+            "findings": findings,
+        }
+        if structured:
+            hydrated["non_blocking_observations"] = observations
+        articles.append(hydrated)
     review = {"schema_version": SCHEMA_VERSION, "run_id": brief["run_id"], "articles": articles}
     validate_review(review, candidate["articles"])
     return review
@@ -4359,7 +4421,18 @@ def reconcile_external_review_with_machine_gate(
 
 def review_schema() -> dict[str, Any]:
     finding = {"type": "object", "additionalProperties": False, "properties": {"code": {"type": "string"}, "message": {"type": "string"}}, "required": ["code", "message"]}
-    item = {"type": "object", "additionalProperties": False, "properties": {"article_id": {"type": "string"}, "candidate_sha256": {"type": "string"}, "verdict": {"type": "string", "enum": ["APPROVE", "REJECT"]}, "findings": {"type": "array", "items": finding}}, "required": ["article_id", "candidate_sha256", "verdict", "findings"]}
+    item = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "article_id": {"type": "string"},
+            "candidate_sha256": {"type": "string"},
+            "verdict": {"type": "string", "enum": ["APPROVE", "REJECT"]},
+            "findings": {"type": "array", "items": finding},
+            "non_blocking_observations": {"type": "array", "items": finding},
+        },
+        "required": ["article_id", "candidate_sha256", "verdict", "findings"],
+    }
     return {"type": "object", "additionalProperties": False, "properties": {"schema_version": {"type": "integer", "enum": [1]}, "run_id": {"type": "string"}, "articles": {"type": "array", "items": item, "minItems": 1, "maxItems": 5}}, "required": ["schema_version", "run_id", "articles"]}
 
 
@@ -4567,6 +4640,10 @@ def _reviewer_prompt(brief: dict[str, Any], candidate: dict[str, Any], determini
         machine_gate_instruction = (
             "字數、section／paragraph 數量與長度、immutable identity、candidate hash "
             "由本機 deterministic gate 唯一判定；不得自行回報這些 machine-owned findings。"
+            "findings 只可放會阻塞發布的問題；verdict=APPROVE 時 findings 必須精確為 []；"
+            "verdict=REJECT 時 findings 必須至少一筆。"
+            "正面評語、通過證據、摘要或不阻塞發布的觀察，只能放 non_blocking_observations；"
+            "若沒有此類觀察，non_blocking_observations 必須輸出 []。"
             "你仍必須獨立審查搜尋意圖、語意品質、場景、動詞、限制、安全邊界、錯別字與模板感。"
         )
     elif brief.get("mode") == "rewrite_existing_body":
@@ -4959,7 +5036,7 @@ def run_writer_reviewer(run_dir: Path, client: GeminiClient, max_repairs: int = 
                     (
                         rewrite_external_review_schema()
                         if mode == "rewrite_existing_body"
-                        else external_review_schema()
+                        else create_external_review_schema()
                     ),
                     attempt_dir / "reviewer-operation.json",
                 )
@@ -6360,6 +6437,21 @@ def review_existing_candidate(run_dir: Path, client: GeminiClient) -> dict[str, 
     if candidate["run_id"] != brief["run_id"] or candidate["mode"] != brief["mode"]:
         raise CandidateValidationError("existing candidate differs from brief")
     is_rewrite = brief.get("mode") == "rewrite_existing_body"
+    source_review_bytes: bytes | None = None
+    source_archive_path = run_dir / "review-existing-source.json"
+    if not is_rewrite:
+        source_review_path = run_dir / "review.json"
+        if source_review_path.is_file():
+            source_review_bytes = source_review_path.read_bytes()
+            source_review = json.loads(source_review_bytes)
+            validate_review(source_review, candidate["articles"])
+            if (
+                source_archive_path.is_file()
+                and source_archive_path.read_bytes() != source_review_bytes
+            ):
+                raise ValueError(
+                    "review-existing source review differs from preserved evidence"
+                )
     if is_rewrite:
         validate_rewrite_brief(brief)
         if isinstance(client, GeminiClient) and getattr(client.transport, "__name__", "") != "_cli_transport":
@@ -6390,7 +6482,7 @@ def review_existing_candidate(run_dir: Path, client: GeminiClient) -> dict[str, 
                 (
                     rewrite_external_review_schema()
                     if is_rewrite
-                    else external_review_schema()
+                    else create_external_review_schema()
                 ),
                 run_dir / "review-existing-operation.json",
             )
@@ -6412,8 +6504,30 @@ def review_existing_candidate(run_dir: Path, client: GeminiClient) -> dict[str, 
         value = {"code": finding["code"], "message": finding["message"]}
         if (value["code"], value["message"]) not in existing:
             item["findings"].append(value)
+    if source_review_bytes is not None:
+        if not source_archive_path.is_file():
+            source_archive_path.write_bytes(source_review_bytes)
     write_json(run_dir / "review.json", review)
     (run_dir / "review.md").write_text(render_review_markdown(review, candidate["articles"]), encoding="utf-8")
+    if source_review_bytes is not None:
+        write_json(
+            run_dir / "review-existing-receipt.json",
+            {
+                "schema_version": SCHEMA_VERSION,
+                "operation": "review-existing",
+                "run_id": brief["run_id"],
+                "mode": brief["mode"],
+                "candidate_sha256": hashlib.sha256(
+                    compact_json_bytes(candidate)
+                ).hexdigest(),
+                "source_review_sha256": hashlib.sha256(
+                    source_review_bytes
+                ).hexdigest(),
+                "review_sha256": hashlib.sha256(
+                    (run_dir / "review.json").read_bytes()
+                ).hexdigest(),
+            },
+        )
     return review
 
 

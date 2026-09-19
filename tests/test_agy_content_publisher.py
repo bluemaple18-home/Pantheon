@@ -295,6 +295,67 @@ def _write_exhausted_create_retry(
     return retry_path
 
 
+def _write_review_quarantine_fixture(
+    tmp_path: Path,
+    *,
+    run_name: str,
+    article_id: str,
+) -> tuple[Path, Path, Path, Path, dict[str, object], bytes, bytes]:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / run_name
+    article = make_publishable_article(article_id)
+    _write_run(queue_root, run_dir, article)
+    candidate = publisher._read_json(run_dir / "candidate.json")
+    review = publisher._read_json(run_dir / "review.json")
+    review["articles"][0]["non_blocking_observations"] = [
+        {"code": "scene_density_check", "message": "具體場景充足。"}
+    ]
+    _write_json(run_dir / "review.json", review)
+    source_review = json.loads(json.dumps(review))
+    source_review["articles"][0]["non_blocking_observations"] = []
+    source_review["articles"][0]["findings"] = [
+        {"code": "scene_density_check", "message": "具體場景充足。"}
+    ]
+    _write_json(run_dir / "review-existing-source.json", source_review)
+    source_bytes = (run_dir / "review-existing-source.json").read_bytes()
+    review_bytes = (run_dir / "review.json").read_bytes()
+    _write_json(
+        run_dir / "review-existing-receipt.json",
+        {
+            "schema_version": 1,
+            "operation": "review-existing",
+            "run_id": run_name,
+            "mode": "create",
+            "candidate_sha256": hashlib.sha256(
+                publisher.pipeline.compact_json_bytes(candidate)
+            ).hexdigest(),
+            "source_review_sha256": hashlib.sha256(source_bytes).hexdigest(),
+            "review_sha256": hashlib.sha256(review_bytes).hexdigest(),
+        },
+    )
+    ledger = publisher._load_ledger(state_root)
+    ledger["quarantined_runs"].append(
+        {
+            "run_id": run_name,
+            "reason": publisher.REVIEWER_QUARANTINE_REASON,
+            "recorded_at": "2026-09-19T00:00:00+08:00",
+        }
+    )
+    _write_json(publisher._ledger_path(state_root), ledger)
+    return (
+        repo_root,
+        queue_root,
+        state_root,
+        run_dir,
+        candidate,
+        source_bytes,
+        review_bytes,
+    )
+
+
 def make_rewrite_article(article_id: str = "LEGACY-001", slug: str = "legacy-001") -> dict[str, object]:
     body_sections = [
         {
@@ -554,6 +615,49 @@ def test_collect_ready_runs_skips_reviewer_reject(tmp_path: Path) -> None:
     assert ledger["quarantined_runs"][0]["reason"] == "reviewer did not cleanly approve every article"
 
 
+def test_collect_ready_runs_accepts_non_blocking_review_observations(tmp_path: Path) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "run-observations"
+    _write_run(queue_root, run_dir, make_publishable_article("OBS-READY"))
+    review = publisher._read_json(run_dir / "review.json")
+    review["articles"][0]["non_blocking_observations"] = [
+        {"code": "scene_density_check", "message": "具體場景充足。"}
+    ]
+    _write_json(run_dir / "review.json", review)
+
+    ready = publisher.collect_ready_runs(queue_root, state_root)
+
+    assert [state["run_id"] for state, _candidate, _review in ready] == [run_dir.name]
+    assert not (state_root / "ledger.json").exists()
+
+
+def test_collect_ready_runs_keeps_legacy_approve_with_findings_quarantined(
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "runs" / "run-legacy-ambiguous"
+    _write_run(queue_root, run_dir, make_publishable_article("LEGACY-AMBIGUOUS"))
+    review = publisher._read_json(run_dir / "review.json")
+    review["articles"][0]["findings"] = [
+        {"code": "scene_density_check", "message": "具體場景充足。"}
+    ]
+    _write_json(run_dir / "review.json", review)
+
+    ready = publisher.collect_ready_runs(queue_root, state_root)
+
+    assert ready == []
+    ledger = publisher._load_ledger(state_root)
+    assert ledger["quarantined_runs"] == [
+        {
+            "run_id": run_dir.name,
+            "reason": publisher.REVIEWER_QUARANTINE_REASON,
+            "recorded_at": ledger["quarantined_runs"][0]["recorded_at"],
+        }
+    ]
+
+
 def test_collect_ready_runs_exact_selector_excludes_unlisted_ready_run(tmp_path: Path) -> None:
     queue_root = tmp_path / "queue"
     state_root = tmp_path / "state"
@@ -590,6 +694,168 @@ def test_collect_ready_runs_without_exact_selector_keeps_existing_selection(tmp_
     assert [state["run_id"] for state, _candidate, _review in ready] == [
         target_run.name,
     ]
+
+
+def test_recover_create_review_quarantine_uses_hash_bound_reviewer_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (
+        repo_root,
+        queue_root,
+        state_root,
+        run_dir,
+        candidate,
+        source_bytes,
+        review_bytes,
+    ) = _write_review_quarantine_fixture(
+        tmp_path,
+        run_name="review-quarantine",
+        article_id="REVIEW-QUARANTINE",
+    )
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+
+    preview = publisher.recover_create_review_quarantine(
+        repo_root,
+        queue_root,
+        state_root,
+        run_id=run_dir.name,
+        expected_quarantine_reason="reviewer did not cleanly approve every article",
+        reason="Reviewer contract repaired and exact candidate re-reviewed",
+        dry_run=True,
+    )
+    result = publisher.recover_create_review_quarantine(
+        repo_root,
+        queue_root,
+        state_root,
+        run_id=run_dir.name,
+        expected_quarantine_reason="reviewer did not cleanly approve every article",
+        reason="Reviewer contract repaired and exact candidate re-reviewed",
+        expected_recovery_digest=preview["recovery_digest"],
+    )
+
+    assert result["status"] == "RECOVERED"
+    assert result["run_id"] == run_dir.name
+    assert publisher._load_ledger(state_root)["quarantined_runs"] == []
+    recovery_receipt = publisher._read_json(Path(result["receipt"]))
+    assert recovery_receipt["candidate_sha256"] == hashlib.sha256(
+        publisher.pipeline.compact_json_bytes(candidate)
+    ).hexdigest()
+    assert recovery_receipt["source_review_sha256"] == hashlib.sha256(
+        source_bytes
+    ).hexdigest()
+    assert recovery_receipt["review_sha256"] == hashlib.sha256(review_bytes).hexdigest()
+    ready = publisher.collect_ready_runs(
+        queue_root,
+        state_root,
+        repo_root=repo_root,
+        exact_run_ids=[run_dir.name],
+    )
+    assert [state["run_id"] for state, _candidate, _review in ready] == [run_dir.name]
+
+
+def test_recover_create_review_quarantine_rejects_post_dry_run_ledger_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root, queue_root, state_root, run_dir, *_ = _write_review_quarantine_fixture(
+        tmp_path,
+        run_name="review-quarantine-drift",
+        article_id="REVIEW-QUARANTINE-DRIFT",
+    )
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+    preview = publisher.recover_create_review_quarantine(
+        repo_root,
+        queue_root,
+        state_root,
+        run_id=run_dir.name,
+        expected_quarantine_reason=publisher.REVIEWER_QUARANTINE_REASON,
+        reason="Reviewer contract repaired and exact candidate re-reviewed",
+        dry_run=True,
+    )
+    drifted = publisher._load_ledger(state_root)
+    drifted["translation_deferred_runs"].append(
+        {
+            "run_id": "peer-run",
+            "reason": "peer-state",
+            "recorded_at": "2026-09-19T00:01:00+08:00",
+        }
+    )
+    _write_json(publisher._ledger_path(state_root), drifted)
+
+    with pytest.raises(
+        publisher.PublishBlocked,
+        match="state differs from approved dry-run",
+    ):
+        publisher.recover_create_review_quarantine(
+            repo_root,
+            queue_root,
+            state_root,
+            run_id=run_dir.name,
+            expected_quarantine_reason=publisher.REVIEWER_QUARANTINE_REASON,
+            reason="Reviewer contract repaired and exact candidate re-reviewed",
+            expected_recovery_digest=preview["recovery_digest"],
+        )
+
+    assert publisher._load_ledger(state_root)["quarantined_runs"][0]["run_id"] == run_dir.name
+
+
+def test_recover_create_review_quarantine_does_not_claim_recovered_before_ledger_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root, queue_root, state_root, run_dir, *_ = _write_review_quarantine_fixture(
+        tmp_path,
+        run_name="review-quarantine-io",
+        article_id="REVIEW-QUARANTINE-IO",
+    )
+    monkeypatch.setattr(
+        publisher.pipeline,
+        "load_publication_reference_corpus",
+        lambda _repo: [],
+    )
+    preview = publisher.recover_create_review_quarantine(
+        repo_root,
+        queue_root,
+        state_root,
+        run_id=run_dir.name,
+        expected_quarantine_reason=publisher.REVIEWER_QUARANTINE_REASON,
+        reason="Reviewer contract repaired and exact candidate re-reviewed",
+        dry_run=True,
+    )
+    original_atomic_write = publisher._atomic_write_json
+    ledger_path = publisher._ledger_path(state_root)
+
+    def fail_ledger_write(path: Path, payload: object) -> None:
+        if path == ledger_path:
+            raise OSError("synthetic ledger write failure")
+        original_atomic_write(path, payload)
+
+    monkeypatch.setattr(publisher, "_atomic_write_json", fail_ledger_write)
+    with pytest.raises(OSError, match="synthetic ledger write failure"):
+        publisher.recover_create_review_quarantine(
+            repo_root,
+            queue_root,
+            state_root,
+            run_id=run_dir.name,
+            expected_quarantine_reason=publisher.REVIEWER_QUARANTINE_REASON,
+            reason="Reviewer contract repaired and exact candidate re-reviewed",
+            expected_recovery_digest=preview["recovery_digest"],
+        )
+
+    receipts = list(
+        (state_root / "evidence" / "review-quarantine-recovery").glob("*.json")
+    )
+    assert len(receipts) == 1
+    assert publisher._read_json(receipts[0])["status"] == "RECOVERY_AUTHORIZED"
 
 
 def test_collect_ready_runs_excludes_only_authoritative_superseded_create(
