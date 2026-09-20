@@ -9977,6 +9977,36 @@ def test_publisher_terminal_reset_accepts_scheduled_loaded_without_pid(
             assert (launch_agents / f"{label}.plist").read_bytes() == payload_bytes
 
 
+def _assert_publisher_reset_retry_preserves_evidence(
+    tmp_path: Path, env: dict[str, str], launch_agents: Path,
+) -> None:
+    """重試不得刪改首次成功／失敗證據，也不得增加 controller 或 payload 操作。"""
+    repo = Path(__file__).resolve().parents[1]
+    stage = launch_agents / ".pantheon-four-lane-stage"
+    assert (stage / "publisher-reset-progress.json").is_file()
+
+    def snapshot() -> dict[str, bytes]:
+        roots = [launch_agents, tmp_path / "runtime-publisher-state",
+                 tmp_path / "publisher-only-loaded"]
+        files = [path for root in roots for path in root.rglob("*") if path.is_file()]
+        files += [tmp_path / name for name in (
+            "reset-controller.jsonl", "reset-attempts.jsonl", "launchctl-mutations.log",
+        ) if (tmp_path / name).is_file()]
+        return {str(path.relative_to(tmp_path)): path.read_bytes() for path in files}
+
+    before = snapshot()
+    for correlation in (env.get("PANTHEON_ACTIVATION_CORRELATION_ID", ""), "invalid retry correlation"):
+        retry = subprocess.run(
+            ["/bin/bash", str(repo / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+             "--reset-publisher-activation-only"],
+            cwd=tmp_path, env={**env, "PANTHEON_ACTIVATION_CORRELATION_ID": correlation},
+            capture_output=True, text=True, timeout=30,
+        )
+        assert retry.returncode == 1, retry.stderr
+        assert "readback/reconcile" in retry.stderr
+        assert snapshot() == before, "重試覆寫首次 receipt/progress 或改變服務狀態"
+
+
 def test_publisher_terminal_reset_preserves_terminal_one_shot_input(
     tmp_path: Path,
 ) -> None:
@@ -10016,6 +10046,7 @@ def test_publisher_terminal_reset_preserves_terminal_one_shot_input(
     assert payload["RunAtLoad"] is True
     assert "StartInterval" not in payload
     assert "KeepAlive" not in payload
+    _assert_publisher_reset_retry_preserves_evidence(tmp_path, env, launch_agents)
 
 
 def test_publisher_terminal_reset_settles_after_manifest_promotion(
@@ -10569,6 +10600,127 @@ def test_publisher_terminal_reset_rejects_any_live_pid_before_mutation(
             assert (launch_agents / f"{label}.plist").read_bytes() == payload
 
 
+@pytest.mark.parametrize("failure", ["before", "after", "unknown", "still_loaded", "int", "term", "kill", "receipt"])
+def test_publisher_terminal_reset_failure_never_replays_consumed_one_shot(
+    tmp_path: Path, failure: str,
+) -> None:
+    """真 installer 先消耗 one-shot；reset 任一失敗不得再次派送 normal payload。"""
+    import shutil
+
+    repo = Path(__file__).resolve().parents[1]
+    env, home, _log, _manifest, barrier, loaded, _payloads = (
+        _prepare_publisher_only_activation_fixture(tmp_path)
+    )
+    agents = home / "Library/LaunchAgents"
+    stage = agents / ".pantheon-four-lane-stage"
+    saved_stage = tmp_path / "reset-stage-input"
+    shutil.copytree(stage, saved_stage)
+    publisher = "com.pantheon.agy-content-publisher"
+    live = agents / f"{publisher}.plist"
+    controller = tmp_path / "bin/launchctl"
+    controller.write_text(
+        f"#!{sys.executable}\n"
+        + r'''
+import json, os, plistlib, signal, sys
+from pathlib import Path
+root = Path(os.environ['RESET_FAILURE_ROOT'])
+loaded = root / 'publisher-only-loaded'
+agents = root / 'home/Library/LaunchAgents'
+publisher = 'com.pantheon.agy-content-publisher'
+args = sys.argv[1:]
+action = args[0]
+label = args[-1].rsplit('/', 1)[-1].removesuffix('.plist')
+mode = os.environ['RESET_FAILURE_MODE']
+fired = root / 'reset-fault-fired'
+def append(name, value):
+    with (root / name).open('a') as stream:
+        stream.write(json.dumps(value) + '\n')
+if action == 'print':
+    if fired.exists() and mode == 'unknown' and label == publisher:
+        sys.exit(5)
+    if not (loaded / label).exists():
+        sys.exit(113)
+    print(f'gui/{os.getuid()}/{label} = {{\npath = {agents / (label + ".plist")}\nstate = waiting\n}}')
+    sys.exit(0)
+append('reset-controller.jsonl', args)
+if action == 'bootout':
+    if fired.exists() and mode in ('unknown', 'still_loaded') and label == publisher:
+        sys.exit(5)
+    (loaded / label).unlink(missing_ok=True)
+    sys.exit(0)
+assert action == 'bootstrap'
+payload = plistlib.loads(Path(args[2]).read_bytes())
+argv = payload['ProgramArguments']
+inert = '--activation-only' in argv[:argv.index('--')]
+if os.environ.get('RESET_FAILURE_ARMED') == '1' and inert and not fired.exists():
+    fired.touch()
+    if mode != 'before':
+        (loaded / label).touch()
+    if mode in ('int', 'term', 'kill'):
+        os.kill(os.getppid(), {'int': signal.SIGINT, 'term': signal.SIGTERM, 'kill': signal.SIGKILL}[mode])
+    sys.exit(9)
+(loaded / label).touch()
+if label == publisher and payload.get('RunAtLoad') and not inert:
+    append('reset-attempts.jsonl', {'argv': argv, 'simulated': True})
+sys.exit(0)
+''', encoding="utf-8",
+    )
+    controller.chmod(0o700)
+    env.update(RESET_FAILURE_ROOT=str(tmp_path), RESET_FAILURE_MODE=failure)
+    command = ["/bin/bash", str(repo / "scripts/install_agy_gemini_coordinator_launchd.sh")]
+    first = subprocess.run(command + ["--activate-publisher-only"], cwd=tmp_path,
+                           env=env, capture_output=True, text=True, timeout=30)
+    assert first.returncode == 0, first.stderr
+    assert len((tmp_path / "reset-attempts.jsonl").read_text().splitlines()) == 1
+    before, barrier_before = live.read_bytes(), barrier.read_bytes()
+    controller_before = (tmp_path / "reset-controller.jsonl").read_bytes()
+    assert not stage.exists()
+    shutil.copytree(saved_stage, stage)
+    env["RESET_FAILURE_ARMED"] = "1"
+    if failure == "receipt":
+        rejecting_python = tmp_path / "bin/reset-receipt-rejecting-python"
+        rejecting_python.write_text(
+            f"#!{sys.executable}\nimport os, sys\n"
+            "if len(sys.argv) > 2 and sys.argv[1] == '-' and sys.argv[2].endswith('/publisher-reset-progress.json'):\n"
+            "    sys.exit(41)\n"
+            f"os.execv({sys.executable!r}, [{sys.executable!r}, *sys.argv[1:]])\n",
+            encoding="utf-8",
+        )
+        rejecting_python.chmod(0o700)
+        env["PANTHEON_PYTHON_PATH"] = str(rejecting_python)
+    reset = subprocess.run(command + ["--reset-publisher-activation-only"], cwd=tmp_path,
+                           env=env, capture_output=True, text=True, timeout=30)
+    assert reset.returncode == {"int": 130, "term": 143, "kill": -9, "receipt": 41}.get(failure, 9), reset.stderr
+    assert len((tmp_path / "reset-attempts.jsonl").read_text().splitlines()) == 1
+    assert barrier.read_bytes() == barrier_before
+    if failure != "receipt":
+        _assert_publisher_reset_retry_preserves_evidence(tmp_path, env, agents)
+    if failure == "kill":
+        progress = json.loads((stage / "publisher-reset-progress.json").read_text())
+        assert progress["status"] == "RESET_IN_PROGRESS"
+        assert progress["exit_reason"]["phase"] == "publisher_reset_bootstrap"
+        assert progress["requires_readback"] and not progress["retry_allowed"]
+        assert "--activation-only" in plistlib.loads(live.read_bytes())["ProgramArguments"]
+        return
+    if failure == "receipt":
+        # 首份 intent 無法落盤時，尚未授權任何 mutation；不要求不存在的成功 receipt。
+        assert live.read_bytes() == before
+        assert (loaded / publisher).exists()
+        assert not (tmp_path / "reset-fault-fired").exists()
+        assert (tmp_path / "reset-controller.jsonl").read_bytes() == controller_before
+        return
+    receipt = json.loads((stage / "failure-receipt.json").read_text())
+    if failure in {"unknown", "still_loaded"}:
+        assert receipt["status"] == "ROLLBACK_FAILED"
+        assert live.read_bytes() != before
+        assert "--activation-only" in plistlib.loads(live.read_bytes())["ProgramArguments"]
+    else:
+        assert receipt["status"] == "STOPPED_RECONCILIATION_REQUIRED"
+        assert not (loaded / publisher).exists()
+        assert live.read_bytes() == before
+    assert (stage / "publisher-reset-backups").exists()
+
+
 def test_publisher_terminal_reset_rolls_back_bootstrap_failure(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     env, fake_home, _mutation_log, _manifest, _barrier, loaded, live_payloads = (
@@ -10616,7 +10768,7 @@ def test_publisher_terminal_reset_rolls_back_bootstrap_failure(tmp_path: Path) -
         if label != publisher_label:
             assert (launch_agents / f"{label}.plist").read_bytes() == payload
     receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
-    assert receipt["status"] == "ROLLBACK_COMPLETE"
+    assert receipt["status"] == "STOPPED_RECONCILIATION_REQUIRED"
     assert receipt["exit_reason"] == {
         "phase": "publisher_reset_bootstrap",
         "exit_code": 9,
@@ -10676,7 +10828,7 @@ def test_publisher_terminal_reset_rolls_back_when_settle_remains_absent(
     assert mutations.count(f"bootstrap gui/{os.getuid()} {publisher_live}") == 1
     assert mutations.count(f"bootout gui/{os.getuid()}/{publisher_label}") == 1
     receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
-    assert receipt["status"] == "ROLLBACK_COMPLETE"
+    assert receipt["status"] == "STOPPED_RECONCILIATION_REQUIRED"
     assert receipt["exit_reason"] == {
         "phase": "publisher_reset_settle",
         "exit_code": 1,
@@ -10747,7 +10899,7 @@ def test_publisher_terminal_reset_rolls_back_settle_identity_drift(
     assert mutations.count(f"bootstrap gui/{os.getuid()} {publisher_live}") == 1
     assert mutations.count(f"bootout gui/{os.getuid()}/{publisher_label}") == 1
     receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
-    assert receipt["status"] == "ROLLBACK_COMPLETE"
+    assert receipt["status"] == "STOPPED_RECONCILIATION_REQUIRED"
     assert receipt["exit_reason"] == {
         "phase": "publisher_reset_settle",
         "exit_code": 1,
@@ -10803,12 +10955,12 @@ def test_publisher_terminal_reset_rolls_back_postcheck_failure(tmp_path: Path) -
 
     assert reset.returncode != 0
     assert publisher_live.read_bytes() == publisher_before
-    assert (loaded / publisher_label).exists()
+    assert not (loaded / publisher_label).exists()
     for label, payload in live_payloads.items():
         if label != publisher_label:
             assert (launch_agents / f"{label}.plist").read_bytes() == payload
     receipt = json.loads((stage_dir / "failure-receipt.json").read_text(encoding="utf-8"))
-    assert receipt["status"] == "ROLLBACK_COMPLETE"
+    assert receipt["status"] == "STOPPED_RECONCILIATION_REQUIRED"
     assert receipt["exit_reason"] == {
         "phase": "publisher_reset_postcheck",
         "exit_code": 1,

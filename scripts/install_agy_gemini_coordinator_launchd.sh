@@ -423,6 +423,12 @@ if [[ "${ACTION}" == "--reset-publisher-activation-only" ]]; then
 fi
 PUBLISHER_RESET_SUCCESS_RECEIPT="${STAGE_DIR}/publisher-reset-receipt.json"
 if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
+  # 重試在刪除成功證據與共用 ERR handler 前拒絕，保留首次 attempt 的全部紀錄。
+  if [[ -e "${STAGE_DIR}/publisher-reset-progress.json" \
+    || -L "${STAGE_DIR}/publisher-reset-progress.json" ]]; then
+    echo "Publisher reset 已有 attempt receipt；須先 readback/reconcile，不可直接重跑。" >&2
+    exit 1
+  fi
   rm -f "${PUBLISHER_RESET_SUCCESS_RECEIPT}"
 fi
 ACTIVATION_CORRELATION_ID="activation-${RUNTIME_GENERATION}-$$"
@@ -631,39 +637,100 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
       echo "Publisher activation-only reset Publisher launchctl path drift." >&2
       false
     fi
+  else
+    RESET_READBACK_CODE=$?
+    if [[ "${RESET_READBACK_CODE}" != "3" && "${RESET_READBACK_CODE}" != "113" ]]; then
+      echo "Publisher activation-only reset initial state UNKNOWN." >&2
+      false
+    fi
   fi
   printf '%s\n' "${RESET_PUBLISHER_PREVIOUS_LOADED}" \
     > "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.previous_loaded"
   rollback_publisher_activation_only_reset() {
     local RETURN_CODE="$1"
     local EXIT_PHASE="$2"
-    local ROLLBACK_STATUS="ROLLBACK_COMPLETE"
-    trap - ERR
+    local ROLLBACK_STATUS="ROLLBACK_FAILED"
+    local READBACK_CODE=0
+    trap - ERR INT TERM
     set +e
-    install -m 600 "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.plist" \
-      "${PUBLISHER_TARGET_PLIST}" || ROLLBACK_STATUS="ROLLBACK_FAILED"
-    launchctl bootout "gui/${USER_ID}/${PUBLISHER_LABEL}" >/dev/null 2>&1 || true
-    if [[ "${RESET_PUBLISHER_PREVIOUS_LOADED}" == "1" ]]; then
-      launchctl bootstrap "gui/${USER_ID}" "${PUBLISHER_TARGET_PLIST}" >/dev/null 2>&1 \
-        || ROLLBACK_STATUS="ROLLBACK_FAILED"
+    # 清理不能重播已完成的 one-shot；中斷或 UNKNOWN 都保留證據等待 reconciliation。
+    if [[ "${RESET_MUTATION_STARTED}" == "1" ]] \
+      && reset_checkpoint "STOPPING_AFTER_FAILURE" "${RETURN_CODE}" "${EXIT_PHASE}"; then
+      launchctl bootout "gui/${USER_ID}/${PUBLISHER_LABEL}" \
+        > "${RESET_BACKUP_ROOT}/stop.stdout" 2> "${RESET_BACKUP_ROOT}/stop.stderr"
+      launchctl print "gui/${USER_ID}/${PUBLISHER_LABEL}" \
+        > "${RESET_BACKUP_ROOT}/stop.identity" 2> "${RESET_BACKUP_ROOT}/stop.identity.stderr"
+      READBACK_CODE=$?
+      # 只有已知 ABSENT 才可還原 normal plist；命令失敗不等於已停止。
+      if [[ "${READBACK_CODE}" == "3" || "${READBACK_CODE}" == "113" ]]; then
+        if install -m 600 "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.plist" \
+          "${PUBLISHER_TARGET_PLIST}" \
+          && cmp -s "${RESET_BACKUP_ROOT}/${PUBLISHER_LABEL}.plist" "${PUBLISHER_TARGET_PLIST}"; then
+          ROLLBACK_STATUS="STOPPED_RECONCILIATION_REQUIRED"
+        fi
+      fi
     fi
     for LABEL in "${OTHER_LABELS[@]}"; do
       cmp -s "${RESET_BACKUP_ROOT}/${LABEL}.plist" \
         "${LAUNCH_AGENTS_DIR}/${LABEL}.plist" || ROLLBACK_STATUS="ROLLBACK_FAILED"
     done
-    write_failure_receipt "${ROLLBACK_STATUS}" "${RETURN_CODE}" "${EXIT_PHASE}"
+    reset_checkpoint "${ROLLBACK_STATUS}" "${RETURN_CODE}" "${EXIT_PHASE}" \
+      || ROLLBACK_STATUS="ROLLBACK_FAILED"
+    write_failure_receipt "${ROLLBACK_STATUS}" "${RETURN_CODE}" "${EXIT_PHASE}" \
+      || echo "Publisher reset failure receipt unavailable; preserve stage and inspect actual state." >&2
     exit "${RETURN_CODE}"
   }
+  reset_checkpoint() {
+    "${PYTHON_BIN}" - "${STAGE_DIR}/publisher-reset-progress.json" "$1" "$2" "$3" \
+      "${RUNTIME_MANIFEST_DIGEST}" "${ACTIVATION_CORRELATION_ID}" <<'PY'
+import json, os, sys, tempfile
+from pathlib import Path
+path = Path(sys.argv[1])
+payload = {"schema_version": 1, "status": sys.argv[2],
+           "exit_reason": {"exit_code": int(sys.argv[3]), "phase": sys.argv[4]},
+           "manifest_digest": sys.argv[5], "correlation_id": sys.argv[6],
+           "requires_readback": sys.argv[2] != "RESET_COMPLETE", "retry_allowed": False}
+fd, name = tempfile.mkstemp(prefix=".publisher-reset-", dir=path.parent)
+try:
+    with os.fdopen(fd, "w") as stream:
+        json.dump(payload, stream, sort_keys=True)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(name, path)
+    directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+finally:
+    if os.path.exists(name):
+        os.unlink(name)
+PY
+  }
+  RESET_MUTATION_STARTED=0
   ACTIVATION_PHASE="publisher_reset_replace_live_plist"
   trap 'rollback_publisher_activation_only_reset $? "${ACTIVATION_PHASE}"' ERR
+  trap 'rollback_publisher_activation_only_reset 130 "${ACTIVATION_PHASE}"' INT
+  trap 'rollback_publisher_activation_only_reset 143 "${ACTIVATION_PHASE}"' TERM
+  reset_checkpoint "RESET_IN_PROGRESS" 0 "${ACTIVATION_PHASE}"
+  RESET_MUTATION_STARTED=1
   install -m 600 "${PUBLISHER_RESET_TEMP}" "${PUBLISHER_TARGET_PLIST}"
+  ACTIVATION_PHASE="publisher_reset_bootout"
+  reset_checkpoint "RESET_IN_PROGRESS" 0 "${ACTIVATION_PHASE}"
   if [[ "${RESET_PUBLISHER_PREVIOUS_LOADED}" == "1" ]]; then
     launchctl bootout "gui/${USER_ID}/${PUBLISHER_LABEL}" >/dev/null
   fi
   if launchctl print "gui/${USER_ID}/${PUBLISHER_LABEL}" >/dev/null 2>&1; then
     false
+  else
+    RESET_READBACK_CODE=$?
+    if [[ "${RESET_READBACK_CODE}" != "3" && "${RESET_READBACK_CODE}" != "113" ]]; then
+      echo "Publisher activation-only reset stop readback UNKNOWN." >&2
+      false
+    fi
   fi
   ACTIVATION_PHASE="publisher_reset_bootstrap"
+  reset_checkpoint "RESET_IN_PROGRESS" 0 "${ACTIVATION_PHASE}"
   launchctl bootstrap "gui/${USER_ID}" "${PUBLISHER_TARGET_PLIST}"
   ACTIVATION_PHASE="publisher_reset_settle"
   RESET_PUBLISHER_SETTLED=0
@@ -724,7 +791,8 @@ if [[ "${PUBLISHER_ACTIVATION_ONLY_RESET}" == "1" ]]; then
       --reset-proof-dir "${RESET_BACKUP_ROOT}" \
       publisher-reset-receipt
   ) >/dev/null
-  trap - ERR
+  reset_checkpoint "RESET_COMPLETE" 0 "${ACTIVATION_PHASE}"
+  trap - ERR INT TERM
   rm -rf "${RESET_BACKUP_ROOT}"
   echo "Pantheon Publisher activation-only reset 已完成。"
   echo "狀態：launchctl print gui/${USER_ID}/${PUBLISHER_LABEL}"
