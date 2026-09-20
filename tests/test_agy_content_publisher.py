@@ -10,6 +10,7 @@ import plistlib
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -6297,6 +6298,133 @@ def test_run_release_tests_runs_fast_preflight_before_full_gate(
         "AGY_REVIEWER_MODEL",
     ):
         assert key not in child_env
+
+
+def test_run_git_passes_runtime_work_lease_to_git_child(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_root = tmp_path / "state"
+    state_root.mkdir()
+    monkeypatch.setenv("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT", str(state_root))
+    observed: dict[str, object] = {}
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        observed["args"] = args
+        observed.update(kwargs)
+        return subprocess.CompletedProcess(args, 0, "ok\n", "")
+
+    monkeypatch.setattr(publisher.subprocess, "run", fake_run)
+    with publisher.formal_runtime.runtime_work_lease(state_root):
+        assert publisher.run_git(tmp_path, ["status", "--porcelain"], None) == "ok"
+
+    pass_fds = observed.get("pass_fds")
+    assert isinstance(pass_fds, tuple) and len(pass_fds) == 1
+    child_env = observed.get("env")
+    assert isinstance(child_env, dict)
+    assert child_env["PANTHEON_RUNTIME_WORK_LEASE_FD"] == str(pass_fds[0])
+    assert child_env["PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT"] == str(state_root)
+
+
+def test_run_checked_reintroduces_only_lease_transport_for_nested_children(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_root = tmp_path / "state"
+    state_root.mkdir()
+    monkeypatch.setenv("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT", str(state_root))
+    monkeypatch.setenv("PANTHEON_FORMAL_RUNTIME", "1")
+    observed: dict[str, object] = {}
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        observed.update(kwargs)
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(publisher.subprocess, "run", fake_run)
+    scrubbed = {"UNRELATED_SETTING": "kept"}
+    with publisher.formal_runtime.runtime_work_lease(state_root):
+        publisher._run_checked(tmp_path, ["true"], env=scrubbed)
+
+    pass_fds = observed.get("pass_fds")
+    assert isinstance(pass_fds, tuple) and len(pass_fds) == 1
+    child_env = observed.get("env")
+    assert isinstance(child_env, dict)
+    assert child_env["UNRELATED_SETTING"] == "kept"
+    assert child_env["PANTHEON_RUNTIME_WORK_LEASE_FD"] == str(pass_fds[0])
+    assert child_env["PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT"] == str(state_root)
+    assert "PANTHEON_FORMAL_RUNTIME" not in child_env
+
+
+def test_run_git_child_keeps_runtime_lease_after_parent_abrupt_exit(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    state_root = tmp_path / "state"
+    state_root.mkdir()
+    ready = tmp_path / "git-child-ready"
+    done = tmp_path / "git-child-done"
+    parent_script = tmp_path / "parent.py"
+    parent_script.write_text(
+        '''import os, subprocess, sys, time
+from pathlib import Path
+
+repo, state, ready, done = map(Path, sys.argv[1:])
+sys.path.insert(0, str(repo))
+from scripts import agy_content_publisher as publisher
+
+real_popen = subprocess.Popen
+
+def fake_run(args, **kwargs):
+    child_code = (
+        "from pathlib import Path; import sys, time; "
+        "ready=Path(sys.argv[1]); done=Path(sys.argv[2]); "
+        "ready.write_text('ready'); time.sleep(1.0); done.write_text('done')"
+    )
+    real_popen(
+        [sys.executable, "-c", child_code, str(ready), str(done)],
+        cwd=kwargs.get("cwd"),
+        env=kwargs.get("env"),
+        pass_fds=kwargs.get("pass_fds", ()),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    deadline = time.time() + 5
+    while not ready.exists() and time.time() < deadline:
+        time.sleep(0.01)
+    os._exit(77)
+
+publisher.subprocess.run = fake_run
+os.environ["PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT"] = str(state)
+with publisher.formal_runtime.runtime_work_lease(state):
+    publisher.run_git(repo, ["status", "--porcelain"], None)
+''',
+        encoding="utf-8",
+    )
+    parent = subprocess.Popen(
+        [sys.executable, "-B", str(parent_script), str(repo_root), str(state_root), str(ready), str(done)],
+        cwd=repo_root,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    assert parent.wait(timeout=5) == 77
+    assert ready.exists()
+
+    lock_path = state_root / "runtime-work.lock"
+    with lock_path.open("r+") as probe:
+        with pytest.raises(BlockingIOError):
+            fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        deadline = time.time() + 5
+        while not done.exists() and time.time() < deadline:
+            time.sleep(0.02)
+        assert done.exists()
+        deadline = time.time() + 5
+        while True:
+            try:
+                fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.time() >= deadline:
+                    raise
+                time.sleep(0.02)
+        fcntl.flock(probe, fcntl.LOCK_UN)
 
 
 def test_preflight_test_command_selectors_resolve_to_top_level_tests() -> None:

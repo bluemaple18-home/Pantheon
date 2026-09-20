@@ -1,4 +1,8 @@
+import subprocess
+
 import pytest
+
+from scripts import check_release_record as release_record
 
 from scripts.check_release_record import (
     ReleaseContractError,
@@ -42,3 +46,21 @@ def test_release_section_requires_latest_complete_record() -> None:
 )
 def test_article_release_path_scope(path: str, expected: bool) -> None:
     assert is_article_release_path(path) is expected
+
+
+def test_release_git_helpers_pass_inherited_runtime_work_lease(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[dict[str, object]] = []
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess:
+        observed.append(kwargs)
+        stdout: str | bytes = "ok\n" if kwargs.get("text") else b"payload"
+        return subprocess.CompletedProcess(args, 0, stdout, b"" if isinstance(stdout, bytes) else "")
+
+    monkeypatch.setattr(release_record.formal_runtime, "runtime_work_pass_fds", lambda: (77,))
+    monkeypatch.setattr(release_record.subprocess, "run", fake_run)
+
+    assert release_record.run_git("status") == "ok"
+    assert release_record.file_at("HEAD", "pyproject.toml") == b"payload"
+    assert [item.get("pass_fds") for item in observed] == [(77,), (77,)]

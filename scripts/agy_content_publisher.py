@@ -2352,7 +2352,27 @@ def recover_exhausted_create_retries(
         }
 
 
+def _runtime_work_child_transport(
+    env: Mapping[str, str] | None = None,
+) -> tuple[tuple[int, ...], dict[str, str] | None]:
+    """讓必要子程序沿用既有 runtime work lease，不另造 lifecycle。"""
+    lease_fds = formal_runtime.runtime_work_pass_fds()
+    if not lease_fds:
+        return (), None if env is None else dict(env)
+    child_env = dict(os.environ if env is None else env)
+    child_env["PANTHEON_RUNTIME_WORK_LEASE_FD"] = str(lease_fds[0])
+    state_root = os.environ.get("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT")
+    if state_root:
+        child_env["PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT"] = state_root
+    return lease_fds, child_env
+
+
 def run_git(repo_root: Path, args: list[str], input_text: str | None = None) -> str:
+    lease_fds, child_env = _runtime_work_child_transport()
+    run_kwargs: dict[str, Any] = {}
+    if lease_fds:
+        run_kwargs["pass_fds"] = lease_fds
+        run_kwargs["env"] = child_env
     return subprocess.run(
         ["git", *args],
         cwd=repo_root,
@@ -2360,6 +2380,7 @@ def run_git(repo_root: Path, args: list[str], input_text: str | None = None) -> 
         check=True,
         capture_output=True,
         text=True,
+        **run_kwargs,
     ).stdout.strip()
 
 
@@ -4589,15 +4610,11 @@ def _run_checked(
         "check": True,
         "timeout": timeout_seconds,
     }
-    if env is not None:
-        run_kwargs["env"] = env
-    lease_fds = formal_runtime.runtime_work_pass_fds()
+    lease_fds, child_env = _runtime_work_child_transport(env)
     if lease_fds:
         run_kwargs["pass_fds"] = lease_fds
-        child_env = dict(os.environ if env is None else env)
-        # 巢狀 lease 的 FD 可能不同；只修正子程序副本，保留明確移除的 runtime 環境。
-        if "PANTHEON_RUNTIME_WORK_LEASE_FD" in child_env:
-            child_env["PANTHEON_RUNTIME_WORK_LEASE_FD"] = str(lease_fds[0])
+        run_kwargs["env"] = child_env
+    elif env is not None:
         run_kwargs["env"] = child_env
     subprocess.run(args, **run_kwargs)
 

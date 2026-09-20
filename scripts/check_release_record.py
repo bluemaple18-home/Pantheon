@@ -11,6 +11,11 @@ import subprocess
 import sys
 import tomllib
 
+if __package__:
+    from scripts import pantheon_content_runtime_manifest as formal_runtime
+else:
+    import pantheon_content_runtime_manifest as formal_runtime
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ZERO_SHA = "0" * 40
@@ -26,6 +31,7 @@ class ReleaseContractError(ValueError):
 
 
 def run_git(*args: str, input_text: str | None = None) -> str:
+    lease_fds = formal_runtime.runtime_work_pass_fds()
     return subprocess.run(
         ["git", *args],
         cwd=REPO_ROOT,
@@ -33,16 +39,19 @@ def run_git(*args: str, input_text: str | None = None) -> str:
         capture_output=True,
         text=True,
         input=input_text,
+        **({"pass_fds": lease_fds} if lease_fds else {}),
     ).stdout.strip()
 
 
 def file_at(ref: str | None, path: str) -> bytes:
     if ref:
+        lease_fds = formal_runtime.runtime_work_pass_fds()
         return subprocess.run(
             ["git", "show", f"{ref}:{path}"],
             cwd=REPO_ROOT,
             check=True,
             capture_output=True,
+            **({"pass_fds": lease_fds} if lease_fds else {}),
         ).stdout
     return (REPO_ROOT / path).read_bytes()
 
