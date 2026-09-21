@@ -131,7 +131,12 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     temporary = Path(temporary_name)
     try:
         body = (json.dumps(payload, sort_keys=True, indent=2) + "\n").encode()
-        os.write(descriptor, body)
+        remaining = memoryview(body)
+        while remaining:
+            written = os.write(descriptor, remaining)
+            if written <= 0:
+                raise OSError("receipt write made no progress")
+            remaining = remaining[written:]
         os.fsync(descriptor)
         os.close(descriptor)
         descriptor = -1
@@ -179,6 +184,7 @@ def _git(repo: Path, *args: str) -> str:
         check=False,
         capture_output=True,
         text=True,
+        pass_fds=runtime_manifest.runtime_work_pass_fds(),
     )
     if completed.returncode != 0:
         raise PromotionError(completed.stderr.strip() or "git command failed")
@@ -1632,6 +1638,24 @@ def rollback_promotion(
     return {"status": "ROLLED_BACK", "plan_digest": receipt["plan_digest"]}
 
 
+def _finalize_directory_identity(path: Path) -> dict[str, Any]:
+    _canonical_existing_dir(path, "finalize directory")
+    info = path.stat()
+    if info.st_uid != os.getuid():
+        raise PromotionError("finalize directory owner mismatch")
+    return {"path": str(path), "device": info.st_dev, "inode": info.st_ino}
+
+
+def _sync_finalize_receipt(request: PromotionRequest) -> None:
+    """只在 finalize 接點同步終態與目錄，不改其他 receipt writer 的語意。"""
+    for path in (receipt_path(request), request.transaction_root):
+        descriptor = os.open(path, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+
 def finalize_promotion(
     request: PromotionRequest,
     *,
@@ -1639,15 +1663,76 @@ def finalize_promotion(
 ) -> dict[str, Any]:
     receipt = load_receipt(request)
     _assert_receipt_matches(request, receipt, expected_plan_digest)
-    if receipt.get("state") != "POSTCHECK_PASSED":
+    if receipt.get("state") not in {"POSTCHECK_PASSED", "COMMITTED"}:
         raise PromotionError("finalize requires POSTCHECK_PASSED")
     if "rollback_status" in receipt:
         raise PromotionError("finalize is forbidden after rollback has started")
+    if (receipt.get("target_actor_sha") != request.source_sha
+            or receipt.get("target_manifest_digest") != _target_manifest(request)["manifest_digest"]):
+        raise PromotionError("finalize target identity mismatch")
+    transaction_identity = _finalize_directory_identity(request.transaction_root)
+    path = receipt_path(request)
+    if path.is_symlink() or not path.is_file():
+        raise PromotionError("finalize receipt path identity mismatch")
+    record = receipt.get("rollback", {})
+    if not isinstance(record, dict):
+        raise PromotionError("finalize rollback record is invalid")
+    originals = record.get("originals", {})
+    targets = _rollback_targets(request)
+    if (not isinstance(originals, dict) or set(originals) != set(targets)
+            or record.get("originals_digest") != _json_digest(originals)
+            or any(not isinstance(originals[name], dict)
+                   or originals[name].get("path") != str(target)
+                   for name, (target, _) in targets.items())):
+        raise PromotionError("finalize rollback path identity mismatch")
     bundle = rollback_bundle_path(request)
-    if not bundle.exists():
-        raise PromotionError("rollback bundle is missing")
-    shutil.rmtree(bundle)
-    _record_state(request, receipt, "COMMITTED", rollback_bundle_finalized=True)
+    history = receipt.get("history", [])
+    if not isinstance(history, list) or any(not isinstance(entry, dict) for entry in history):
+        raise PromotionError("finalize history is invalid")
+    if receipt["state"] == "POSTCHECK_PASSED":
+        if not bundle.exists():
+            raise PromotionError("rollback bundle is missing")
+        bundle_identity = _finalize_directory_identity(bundle)
+        started = record.get("mutation_started")
+        if (not history or history[-1].get("state") != "POSTCHECK_PASSED"
+                or not isinstance(started, list) or any(not isinstance(name, str) for name in started)
+                or len(started) != len(targets) or set(started) != set(targets)):
+            raise PromotionError("finalize requires completed postcheck and owned bundle")
+        expected_entries = set()
+        for name, (_, backup) in targets.items():
+            expected = originals[name].get("fingerprint")
+            if _rollback_fingerprint(backup, name) != expected or (name == "actor" and expected is None):
+                raise PromotionError("finalize rollback bundle is incomplete or unowned")
+            if expected is not None:
+                expected_entries.add(backup.name)
+        if {entry.name for entry in bundle.iterdir()} != expected_entries:
+            raise PromotionError("finalize rollback bundle contains unowned entries")
+        # 沿用終態；此 receipt 同時保留驗收來源與 cleanup 的 inode authority。
+        _record_state(request, receipt, "COMMITTED", rollback_bundle_finalized=False,
+                      finalize={"transaction": transaction_identity, "bundle": bundle_identity})
+    else:
+        finalization = receipt.get("finalize")
+        if (not isinstance(finalization, dict)
+                or finalization.get("transaction") != transaction_identity
+                or not isinstance(finalization.get("bundle"), dict)
+                or finalization["bundle"].get("path") != str(bundle)
+                or type(receipt.get("rollback_bundle_finalized")) is not bool
+                or len(history) < 2
+                or [entry.get("state") for entry in history[-2:]] != ["POSTCHECK_PASSED", "COMMITTED"]):
+            raise PromotionError("finalize COMMITTED receipt lacks verified cleanup authority")
+        if bundle.exists() or bundle.is_symlink():
+            if (receipt["rollback_bundle_finalized"]
+                    or _finalize_directory_identity(bundle) != finalization["bundle"]):
+                raise PromotionError("finalize bundle path identity mismatch")
+    # 包含 replace 後拋錯的重試：每次刪除前都重新確認 receipt 與 parent 已耐久。
+    _sync_finalize_receipt(request)
+    if bundle.exists():
+        shutil.rmtree(bundle)
+    if not receipt["rollback_bundle_finalized"]:
+        receipt["rollback_bundle_finalized"] = True
+        receipt["updated_at"] = _utc_now()
+        _write_json(path, receipt)
+        _sync_finalize_receipt(request)
     return {"status": "COMMITTED", "plan_digest": receipt["plan_digest"]}
 
 

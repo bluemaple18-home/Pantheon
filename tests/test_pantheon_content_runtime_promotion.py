@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import replace
 import json
 from pathlib import Path
 import subprocess
@@ -15,6 +16,254 @@ from scripts import pantheon_content_runtime_promotion as promotion
 
 AUTHORIZATION_DIGEST = "a" * 64
 REGRESSION_ID = "REG-PANTHEON-AGGREGATE-RUNTIME-PROMOTION-001"
+
+
+def _finalize_fixture(tmp_path: Path):
+    """普通檔案合成已驗收交易，不執行 installer、Git 或 provider。"""
+    root = tmp_path.resolve()
+    for name in ("actor", "stage", "queue", "state", "logs", "source"):
+        (root / name).mkdir()
+    request = promotion.PromotionRequest(
+        source_repo=root / "source", source_sha="b" * 40, expected_origin="synthetic",
+        actor_root=root / "actor", expected_current_actor_sha="c" * 40,
+        manifest_path=root / "manifest.json", expected_current_manifest_digest="d" * 64,
+        private_stage_root=root / "stage", expected_current_stage_digest="e" * 64,
+        transaction_root=root / "tx", queue_root=root / "queue",
+        publisher_state_root=root / "state", log_root=root / "logs",
+        target_identity="synthetic", target_runtime_digest="f" * 64,
+        target_config_version="synthetic", target_generation="synthetic",
+        target_python_executable=Path(sys.executable).resolve(),
+        target_uv_executable=Path(sys.executable).resolve(),
+        authorization_digest=AUTHORIZATION_DIGEST, capacity_receipt_path=root / "capacity.json",
+        capacity_receipt_digest="c" * 64, correlation_id="synthetic-finalize",
+    )
+    for path in (request.actor_root / "old", request.private_stage_root / "old",
+                 request.manifest_path, promotion.barrier_path(request)):
+        path.write_text("舊內容")
+    plan = {"plan_digest": "d" * 64,
+            "target_manifest_digest": promotion._target_manifest(request)["manifest_digest"]}
+    request.transaction_root.mkdir()
+    receipt = promotion._new_receipt(request, plan, "POSTCHECK_PASSED")
+    promotion._prepare_rollback_bundle(request)
+    promotion._mutation_intent(request, receipt, "actor", "manifest", "stage", "barrier")
+    promotion.os.replace(request.actor_root, promotion._actor_backup_path(request))
+    for directory in (request.actor_root, request.private_stage_root):
+        directory.mkdir()
+        (directory / "new").write_text("新內容")
+    request.manifest_path.write_text("新 manifest")
+    promotion.barrier_path(request).write_text("新 barrier")
+    return request, plan["plan_digest"]
+
+
+def test_finalize_commit_write_failure_preserves_bundle(tmp_path, monkeypatch):
+    request, plan = _finalize_fixture(tmp_path)
+    record = promotion._record_state
+
+    def fail_commit(req, receipt, state, **extra):
+        if state == "COMMITTED":
+            raise OSError("commit-before-replace")
+        record(req, receipt, state, **extra)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(promotion, "_record_state", fail_commit)
+        with pytest.raises(OSError, match="commit-before-replace"):
+            promotion.finalize_promotion(request, expected_plan_digest=plan)
+    assert promotion.rollback_bundle_path(request).is_dir()
+    assert promotion.load_receipt(request)["state"] == "POSTCHECK_PASSED"
+    assert promotion.finalize_promotion(request, expected_plan_digest=plan)["status"] == "COMMITTED"
+
+
+@pytest.mark.parametrize("write_number", [1, 2])
+@pytest.mark.parametrize("timing", ["before", "after"])
+def test_finalize_receipt_replace_faults_retry(tmp_path, monkeypatch, write_number, timing):
+    request, plan = _finalize_fixture(tmp_path)
+    atomic_replace = promotion.os.replace
+    calls = 0
+
+    def fail_replace(source, target):
+        nonlocal calls
+        if target == promotion.receipt_path(request):
+            calls += 1
+            if calls == write_number:
+                if timing == "after":
+                    atomic_replace(source, target)
+                raise OSError("receipt-replace-fault")
+        return atomic_replace(source, target)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(promotion.os, "replace", fail_replace)
+        with pytest.raises(OSError, match="receipt-replace-fault"):
+            promotion.finalize_promotion(request, expected_plan_digest=plan)
+    receipt = promotion.load_receipt(request)
+    assert promotion.rollback_bundle_path(request).exists() == (write_number == 1)
+    assert receipt["state"] == ("POSTCHECK_PASSED" if (write_number, timing) == (1, "before") else "COMMITTED")
+    if receipt["state"] == "COMMITTED":
+        with pytest.raises(promotion.PromotionError, match="already COMMITTED"):
+            promotion.rollback_promotion(request, expected_plan_digest=plan)
+    assert promotion.finalize_promotion(request, expected_plan_digest=plan)["status"] == "COMMITTED"
+    stable = promotion.receipt_path(request).read_bytes()
+    promotion.finalize_promotion(request, expected_plan_digest=plan)
+    assert promotion.receipt_path(request).read_bytes() == stable
+    assert promotion.load_receipt(request)["rollback_bundle_finalized"] is True
+
+
+@pytest.mark.parametrize("timing", ["before", "partial", "after"])
+def test_finalize_cleanup_faults_retry_without_rollback(tmp_path, monkeypatch, timing):
+    request, plan = _finalize_fixture(tmp_path)
+    bundle = promotion.rollback_bundle_path(request)
+    remove_tree = promotion.shutil.rmtree
+
+    def fail_cleanup(path):
+        assert promotion.load_receipt(request)["state"] == "COMMITTED"
+        if timing == "partial":
+            promotion._manifest_backup_path(request).unlink()
+        elif timing == "after":
+            remove_tree(path)
+        raise OSError("cleanup-fault")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(promotion.shutil, "rmtree", fail_cleanup)
+        with pytest.raises(OSError, match="cleanup-fault"):
+            promotion.finalize_promotion(request, expected_plan_digest=plan)
+    assert bundle.exists() == (timing != "after")
+    receipt_before_rollback = promotion.receipt_path(request).read_bytes()
+    with pytest.raises(promotion.PromotionError, match="already COMMITTED"):
+        promotion.rollback_promotion(request, expected_plan_digest=plan)
+    assert promotion.receipt_path(request).read_bytes() == receipt_before_rollback
+    promotion.finalize_promotion(request, expected_plan_digest=plan)
+    assert not bundle.exists()
+    assert promotion.load_receipt(request)["rollback_bundle_finalized"] is True
+
+
+@pytest.mark.parametrize("boundary", ["receipt", "parent"])
+def test_finalize_fsync_failure_keeps_bundle_and_retry_resyncs(tmp_path, monkeypatch, boundary):
+    request, plan = _finalize_fixture(tmp_path)
+    fsync = promotion.os.fsync
+    receipt_path = promotion.receipt_path(request)
+    bundle = promotion.rollback_bundle_path(request)
+
+    def fail_sync(fd):
+        target = receipt_path if boundary == "receipt" else request.transaction_root
+        if promotion.os.fstat(fd).st_ino == target.stat().st_ino:
+            raise OSError("durability-fault")
+        fsync(fd)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(promotion.os, "fsync", fail_sync)
+        with pytest.raises(OSError, match="durability-fault"):
+            promotion.finalize_promotion(request, expected_plan_digest=plan)
+    assert bundle.exists()
+    assert promotion.load_receipt(request)["state"] == "COMMITTED"
+    synced = set()
+    remove_tree = promotion.shutil.rmtree
+
+    def observe_sync(fd):
+        fsync(fd)
+        synced.add(promotion.os.fstat(fd).st_ino)
+
+    def observe_cleanup(path):
+        assert {receipt_path.stat().st_ino, request.transaction_root.stat().st_ino} <= synced
+        remove_tree(path)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(promotion.os, "fsync", observe_sync)
+        patch.setattr(promotion.shutil, "rmtree", observe_cleanup)
+        promotion.finalize_promotion(request, expected_plan_digest=plan)
+
+
+@pytest.mark.parametrize("committed", [False, True])
+@pytest.mark.parametrize("drift", ["plan", "authorization_digest", "correlation_id", "source_sha",
+                                   "target_generation", "private_stage_root", "transaction", "bundle", "receipt"])
+def test_finalize_rejects_identity_drift(tmp_path, monkeypatch, committed, drift):
+    request, plan = _finalize_fixture(tmp_path)
+    bundle = promotion.rollback_bundle_path(request)
+    if committed:
+        with monkeypatch.context() as patch:
+            patch.setattr(promotion.shutil, "rmtree", lambda path: (_ for _ in ()).throw(OSError("stop")))
+            with pytest.raises(OSError):
+                promotion.finalize_promotion(request, expected_plan_digest=plan)
+    changed = request
+    if drift == "plan":
+        plan = "e" * 64
+    elif drift in {"authorization_digest", "correlation_id", "source_sha", "target_generation"}:
+        changed = replace(request, **{drift: "e" * 40 if drift == "source_sha" else "wrong"})
+    elif drift == "private_stage_root":
+        changed = replace(request, private_stage_root=tmp_path / "other-stage")
+    elif drift == "transaction":
+        moved = tmp_path / "other-tx"
+        promotion.os.replace(request.transaction_root, moved)
+        if committed:
+            changed = replace(request, transaction_root=moved)
+        else:
+            request.transaction_root.symlink_to(moved, target_is_directory=True)
+    elif drift == "bundle":
+        moved = tmp_path / "other-bundle"
+        promotion.os.replace(bundle, moved)
+        if committed:
+            bundle.mkdir()
+            (bundle / "unowned").write_text("保留")
+        else:
+            bundle.symlink_to(moved, target_is_directory=True)
+    elif drift == "receipt":
+        moved = tmp_path / "other-receipt.json"
+        promotion.os.replace(promotion.receipt_path(request), moved)
+        promotion.receipt_path(request).symlink_to(moved)
+    receipt_path = promotion.receipt_path(changed)
+    before = receipt_path.read_bytes()
+    with pytest.raises(promotion.PromotionError):
+        promotion.finalize_promotion(changed, expected_plan_digest=plan)
+    assert receipt_path.read_bytes() == before
+    assert promotion.rollback_bundle_path(changed).exists()
+
+
+@pytest.mark.parametrize("damage", ["missing", "unowned", "extra", "legacy-missing",
+                                    "premature-marker", "premature-history", "rollback-null"])
+def test_finalize_fails_closed_without_verified_authority(tmp_path, damage):
+    request, plan = _finalize_fixture(tmp_path)
+    bundle = promotion.rollback_bundle_path(request)
+    receipt = promotion.load_receipt(request)
+    if damage in {"missing", "legacy-missing"}:
+        promotion.shutil.rmtree(bundle)
+        if damage == "legacy-missing":
+            receipt.update(state="COMMITTED", rollback_bundle_finalized=True)
+    elif damage == "unowned":
+        promotion._manifest_backup_path(request).write_text("其他交易")
+    elif damage == "extra":
+        (bundle / "unowned").write_text("其他交易")
+    elif damage == "premature-marker":
+        receipt["state"] = "COMMITTED"
+    elif damage == "premature-history":
+        receipt.update(state="COMMITTED", rollback_bundle_finalized=False,
+                       finalize={"transaction": promotion._finalize_directory_identity(request.transaction_root),
+                                 "bundle": promotion._finalize_directory_identity(bundle)},
+                       history=[{"state": "STAGE_INSTALLED"}, {"state": "COMMITTED"}])
+    else:
+        receipt["rollback_status"] = None
+    promotion._write_json(promotion.receipt_path(request), receipt)
+    before = promotion.receipt_path(request).read_bytes()
+    with pytest.raises(promotion.PromotionError):
+        promotion.finalize_promotion(request, expected_plan_digest=plan)
+    assert promotion.receipt_path(request).read_bytes() == before
+    assert bundle.exists() == (damage not in {"missing", "legacy-missing"})
+
+
+@pytest.mark.parametrize("with_lease", [False, True])
+def test_promotion_git_passes_context_lease_fd(tmp_path, monkeypatch, with_lease):
+    monkeypatch.delenv("PANTHEON_RUNTIME_WORK_LEASE_FD", raising=False)
+    with (tmp_path / "lease").open("w") as lease:
+        token = runtime._WORK_LEASE.set(lease.fileno() if with_lease else None)
+        observed = []
+
+        def run(command, **kwargs):
+            observed.append(kwargs["pass_fds"])
+            return subprocess.CompletedProcess(command, 0, stdout="synthetic\n", stderr="")
+
+        try:
+            monkeypatch.setattr(promotion.subprocess, "run", run)
+            assert promotion._git(tmp_path, "status") == "synthetic"
+        finally:
+            runtime._WORK_LEASE.reset(token)
+        assert observed == [(lease.fileno(),) if with_lease else ()]
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -2580,3 +2829,38 @@ def test_finalize_rejects_interrupted_rollback_and_preserves_retry(
     assert _rollback_originals(request) == original
     if "error" in receipt:
         assert restored["error"] == receipt["error"]
+
+
+@pytest.mark.parametrize('phase', [1, 2])
+@pytest.mark.parametrize('progress', ['short', 'zero', 'partial_then_error'])
+def test_finalize_full_receipt_write_before_replace(tmp_path, monkeypatch, phase, progress):
+    """COMMITTED與cleanup receipt均不得以短寫入取代原始authority。"""
+    request, plan = _finalize_fixture(tmp_path)
+    original = promotion.os.write
+    calls = 0
+    partial = False
+
+    def write(fd, body):
+        nonlocal calls, partial
+        calls += 1
+        if partial and progress == 'partial_then_error':
+            raise OSError('receipt storage failure')
+        if calls == phase:
+            if progress == 'zero':
+                return 0
+            partial = True
+            return original(fd, body[:17])
+        return original(fd, body)
+
+    with monkeypatch.context() as context:
+        context.setattr(promotion.os, 'write', write)
+        if progress == 'short':
+            assert promotion.finalize_promotion(request, expected_plan_digest=plan)['status'] == 'COMMITTED'
+        else:
+            with pytest.raises(OSError):
+                promotion.finalize_promotion(request, expected_plan_digest=plan)
+    receipt = promotion.load_receipt(request)
+    assert receipt['state'] in ('POSTCHECK_PASSED', 'COMMITTED')
+    if receipt['state'] == 'POSTCHECK_PASSED':
+        assert promotion.rollback_bundle_path(request).exists()
+    assert promotion.finalize_promotion(request, expected_plan_digest=plan)['status'] == 'COMMITTED'
