@@ -4009,6 +4009,187 @@ def test_seed_legacy_rewrite_runs_registers_oldest_unattempted_article(tmp_path:
     assert len(list((queue_root / "runs").glob("*.json"))) == 1
 
 
+@pytest.mark.parametrize("max_new_runs", [1, 3])
+def test_seed_legacy_rewrite_runs_keeps_bounded_buffer_with_publish_ready(
+    tmp_path: Path,
+    monkeypatch,
+    max_new_runs: int,
+) -> None:
+    repo_root = tmp_path / "repo"
+    queue_root = tmp_path / "queue"
+    state_root = tmp_path / "state"
+    run_root = tmp_path / "private-runs"
+    repo_root.mkdir()
+    records = [
+        {
+            "id": "LEGACY-001",
+            "product": "tarot",
+            "articleCategory": "tarot",
+            "serial": "tarot-001",
+            "slug": "legacy-one",
+            "urlSlug": "legacy-one",
+            "primaryKeyword": "塔羅舊文一",
+            "title": "塔羅舊文一",
+            "description": "描述一",
+            "answer": "答案一",
+            "faq": [{"question": "問一", "answer": "答一"}],
+            "tags": ["塔羅"],
+            "path": "articles/tarot/tarot-001",
+        },
+        {
+            "id": "LEGACY-002",
+            "product": "tarot",
+            "articleCategory": "tarot",
+            "serial": "tarot-002",
+            "slug": "legacy-two",
+            "urlSlug": "legacy-two",
+            "primaryKeyword": "塔羅舊文二",
+            "title": "塔羅舊文二",
+            "description": "描述二",
+            "answer": "答案二",
+            "faq": [{"question": "問二", "answer": "答二"}],
+            "tags": ["塔羅"],
+            "path": "articles/tarot/tarot-002",
+        },
+    ]
+    records.append({
+        **records[-1],
+        "id": "LEGACY-003",
+        "serial": "tarot-003",
+        "slug": "legacy-three",
+        "urlSlug": "legacy-three",
+        "path": "articles/tarot/tarot-003",
+    })
+    current_body = [
+        {"heading": "現況", "paragraphs": ["這是一段舊文內容，等待改得更貼近讀者生活。"]}
+    ]
+    inventory = {
+        record["id"]: {
+            "id": record["id"],
+            "record": record,
+            "canonicalPath": f"/articles/tarot/{record['serial']}",
+            "currentBody": current_body,
+            "published": "2026-01-01",
+            "updated": "2026-01-01",
+        }
+        for record in records
+    }
+    backlog = {
+        "released": 0,
+        "clean_approve": 1,
+        "publish_ready": 1,
+        "retry_deferred": 0,
+        "retry_exhausted": 0,
+        "retry_invalid": 0,
+        "reject": 0,
+        "active_or_incomplete": 0,
+        "non_legacy": 0,
+        "legacy_total": 3,
+        "attempted": 1,
+        "unattempted": 2,
+        "clean_approve_run_ids": ["rewrite-ready"],
+        "publish_ready_run_ids": ["rewrite-ready"],
+        "unattempted_articles": [],
+    }
+    monkeypatch.setattr(coordinator.publisher, "legacy_article_records", lambda _repo: records)
+    monkeypatch.setattr(
+        coordinator.publisher,
+        "summarize_legacy_rewrite_backlog",
+        lambda *_args, **_kwargs: backlog,
+    )
+    registered_rewrite_article_ids = coordinator._registered_rewrite_article_ids
+    monkeypatch.setattr(
+        coordinator,
+        "_registered_rewrite_article_ids",
+        lambda queue: {"LEGACY-001"} | registered_rewrite_article_ids(queue),
+    )
+    monkeypatch.setattr(coordinator.pipeline, "_existing_rewrite_inventory", lambda _repo: inventory)
+
+    result = seed_legacy_rewrite_runs(
+        repo_root,
+        queue_root,
+        state_root,
+        run_root,
+        max_new_runs=max_new_runs,
+        max_active_runs=2,
+        source_commit="a" * 40,
+    )
+
+    assert result["status"] == "seeded"
+    assert result["created_run_ids"] == ["legacy-auto-sweep-v1-tarot-002-legacy-002"]
+
+    assert coordinator._active_count_by_mode(queue_root, "rewrite_existing_body") == 1
+    registered_before = {
+        path.name: path.read_bytes() for path in (queue_root / "runs").glob("*.json")
+    }
+    repeated = seed_legacy_rewrite_runs(
+        repo_root,
+        queue_root,
+        state_root,
+        run_root,
+        max_new_runs=max_new_runs,
+        max_active_runs=2,
+        source_commit="a" * 40,
+    )
+    assert repeated["status"] == "publish_ready_first"
+    assert repeated["created"] == 0
+    assert {
+        path.name: path.read_bytes() for path in (queue_root / "runs").glob("*.json")
+    } == registered_before
+
+
+def test_seed_legacy_rewrite_runs_stops_when_publish_buffer_is_full(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    backlog = {
+        "released": 0,
+        "clean_approve": 1,
+        "publish_ready": 1,
+        "retry_deferred": 0,
+        "retry_exhausted": 0,
+        "retry_invalid": 0,
+        "reject": 0,
+        "active_or_incomplete": 1,
+        "non_legacy": 0,
+        "legacy_total": 3,
+        "attempted": 1,
+        "unattempted": 2,
+        "clean_approve_run_ids": ["rewrite-ready"],
+        "publish_ready_run_ids": ["rewrite-ready"],
+        "unattempted_articles": [],
+    }
+    monkeypatch.setattr(
+        coordinator.publisher,
+        "legacy_article_records",
+        lambda _repo: [{"id": "LEGACY-001"}, {"id": "LEGACY-002"}, {"id": "LEGACY-003"}],
+    )
+    monkeypatch.setattr(
+        coordinator.publisher,
+        "summarize_legacy_rewrite_backlog",
+        lambda *_args, **_kwargs: backlog,
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "_active_count_by_mode",
+        lambda _queue, _mode: 1,
+    )
+
+    result = seed_legacy_rewrite_runs(
+        tmp_path,
+        tmp_path / "queue",
+        tmp_path / "state",
+        tmp_path / "private-runs",
+        max_new_runs=1,
+        max_active_runs=2,
+        source_commit="a" * 40,
+    )
+
+    assert result["status"] == "publish_ready_first"
+    assert result["created"] == 0
+    assert not (tmp_path / "private-runs").exists()
+
+
 def test_seed_legacy_rewrite_runs_preserves_orphan_identity_without_reseeding(
     tmp_path: Path,
     monkeypatch,

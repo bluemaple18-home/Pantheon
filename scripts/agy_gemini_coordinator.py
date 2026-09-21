@@ -6207,7 +6207,8 @@ def seed_legacy_rewrite_runs(
         legacy_records=legacy_records,
     )
     publish_ready = backlog.get("publish_ready", backlog["clean_approve"])
-    if publish_ready > 0:
+    buffered_rewrite_work = active_count + publish_ready
+    if publish_ready > 0 and buffered_rewrite_work >= max_active_runs:
         return {"status": "publish_ready_first", "created": 0, "created_run_ids": [], "backlog": _compact_legacy_backlog(backlog)}
     if backlog.get("retry_deferred", 0) > 0 or backlog.get("retry_invalid", 0) > 0:
         return {"status": "rewrite_retry_blocked", "created": 0, "created_run_ids": [], "backlog": _compact_legacy_backlog(backlog)}
@@ -6218,7 +6219,7 @@ def seed_legacy_rewrite_runs(
     registered_article_ids = _registered_rewrite_article_ids(queue_root)
     inventory = pipeline._existing_rewrite_inventory(repo_root)
     head = source_commit or _head_sha(repo_root)
-    capacity = max(0, min(max_new_runs, max_active_runs - active_count))
+    capacity = max(0, min(max_new_runs, max_active_runs - buffered_rewrite_work))
     created: list[str] = []
     for record in legacy_records:
         if len(created) >= capacity:
