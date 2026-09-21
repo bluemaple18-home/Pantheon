@@ -873,22 +873,48 @@ if [[ "${PUBLISHER_ONLY_ACTIVATION}" == "1" ]]; then
   for OTHER_PLIST in "${OTHER_LIVE_PLISTS[@]}"; do
     cp "${OTHER_PLIST}" "${STAGE_DIR}/publisher-only-backups/$(basename "${OTHER_PLIST}")"
   done
-  if launchctl print "gui/${USER_ID}/${PUBLISHER_LABEL}" \
-    > "${STAGE_DIR}/publisher-only-backups/${PUBLISHER_LABEL}.previous_identity" 2>/dev/null; then
+  publisher_only_read_state() {
+    local OUTPUT="$1"
+    if launchctl print "gui/${USER_ID}/${PUBLISHER_LABEL}" > "${OUTPUT}" 2> "${OUTPUT}.stderr"; then
+      PUBLISHER_ONLY_READBACK_CODE=0
+      PUBLISHER_ONLY_STATE="LOADED"
+    else
+      PUBLISHER_ONLY_READBACK_CODE=$?
+      case "${PUBLISHER_ONLY_READBACK_CODE}" in
+        3|113) PUBLISHER_ONLY_STATE="ABSENT" ;;
+        *) PUBLISHER_ONLY_STATE="UNKNOWN" ;;
+      esac
+    fi
+    printf '%s\n' "${PUBLISHER_ONLY_READBACK_CODE}" > "${OUTPUT}.exit-code"
+  }
+  publisher_only_read_state "${STAGE_DIR}/publisher-only-backups/${PUBLISHER_LABEL}.previous_identity"
+  if [[ "${PUBLISHER_ONLY_STATE}" == "LOADED" ]]; then
     printf '1\n' > "${STAGE_DIR}/publisher-only-backups/${PUBLISHER_LABEL}.previous_loaded"
-  else
+  elif [[ "${PUBLISHER_ONLY_STATE}" == "ABSENT" ]]; then
     printf '0\n' > "${STAGE_DIR}/publisher-only-backups/${PUBLISHER_LABEL}.previous_loaded"
+  else
+    echo "Publisher-only previous state UNKNOWN; preserve stage." >&2
+    false
   fi
+  PUBLISHER_ONLY_STOP_UNKNOWN=0
   rollback_publisher_only_activation() {
     local RETURN_CODE="$1"
     local EXIT_PHASE="$2"
     local ROLLBACK_STATUS="ROLLBACK_COMPLETE"
     trap - ERR
     set +e
+    # 停止結果未知時不得再派送 bootout/bootstrap，也不得宣稱已恢復。
+    if [[ "${PUBLISHER_ONLY_STOP_UNKNOWN}" == "1" ]]; then
+      write_failure_receipt "ROLLBACK_FAILED" "${RETURN_CODE}" "${EXIT_PHASE}"
+      exit "${RETURN_CODE}"
+    fi
     install -m 600 "${STAGE_DIR}/publisher-only-backups/${PUBLISHER_LABEL}.plist" \
       "${PUBLISHER_TARGET_PLIST}" || ROLLBACK_STATUS="ROLLBACK_FAILED"
     launchctl bootout "gui/${USER_ID}/${PUBLISHER_LABEL}" >/dev/null 2>&1 || true
-    if [[ "$(cat "${STAGE_DIR}/publisher-only-backups/${PUBLISHER_LABEL}.previous_loaded" 2>/dev/null || true)" == "1" ]]; then
+    publisher_only_read_state "${STAGE_DIR}/publisher-only-backups/${PUBLISHER_LABEL}.rollback_stop_identity"
+    if [[ "${PUBLISHER_ONLY_STATE}" != "ABSENT" ]]; then
+      ROLLBACK_STATUS="ROLLBACK_FAILED"
+    elif [[ "$(cat "${STAGE_DIR}/publisher-only-backups/${PUBLISHER_LABEL}.previous_loaded" 2>/dev/null || true)" == "1" ]]; then
       launchctl bootstrap "gui/${USER_ID}" "${PUBLISHER_TARGET_PLIST}" >/dev/null 2>&1 \
         || ROLLBACK_STATUS="ROLLBACK_FAILED"
     fi
@@ -909,7 +935,12 @@ if [[ "${PUBLISHER_ONLY_ACTIVATION}" == "1" ]]; then
   install -m 600 "${PUBLISHER_STAGE_PLIST}" "${PUBLISHER_TARGET_PLIST}"
   ACTIVATION_PHASE="publisher_only_restart_publisher"
   launchctl bootout "gui/${USER_ID}/${PUBLISHER_LABEL}" >/dev/null 2>&1 || true
-  if launchctl print "gui/${USER_ID}/${PUBLISHER_LABEL}" >/dev/null 2>&1; then
+  publisher_only_read_state "${STAGE_DIR}/publisher-only-backups/${PUBLISHER_LABEL}.stop_identity"
+  if [[ "${PUBLISHER_ONLY_STATE}" == "UNKNOWN" ]]; then
+    PUBLISHER_ONLY_STOP_UNKNOWN=1
+    echo "Publisher-only stop readback UNKNOWN; preserve stage and inspect actual state." >&2
+    false
+  elif [[ "${PUBLISHER_ONLY_STATE}" == "LOADED" ]]; then
     false
   fi
   launchctl bootstrap "gui/${USER_ID}" "${PUBLISHER_TARGET_PLIST}"

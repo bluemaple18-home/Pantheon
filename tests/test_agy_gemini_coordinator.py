@@ -9681,6 +9681,79 @@ def test_publisher_only_bounded_activation_replaces_only_publisher(
         assert live_path.read_bytes() == live_payloads[label]
 
 
+@pytest.mark.parametrize(
+    ("boundary", "readback_code"),
+    [("stop", 0), ("stop", 3), ("stop", 113), ("stop", 5),
+     ("stop", 1), ("snapshot", 5), ("rollback", 5), ("rollback", 0)],
+)
+def test_publisher_only_classifies_stop_readback_before_bootstrap(
+    tmp_path: Path, boundary: str, readback_code: int,
+) -> None:
+    """真 installer 配私有替身；未知停止結果不得放行或觸發重播。"""
+    repo_root = Path(__file__).resolve().parents[1]
+    env, fake_home, _, _, _, _, live_payloads = (
+        _prepare_publisher_only_activation_fixture(tmp_path)
+    )
+    controller = tmp_path / "bin/launchctl"
+    base = controller.with_name("launchctl-base")
+    controller.rename(base)
+    events = tmp_path / "readback-events.jsonl"
+    state = tmp_path / "bootout-count"
+    controller.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, plistlib, subprocess, sys\nfrom pathlib import Path\n"
+        f"base = {str(base)!r}\nstate = Path({str(state)!r})\n"
+        f"events = Path({str(events)!r})\nboundary = {boundary!r}\ncode = {readback_code}\n"
+        "args = sys.argv[1:]\ncount = int(state.read_text()) if state.exists() else 0\n"
+        "publisher = 'com.pantheon.agy-content-publisher'\n"
+        "if args[0] == 'bootstrap':\n"
+        "    argv = plistlib.loads(Path(args[2]).read_bytes())['ProgramArguments']\n"
+        "    with events.open('a') as f:\n"
+        "        f.write(json.dumps({'bootstrap': True, 'inert': '--activation-only' in argv[:argv.index('--')]}) + '\\n')\n"
+        "if args[0] == 'bootout' and args[1].endswith('/' + publisher):\n"
+        "    result = subprocess.run([base, *args], check=False)\n"
+        "    state.write_text(str(count + 1))\n"
+        "    sys.exit(result.returncode)\n"
+        "if args[0] == 'print' and args[1].endswith('/' + publisher):\n"
+        "    inject = (boundary == 'snapshot' and count == 0) or (boundary == 'stop' and count == 1) or (boundary == 'rollback' and count >= 1)\n"
+        "    if boundary == 'stop' and events.exists() and any('readback' in json.loads(line) for line in events.read_text().splitlines()): inject = False\n"
+        "    if inject:\n"
+        "        selected = 0 if boundary == 'rollback' and count == 1 else code\n"
+        "        with events.open('a') as f: f.write(json.dumps({'readback': selected}) + '\\n')\n"
+        "        print('synthetic readback', file=sys.stderr)\n"
+        "        sys.exit(selected)\n"
+        "os.execv(base, [base, *args])\n",
+        encoding="utf-8",
+    )
+    controller.chmod(0o700)
+    result = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+         "--activate-publisher-only"],
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=30,
+    )
+    rows = [json.loads(line) for line in events.read_text().splitlines()]
+    bootstraps = [row for row in rows if row.get("bootstrap")]
+    assert any("readback" in row for row in rows)
+    stage = fake_home / "Library/LaunchAgents/.pantheon-four-lane-stage"
+    if boundary == "stop" and readback_code in (3, 113):
+        assert result.returncode == 0, result.stderr
+        assert bootstraps == [{"bootstrap": True, "inert": False}]
+        assert not stage.exists()
+    else:
+        assert result.returncode != 0
+        assert stage.is_dir()
+        assert not any(not row["inert"] for row in bootstraps)
+        failure = json.loads((stage / "failure-receipt.json").read_text())
+        if readback_code not in (0, 3, 113) or boundary == "rollback":
+            assert bootstraps == []
+            assert failure["status"] in {"ACTIVATION_REJECTED", "ROLLBACK_FAILED"}
+        captures = list((stage / "publisher-only-backups").glob("*.exit-code"))
+        assert any(path.read_text().strip() == str(readback_code) for path in captures)
+    for label, original in live_payloads.items():
+        if label != "com.pantheon.agy-content-publisher":
+            assert (fake_home / "Library/LaunchAgents" / f"{label}.plist").read_bytes() == original
+
+
 @pytest.mark.parametrize("child_exit", [0, 7])
 def test_publisher_only_activation_is_one_shot_for_child_success_and_failure(
     tmp_path: Path,
