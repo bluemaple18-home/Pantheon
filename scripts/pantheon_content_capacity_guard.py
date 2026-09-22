@@ -165,7 +165,10 @@ def _disk_sample(path: Path) -> tuple[int, int]:
 
 
 def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, check=False, capture_output=True, text=True)
+    return subprocess.run(
+        command, check=False, capture_output=True, text=True,
+        **formal_runtime.runtime_work_child_transport(),
+    )
 
 
 def _activation_only_service_labels(runtime_receipt: dict[str, Any]) -> frozenset[str]:
@@ -1058,6 +1061,7 @@ def _snapshot(
     }
 
 
+@formal_runtime.with_runtime_work_lease
 def preflight(
     queue_root: Path,
     publisher_root: Path,

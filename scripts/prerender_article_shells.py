@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from main import ARTICLE_PUBLISHED_DATE, ARTICLE_UPDATED_DATE, SITE_ORIGIN, article_updated_date, render_article_shell_from_meta  # noqa: E402
+from scripts import pantheon_content_runtime_manifest as formal_runtime
 from scripts import agy_seo_copy_pipeline as pipeline  # noqa: E402
 
 
@@ -86,6 +87,7 @@ console.log(JSON.stringify(records));
         check=True,
         capture_output=True,
         text=True,
+        **formal_runtime.runtime_work_child_transport(),
     )
     return json.loads(result.stdout)
 
@@ -112,6 +114,7 @@ console.log(JSON.stringify(records));
         check=True,
         capture_output=True,
         text=True,
+        **formal_runtime.runtime_work_child_transport(),
     )
     return json.loads(result.stdout)
 

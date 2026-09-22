@@ -55,6 +55,27 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# maintenance 先於普通 actor gate；只有此入口接受 source/failed actor 雙身分。
+MAINTENANCE=0
+if [[ "${ACTION}" == "--reconcile-normal-rollback" ]]; then
+  [[ "$#" == "2" && "$2" == /* ]] || { echo "maintenance requires absolute BINDING.json" >&2; exit 2; }
+  export PANTHEON_USER_HOME_DIR="${USER_HOME_DIR}"
+  cd "${REPO_ROOT}"
+  exec "${PYTHON_PATH}" -m scripts.pantheon_runtime_activation run "$2"
+fi
+if [[ "${ACTION}" == "--reconcile-normal-rollback-held" ]]; then
+  [[ "$#" == "2" && "$2" == /* ]] || exit 2
+  export PANTHEON_USER_HOME_DIR="${USER_HOME_DIR}"
+  cd "${REPO_ROOT}"
+  MAINTENANCE_BINDING="$2"
+  export PANTHEON_MAINTENANCE_BINDING="${MAINTENANCE_BINDING}"
+  MAINTENANCE=1
+  PYTHON_BIN="${PYTHON_PATH}"
+  BARRIER_TIMEOUT_SECONDS=30
+  ACTIVATION_ONLY=0
+  MAINTENANCE_CONFIG="$("${PYTHON_BIN}" -m scripts.pantheon_runtime_activation prepare "${MAINTENANCE_BINDING}")" || exit 1
+  eval "${MAINTENANCE_CONFIG}"
+else
 if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" \
   && "${ACTION}" != "--activate" && "${ACTION}" != "--activate-only" \
   && "${ACTION}" != "--activate-publisher-only" \
@@ -1003,6 +1024,7 @@ done
     "${AGGREGATE_ARGS[@]}"
 )
 
+fi
 STARTED_LABELS=()
 normalize_control_identity() {
   sed -E '/^[[:space:]]*(state|pid|runs|last exit code|last terminating signal|successful exits|forks|execs|initialized|trampolined|started|proxy started) = /d' "$1"
@@ -1020,16 +1042,19 @@ import sys
 import time
 
 stage, budget, domain, manifest_file, mode, *arguments = sys.argv[1:]
+maintenance_fd = int(os.environ['PANTHEON_MAINTENANCE_LEASE_FD']) if mode == 'reconcile' else None
 manifest = json.loads(Path(manifest_file).read_text())
 owned_roots = [str(Path(manifest[key]).resolve()) for key in ('actor_root', 'queue_root', 'publisher_state_root', 'log_root')]
 path = Path(stage) / 'normal-rollback-drain.json'
 record = json.loads(path.read_text()) if path.exists() else {'processes': {}, 'groups': [], 'seen_labels': []}
 if mode == 'drain' and 'deadline' not in record:
     record['deadline'] = time.monotonic() + int(budget)
-deadline = record.get('deadline', time.monotonic() + int(budget))
+deadline = time.monotonic() + int(budget) if mode == 'reconcile' else record.get('deadline', time.monotonic() + int(budget))
 
 
 def save():
+    if mode == 'reconcile':
+        return
     temporary = path.with_suffix('.tmp')
     with temporary.open('w') as stream:
         json.dump(record, stream)
@@ -1047,7 +1072,8 @@ def remaining():
 
 def command(argv):
     try:
-        result = subprocess.run(argv, capture_output=True, text=True, timeout=remaining())
+        result = subprocess.run(argv, capture_output=True, text=True, timeout=remaining(),
+                                pass_fds=(maintenance_fd,) if maintenance_fd is not None else ())
     except subprocess.TimeoutExpired as error:
         raise RuntimeError(f'command outcome UNKNOWN: {argv[:2]}') from error
     return result
@@ -1138,6 +1164,12 @@ def observe():
             raise RuntimeError('process snapshot grammar UNKNOWN')
         pid, parent, group = map(int, fields[:3])
         rows[pid] = {'ppid': parent, 'pgid': group, 'zombie': fields[3].startswith('Z'), 'command': fields[4]}
+    if mode == 'reconcile':
+        # 已知 PID 即使漏於 ps 也須做 targeted libproc/kill(0) 證明；不盤點無關 UID。
+        for known_pid, previous in list(record['processes'].items()):
+            if int(known_pid) not in rows:
+                if identity(int(known_pid), previous) is not None:
+                    raise RuntimeError(f'known PID absent from snapshot but still present: {known_pid}')
     # 排除操作本身的 ancestors/diagnostic children，不擴成全機 orphan 審計。
     excluded = {os.getpid()}
     parent = os.getpid()
@@ -1207,9 +1239,19 @@ def observe():
 
 
 try:
-    if record.get('status') == 'UNKNOWN_OR_FAILED':
+    if record.get('status') == 'UNKNOWN_OR_FAILED' and mode != 'reconcile':
         raise RuntimeError('prior normal process evidence is unresolved: ' + record.get('error', 'unknown'))
-    if mode == 'absent':
+    if mode == 'reconcile':
+        from scripts.pantheon_runtime_activation import (
+            maintenance_binding, maintenance_lease, maintenance_control, maintenance_publish_journal)
+        binding, exact_manifest, token = maintenance_binding(Path(os.environ['PANTHEON_MAINTENANCE_BINDING']))
+        maintenance_lease(binding, exact_manifest, maintenance_fd)
+        maintenance_control(binding, exact_manifest, maintenance_fd)
+        if observe() or record['resample_required']:
+            raise RuntimeError('known cohort/residual process not terminal')
+        maintenance_control(binding, exact_manifest, maintenance_fd)
+        maintenance_publish_journal(binding, token, maintenance_fd, exact_manifest)
+    elif mode == 'absent':
         result = command(['launchctl', 'print', *arguments])
         if result.returncode not in (3, 113):
             raise RuntimeError(f'service absence UNKNOWN: {result.returncode}')
@@ -1358,16 +1400,22 @@ rollback_activation() {
   }
   trap - ERR
   set +e
+  if [[ "${MAINTENANCE:-0}" != "1" ]]; then
   rm -f "${ACTIVATION_BARRIER}" || record_rollback_failure "rollback.barrier.remove"
+  fi
   # normal 已可能 admission；fence/drain 不成立就保留備份，禁止競爭的舊版啟動。
   stop_normal_rollback_if_failed() {
     if [[ "${ACTIVATION_ONLY}" != "1" && "${ROLLBACK_FAILED}" == "1" ]]; then
+      if [[ "${MAINTENANCE:-0}" == "1" ]]; then
+        echo "maintenance rollback failed: $(rollback_check_ids_json)" >&2
+        exit 1
+      fi
       write_failure_receipt "ROLLBACK_FAILED" "${RETURN_CODE}" "${EXIT_PHASE}" \
         "$(rollback_check_ids_json)"
       exit "${RETURN_CODE}"
     fi
   }
-  if [[ "${ACTIVATION_ONLY}" != "1" ]]; then
+  if [[ "${ACTIVATION_ONLY}" != "1" && "${MAINTENANCE:-0}" != "1" ]]; then
     [[ ! -e "${ACTIVATION_BARRIER}" && ! -L "${ACTIVATION_BARRIER}" ]] \
       || record_rollback_failure "rollback.fence.unknown"
     if [[ -f "${STAGE_DIR}/previous-barrier-path" ]]; then
@@ -1403,6 +1451,12 @@ rollback_activation() {
   for INDEX in 0 1 2 3 4 5 6; do
     LABEL="${LABELS[${INDEX}]}"
     TARGET="${TARGET_PLISTS[${INDEX}]}"
+    if [[ "${MAINTENANCE:-0}" == "1" ]]; then
+      "${PYTHON_BIN}" -m scripts.pantheon_runtime_activation restore "${MAINTENANCE_BINDING}" "${LABEL}" \
+        || record_rollback_failure "rollback.restore"
+      stop_normal_rollback_if_failed
+      continue
+    fi
     if [[ -f "${STAGE_DIR}/backups/${LABEL}.plist" ]]; then
       install -m 600 "${STAGE_DIR}/backups/${LABEL}.plist" "${TARGET}" \
         || record_rollback_failure "rollback.restore"
@@ -1434,6 +1488,10 @@ rollback_activation() {
     fi
   done
   stop_normal_rollback_if_failed
+  if [[ "${MAINTENANCE:-0}" == "1" ]]; then
+    "${PYTHON_BIN}" -m scripts.pantheon_runtime_activation finish "${MAINTENANCE_BINDING}" || exit 1
+    exit 0
+  fi
   if [[ -f "${STAGE_DIR}/previous-barrier" ]]; then
     PREVIOUS_BARRIER_PATH="$(cat "${STAGE_DIR}/previous-barrier-path")"
     if [[ "${ACTIVATION_ONLY}" != "1" ]]; then
@@ -1468,6 +1526,12 @@ rollback_activation() {
     "$(rollback_check_ids_json)"
   exit "${RETURN_CODE}"
 }
+
+
+if [[ "${MAINTENANCE}" == "1" ]]; then
+  normal_activation_boundary reconcile "${LABELS[@]}" || exit 1
+  rollback_activation 1 maintenance
+fi
 canonical_existing_path() {
   local INPUT_PATH="$1"
   local INPUT_DIR

@@ -21,6 +21,7 @@ import tempfile
 from typing import Any, Callable
 import unicodedata
 
+from scripts import pantheon_content_runtime_manifest as formal_runtime
 from scripts import agy_seo_copy_pipeline as pipeline
 
 
@@ -1056,6 +1057,7 @@ console.log(JSON.stringify({{
         check=True,
         capture_output=True,
         text=True,
+        **formal_runtime.runtime_work_child_transport(),
     )
     return validate_source_contract(json.loads(result.stdout))
 
@@ -3670,6 +3672,7 @@ def plan_approved_edited_candidate_stage(
             check=True,
             capture_output=True,
             text=True,
+            **formal_runtime.runtime_work_child_transport(),
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         actor_sha = "0" * 40
@@ -4924,6 +4927,7 @@ console.log(JSON.stringify(listArticleLocaleRecords()));
         check=True,
         capture_output=True,
         text=True,
+        **formal_runtime.runtime_work_child_transport(),
     )
     return list(json.loads(result.stdout))
 

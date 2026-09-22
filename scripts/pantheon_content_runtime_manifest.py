@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 import fcntl
@@ -50,6 +50,7 @@ class RuntimeWorkBusy(RuntimeManifestError):
 
 
 _WORK_LEASE: ContextVar[int | None] = ContextVar("runtime_work_lease", default=None)
+_WORK_LEASE_ROOT: ContextVar[Path | None] = ContextVar("runtime_work_lease_root", default=None)
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
 
@@ -70,6 +71,7 @@ def runtime_work_lease(state_root: Path) -> Iterator[int]:
     path = state_root / "runtime-work.lock"
     fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     context_token = None
+    root_token = None
     try:
         _verify_work_lease(fd, path)
         try:
@@ -78,8 +80,11 @@ def runtime_work_lease(state_root: Path) -> Iterator[int]:
             raise RuntimeWorkBusy("runtime shutdown holds work exclusion") from error
         _verify_work_lease(fd, path)
         context_token = _WORK_LEASE.set(fd)
+        root_token = _WORK_LEASE_ROOT.set(state_root)
         yield fd
     finally:
+        if root_token is not None:
+            _WORK_LEASE_ROOT.reset(root_token)
         if context_token is not None:
             _WORK_LEASE.reset(context_token)
         # fork/dup/pass_fds 共享 lock；LOCK_UN 會提早解除仍活著的後代。
@@ -101,7 +106,47 @@ def runtime_work_pass_fds() -> tuple[int, ...]:
         if not root.is_absolute():
             raise RuntimeManifestError("runtime work lease state root is invalid")
         _verify_work_lease(fd, root / "runtime-work.lock")
+    else:
+        root = _WORK_LEASE_ROOT.get()
+        if root is None:
+            raise RuntimeManifestError("runtime work lease state root is missing")
+        _verify_work_lease(fd, root / "runtime-work.lock")
     return (fd,)
+
+
+def runtime_work_child_transport(env: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """僅傳遞既有 lease；驗證明示 binding，複製環境且不改全域狀態。"""
+    try:
+        lease_fds = runtime_work_pass_fds()
+    except OSError as error:
+        # caller 的一般 I/O fallback 不可吞掉 lease binding 拒絕。
+        raise RuntimeManifestError("runtime work lease descriptor is unavailable") from error
+    if not lease_fds:
+        if os.environ.get("PANTHEON_FORMAL_RUNTIME") == "1":
+            raise RuntimeManifestError("formal runtime child requires work lease")
+        if env is not None and "PANTHEON_RUNTIME_WORK_LEASE_FD" in env:
+            raise RuntimeManifestError("child runtime work lease has no parent binding")
+        return {} if env is None else {"env": dict(env)}
+    root = _WORK_LEASE_ROOT.get()
+    if root is None:
+        root = Path(os.environ["PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT"])
+    if not root.is_absolute() or root.resolve(strict=True) != root:
+        raise RuntimeManifestError("runtime work lease state root is invalid")
+    child_env = dict(os.environ if env is None else env)
+    # 外層仍開啟的同 inode FD 可重綁至當前 scope；不同 lease 不可靜默覆蓋。
+    for binding in (os.environ, child_env):
+        bound_root = binding.get("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT")
+        if bound_root is not None and bound_root != str(root):
+            raise RuntimeManifestError("child runtime work lease state binding differs")
+        bound_fd = binding.get("PANTHEON_RUNTIME_WORK_LEASE_FD")
+        if bound_fd is not None:
+            try:
+                _verify_work_lease(int(bound_fd), root / "runtime-work.lock")
+            except (ValueError, OSError) as error:
+                raise RuntimeManifestError("child runtime work lease descriptor binding differs") from error
+    child_env["PANTHEON_RUNTIME_WORK_LEASE_FD"] = str(lease_fds[0])
+    child_env["PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT"] = str(root)
+    return {"pass_fds": lease_fds, "env": child_env}
 
 
 def with_runtime_work_lease(operation: Callable[_P, _R]) -> Callable[_P, _R]:
@@ -164,6 +209,7 @@ def _git_output(repo: Path, *args: str) -> str:
             check=False,
             capture_output=True,
             text=True,
+            **runtime_work_child_transport(),
         )
     except OSError as error:
         raise RuntimeManifestError("actor git validation failed") from error

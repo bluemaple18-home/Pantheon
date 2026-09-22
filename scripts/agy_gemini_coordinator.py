@@ -5964,6 +5964,7 @@ def _head_sha(repo_root: Path) -> str:
         check=True,
         capture_output=True,
         text=True,
+        **formal_runtime.runtime_work_child_transport(),
     ).stdout.strip()
 
 

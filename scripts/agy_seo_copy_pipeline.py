@@ -2158,14 +2158,7 @@ def _structured_matrix_rows(path: Path) -> list[dict[str, str]]:
 
 def _run_registry_node_script(repo_root: Path, script: str) -> subprocess.CompletedProcess[str]:
     command = ["node", "--input-type=module", "-e", script]
-    lease_kwargs: dict[str, Any] = {}
-    lease_fds = formal_runtime.runtime_work_pass_fds()
-    if lease_fds:
-        child_env = dict(os.environ)
-        if "PANTHEON_RUNTIME_WORK_LEASE_FD" in child_env:
-            child_env["PANTHEON_RUNTIME_WORK_LEASE_FD"] = str(lease_fds[0])
-        # Caller 取消後，仍運作的 Node 繼續持有同一工作保護。
-        lease_kwargs = {"pass_fds": lease_fds, "env": child_env}
+    lease_kwargs = formal_runtime.runtime_work_child_transport()
     # 不用 PIPE：Node 的後代程序若繼承 stdout/stderr，communicate() 會在 Node
     # 已退出後仍等不到 EOF。暫存檔讓等待只綁定直接子程序。
     with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as stdout_handle, tempfile.TemporaryFile(
@@ -2491,13 +2484,15 @@ def prepare_rewrite_batch(
     source_commit: str,
 ) -> Path:
     head = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, capture_output=True, text=True
+        ["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, capture_output=True, text=True,
+        **formal_runtime.runtime_work_child_transport(),
     ).stdout.strip()
     ancestor = subprocess.run(
         ["git", "merge-base", "--is-ancestor", source_commit, head],
         cwd=repo_root,
         capture_output=True,
         text=True,
+        **formal_runtime.runtime_work_child_transport(),
     )
     article_diff = ""
     if ancestor.returncode == 0:
@@ -2507,6 +2502,7 @@ def prepare_rewrite_batch(
             check=True,
             capture_output=True,
             text=True,
+            **formal_runtime.runtime_work_child_transport(),
         ).stdout.strip()
     if ancestor.returncode != 0 or article_diff:
         raise ValueError(
@@ -2615,7 +2611,8 @@ def prepare_rewrite_repair(
 ) -> Path:
     """由前卡唯一 finding 建立隔離 repair brief，不重新讀取正式正文。"""
     head = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, capture_output=True, text=True
+        ["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, capture_output=True, text=True,
+        **formal_runtime.runtime_work_child_transport(),
     ).stdout.strip()
     if head != source_commit:
         raise ValueError(f"rewrite repair source commit mismatch: expected {source_commit}, got {head}")

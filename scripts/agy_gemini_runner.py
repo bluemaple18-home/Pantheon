@@ -1448,7 +1448,9 @@ def _translation_source_git(actor_root: Path, *args: str, input_bytes: bytes | N
         return subprocess.run(
             ["git", "--no-replace-objects", "-C", str(actor_root), *args],
             input=input_bytes, check=True, capture_output=True, timeout=30,
-            env={**os.environ, "GIT_NO_LAZY_FETCH": "1", "GIT_OPTIONAL_LOCKS": "0"},
+            **formal_runtime.runtime_work_child_transport(
+                {**os.environ, "GIT_NO_LAZY_FETCH": "1", "GIT_OPTIONAL_LOCKS": "0"},
+            ),
         ).stdout
     except (OSError, subprocess.SubprocessError) as error:
         raise ValueError("translation published source Git lookup failed") from error

@@ -13992,7 +13992,7 @@ def _normal_activation_boundary_namespace() -> dict[str, object]:
             keep.append(node)
         elif isinstance(node, ast.FunctionDef) and node.name in {'identity', 'observe'}:
             keep.append(node)
-    namespace: dict[str, object] = {}
+    namespace: dict[str, object] = {'mode': 'observe'}
     exec(compile(ast.Module(body=keep, type_ignores=[]), str(script), 'exec'), namespace)
     return namespace
 
@@ -14078,9 +14078,35 @@ def test_normal_failure_waits_for_real_payload_before_restore(tmp_path: Path, fa
     pool, _ = _write_installer_pool(tmp_path)
     env, home, _ = _installer_test_env(tmp_path, pool=pool, state=tmp_path / 'state.json')
     env['PANTHEON_USER_HOME_DIR'] = str(home)
-    env['PANTHEON_ACTIVATION_BARRIER_TIMEOUT_SECONDS'] = '2' if fault in {'timeout', 'unknown', 'fence', 'identity', 'diagnostic-timeout'} else '10'
+    short_drain_faults = {'timeout', 'unknown', 'fence', 'identity', 'diagnostic-timeout'}
+    # 正常 bootstrap/observe 使用既有10秒；短預算只注入精確 drain argv。
+    env['PANTHEON_ACTIVATION_BARRIER_TIMEOUT_SECONDS'] = '10'
     manifest = runtime_manifest.load_manifest(Path(env['PANTHEON_RUNTIME_MANIFEST_FILE']))
     stage = home / 'Library/LaunchAgents/.pantheon-four-lane-stage'
+    if fault in short_drain_faults:
+        injection = tmp_path / 'drain-budget-injection'
+        injection.mkdir()
+        (tmp_path / 'drain-budget-config.json').write_text(json.dumps({
+            'stage': str(stage), 'domain': f'gui/{os.getuid()}',
+            'manifest': env['PANTHEON_RUNTIME_MANIFEST_FILE'],
+            'labels': list(runtime_manifest.SERVICE_LABELS),
+        }))
+        (injection / 'sitecustomize.py').write_text("""import json,os,sys,time
+from pathlib import Path
+root=Path(__file__).resolve().parents[1]
+config=json.loads((root/'drain-budget-config.json').read_text())
+if (len(sys.argv)==13 and sys.argv[0]=='-' and
+    sys.argv[1:6]==[config['stage'],'10',config['domain'],config['manifest'],'drain'] and
+    len(set(sys.argv[6:]))==7 and set(sys.argv[6:])==set(config['labels'])):
+ original=list(sys.argv)
+ sys.argv[2]='2'
+ with (root/'drain-budget-hit.jsonl').open('a') as stream:
+  stream.write(json.dumps({'original_argv':original,'effective_argv':sys.argv,
+   'pid':os.getpid(),'time':time.monotonic(),
+   'failure_injected':(root/'failure-injected').exists(),
+   'payload_done':(root/'done').exists()})+chr(10))
+""")
+        env['PYTHONPATH'] = str(injection) + os.pathsep + env.get('PYTHONPATH', '')
     ready = tmp_path / 'ready-fixture'
     for label in runtime_manifest.SERVICE_LABELS:
         runtime_manifest.write_readiness_ack(ready, manifest, label)
@@ -14095,7 +14121,7 @@ root=Path(__file__).resolve().parent
 case=json.loads((root/'case.json').read_text());barrier=Path(case['barrier'])
 def event(name):
  with (root/'timeline.jsonl').open('a') as f:f.write(json.dumps({'event':name,'time':time.monotonic(),'pid':os.getpid()})+'\\n')
-end=time.monotonic()+15
+end=time.monotonic()+(45 if case['fault']=='timeout' else 15)
 if case['fault']=='fast-exit':
  event('payload-start');(root/'started').touch();(root/'done').touch();event('payload-done');raise SystemExit(0)
 if case['fault']=='fast-exit-child' and len(sys.argv)==1:
@@ -14122,6 +14148,9 @@ if case['fault']=='preadmitted-child':
  event('parent-exit');raise SystemExit(0)
 if case['fault']=='timeout':
  while not (root/'release').exists() and time.monotonic()<end:time.sleep(.01)
+ if not (root/'release').exists():
+  event('payload-safety-deadline');raise SystemExit(92)
+ event('payload-release')
 else:time.sleep(.6)
 (root/'done').touch();event('payload-done')
 ''')
@@ -14205,8 +14234,30 @@ raise SystemExit('unexpected command; native forwarding forbidden')
         boots = [event for event in events if event['event'] == 'bootout']
         assert any(event['event'] == 'payload-start' for event in events)
         assert any(event['event'] == 'failure-injected' for event in events)
+        hit_path = tmp_path / 'drain-budget-hit.jsonl'
+        hits = [json.loads(line) for line in hit_path.read_text().splitlines()] if hit_path.exists() else []
+        (tmp_path / 'drain-budget-receipt.json').write_text(json.dumps({
+            'fault': fault, 'normal_budget': 10, 'target_drain_budget': 2 if fault in short_drain_faults else 10,
+            'dispatch': 'NOT_SENT_FENCE_GUARD' if fault == 'fence' else 'INJECTED' if hits else 'NOT_TARGETED',
+            'hits': hits, 'actual_phase': receipt['exit_reason']['phase'],
+        }, indent=2))
+        if fault in short_drain_faults - {'fence'}:
+            assert hits, '指定 drain timeout 尚未命中，不能以較早 UNKNOWN 冒充'
+            assert all(hit['failure_injected'] and hit['original_argv'][2] == '10'
+                       and hit['effective_argv'][2] == '2' and hit['effective_argv'][5] == 'drain'
+                       for hit in hits), hits
+        else:
+            assert not hits, hits
         if fault in {'timeout', 'unknown', 'fence', 'identity', 'diagnostic-timeout'}:
             assert not boots, events
+            # 此 fixture 的原 live 不存在；restore 會刪除這七份，必須保持未還原。
+            assert all((home / 'Library/LaunchAgents' / f'{label}.plist').exists()
+                       for label in runtime_manifest.SERVICE_LABELS)
+            if fault == 'timeout':
+                assert not (tmp_path / 'done').exists(), 'payload 在 drain fault 前不得自行 terminal'
+                os.kill(int((tmp_path / 'payload-pid').read_text()), 0)
+                assert all(not hit['payload_done'] for hit in hits)
+                assert not any(event['event'] == 'payload-safety-deadline' for event in events)
             assert receipt['status'] == 'ROLLBACK_FAILED'
             assert (stage / 'backups').is_dir()
             if fault != 'fence':
@@ -14226,3 +14277,5 @@ raise SystemExit('unexpected command; native forwarding forbidden')
             if (tmp_path / ('child-done' if fault in {'preadmitted-child', 'fast-exit-child'} else 'done')).exists():
                 break
             time.sleep(.02)
+        if fault == 'timeout' and (tmp_path / 'started').exists():
+            assert (tmp_path / 'done').exists(), 'finally release 未清理 timeout payload'
