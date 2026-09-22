@@ -80,7 +80,14 @@ if args[0]=='print-disabled':
  from importlib import import_module
  labels=json.loads((root/'labels.json').read_text())
  print('{')
- for label in labels:print('"'+label+'" => '+('false' if mode=='disabled' else 'true'))
+ if mode=='native-missing':labels=labels[1:]
+ for index,label in enumerate(labels):
+  value=('disabled' if mode in ('native-disabled','native-missing','native-duplicate') else
+         'enabled' if mode=='native-enabled' else
+         'unknown' if mode=='native-unknown' else
+         'false' if mode=='disabled' else 'true')
+  print('"'+label+'" => '+value)
+  if mode=='native-duplicate' and index==0:print('"'+label+'" => '+value)
  print('}');sys.exit(0)
 if args[0]=='print':sys.exit(2 if mode=='unknown' else 0 if mode=='loaded' else 113)
 raise SystemExit('MUTATION FORBIDDEN: no native forwarding')
@@ -102,6 +109,26 @@ def cli(c):
 
 def snapshot(c):
     return {str(p): (p.read_bytes(),p.stat().st_mtime_ns,p.stat().st_ino) for p in c['stage'].parent.rglob('*') if p.is_file()}
+
+
+def test_cli_accepts_native_disabled_readback(case):
+    """正式 CLI 必須接受 macOS launchctl 的原生 disabled token。"""
+    c=case
+    (c['root']/'control-mode').write_text('native-disabled')
+    result=cli(c)
+    assert result.returncode==0,result.stderr
+    assert (c['stage']/'normal-rollback-reconciliation.json').exists()
+
+
+@pytest.mark.parametrize('mode', ['native-enabled','native-missing','native-duplicate','native-unknown'])
+def test_cli_rejects_non_disabled_native_readback(case,mode):
+    """enabled、缺列、重複列與未知 token 都必須 fail-closed。"""
+    c=case
+    (c['root']/'control-mode').write_text(mode)
+    before=snapshot(c)
+    result=cli(c)
+    assert result.returncode!=0 and 'disabled identity drift' in result.stderr,result.stderr
+    assert snapshot(c)==before
 
 
 def save_binding(c):
