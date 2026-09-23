@@ -1506,11 +1506,10 @@ def test_translation_gate_rejects_traditional_chinese_in_each_japanese_tag(
 
     findings = multilingual.translation_findings(brief, candidate["articles"])
 
-    assert {
-        "article_id": "TEST-001:ja",
-        "code": "target_language_tags",
-        "message": "日文 metadata tags 含繁中殘留或沿用來源語言",
-    } in findings
+    finding = next(item for item in findings if item["code"] == "target_language_tags")
+    assert finding["article_id"] == "TEST-001:ja"
+    assert tag in finding["message"]
+    assert "タロット" not in finding["message"]
 
 
 def test_translation_gate_accepts_shared_source_authority_tag_in_japanese() -> None:
@@ -2916,6 +2915,10 @@ def test_writer_and_public_brief_require_native_language_tags() -> None:
 
     assert "tags 必須逐項以目標語言的自然搜尋用語重寫" in prompt
     assert "不得複製或沿用來源語言 tag" in prompt
+    assert "forbidden_exact_source_tags" in prompt
+    assert "target_language_tags finding 的 message 會列出本輪實際違規 tag" in prompt
+    assert "塔羅" in prompt
+    assert "自我探索" in prompt
     assert "tags 必須逐項以目標語言的自然搜尋用語重寫" in tags_policy
     assert "不得複製或沿用來源語言 tag" in tags_policy
 
@@ -6744,3 +6747,14 @@ def test_multi_legacy_broker_runner_rejects_cross_article_authority(tmp_path: Pa
     assert not (tmp_path / "source-ref-map.json").exists()
     result = json.loads((tmp_path / "planning-result.json").read_text())
     assert result["planning_contract_status"] == "PLANNING_CONTRACT_FAILURE"
+
+
+@pytest.mark.parametrize("tags", [[""], ["  "], ["タロット", " "]])
+def test_ja_tag_diagnostics_preserves_blank_rejection(tags: list[str]) -> None:
+    brief = translation_brief("ja")
+    candidate = translation_candidate("ja")
+    candidate["articles"][0]["tags"] = tags
+    multilingual.validate_translation_candidate(brief, candidate)
+    findings = multilingual.translation_findings(brief, candidate["articles"])
+    finding = next(item for item in findings if item["code"] == "target_language_tags")
+    assert "（空白 tag）" in finding["message"]

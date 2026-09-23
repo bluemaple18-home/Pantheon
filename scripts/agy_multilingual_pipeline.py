@@ -972,6 +972,18 @@ def _japanese_tag_matches_target_language(tag: str, source: dict[str, Any]) -> b
     return _plan_matches_target_language("ja", normalized)
 
 
+def _invalid_japanese_tags(tags: list[object], source: dict[str, Any]) -> list[str]:
+    invalid: list[str] = []
+    for tag in tags:
+        normalized = str(tag).strip()
+        if (
+            not _japanese_tag_matches_target_language(normalized, source)
+            and normalized not in invalid
+        ):
+            invalid.append(normalized)
+    return invalid
+
+
 def translation_findings(brief: dict[str, Any], articles: list[dict[str, Any]]) -> list[dict[str, str]]:
     expected = {str(item["translation_id"]): item for item in brief["articles"]}
     findings: list[dict[str, str]] = []
@@ -1013,15 +1025,20 @@ def translation_findings(brief: dict[str, Any], articles: list[dict[str, Any]]) 
             or not _metadata_matches_target_language(locale, str(article["description"]))
         ):
             findings.append({"article_id": translation_id, "code": "target_language", "message": "可見文字不是指定目標語言"})
-        if locale == "ja" and any(
-            not _japanese_tag_matches_target_language(str(tag), source_content)
-            for tag in article["tags"]
-        ):
+        invalid_japanese_tags = (
+            _invalid_japanese_tags(article["tags"], source_content)
+            if locale == "ja"
+            else []
+        )
+        if invalid_japanese_tags:
             findings.append(
                 {
                     "article_id": translation_id,
                     "code": "target_language_tags",
-                    "message": "日文 metadata tags 含繁中殘留或沿用來源語言",
+                    "message": (
+                        "日文 metadata tags 含繁中殘留或沿用來源語言："
+                        + "、".join(tag if tag else "（空白 tag）" for tag in invalid_japanese_tags)
+                    ),
                 }
             )
         if article["title"] == source_content["title"] or article["description"] == source_content["description"]:
@@ -2623,6 +2640,16 @@ def _article_prompt(
             {
                 **fact_package,
                 "editorial_contract": LOCALE_EDITORIAL_CONTRACTS[target["locale"]],
+                **(
+                    {
+                        "forbidden_exact_source_tags": _invalid_japanese_tags(
+                            target["source"]["tags"],
+                            target["source"],
+                        )
+                    }
+                    if target["locale"] == "ja"
+                    else {}
+                ),
                 "locale_plan": _locale_plan_for_prompt(
                     plan["articles"][index],
                     source_ref_maps.get(str(fact_package["slot"])),
@@ -2639,6 +2666,7 @@ def _article_prompt(
             "只依 source fact package、locale contract 與已驗證 locale plan 寫完整文章。",
             "所有可見欄位都必須以 article input.locale 指定的語言完整重寫；title、description、answer、tags、FAQ、H2 與 paragraphs 禁止保留來源語言文字，只有該 locale 慣用的專有名詞與識別符例外。",
             "tags 必須逐項以目標語言的自然搜尋用語重寫，不得複製或沿用來源語言 tag。",
+            "JA article input.forbidden_exact_source_tags 列出的值不得原樣出現在 tags；target_language_tags finding 的 message 會列出本輪實際違規 tag，必須逐項替換。",
             "寫作前先建立 source claim ledger：每一個定義、解釋、例子與結論都必須能由 source fact 明確支持；無法對應的句子直接刪除，不得用常識補完。",
             "ordered_h2_outline 是唯一 section authority；不得推回或模仿來源 H2、段落數、敘事順序。",
             "bodySections 的數量、順序與 heading 必須逐字對齊 ordered_h2_outline；h2-1 到 h2-4 只是 mapping slot，不是可輸出的標題。",
