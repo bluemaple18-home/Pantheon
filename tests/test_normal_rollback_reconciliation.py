@@ -82,12 +82,18 @@ if args[0]=='print-disabled':
  print('{')
  if mode=='native-missing':labels=labels[1:]
  for index,label in enumerate(labels):
-  value=('disabled' if mode in ('native-disabled','native-missing','native-duplicate') else
+  value=('disabled' if mode in ('native-disabled','native-missing','native-duplicate','native-duplicate-unknown') else
          'enabled' if mode=='native-enabled' else
          'unknown' if mode=='native-unknown' else
+         'disabled-extra' if mode=='native-malformed-hyphen' else
+         'disabled.extra' if mode=='native-malformed-dot' else
+         'disabled/extra' if mode=='native-malformed-slash' else
+         'true-false' if mode=='native-malformed-legacy' else
+         'disabled unknown' if mode=='native-malformed-trailing' else
          'false' if mode=='disabled' else 'true')
   print('"'+label+'" => '+value)
   if mode=='native-duplicate' and index==0:print('"'+label+'" => '+value)
+  if mode=='native-duplicate-unknown' and index==0:print('"'+label+'" => unknown')
  print('}');sys.exit(0)
 if args[0]=='print':sys.exit(2 if mode=='unknown' else 0 if mode=='loaded' else 113)
 raise SystemExit('MUTATION FORBIDDEN: no native forwarding')
@@ -120,9 +126,20 @@ def test_cli_accepts_native_disabled_readback(case):
     assert (c['stage']/'normal-rollback-reconciliation.json').exists()
 
 
-@pytest.mark.parametrize('mode', ['native-enabled','native-missing','native-duplicate','native-unknown'])
+@pytest.mark.parametrize('mode', [
+    'native-enabled',
+    'native-missing',
+    'native-duplicate',
+    'native-unknown',
+    'native-duplicate-unknown',
+    'native-malformed-hyphen',
+    'native-malformed-dot',
+    'native-malformed-slash',
+    'native-malformed-legacy',
+    'native-malformed-trailing',
+])
 def test_cli_rejects_non_disabled_native_readback(case,mode):
-    """enabled、缺列、重複列與未知 token 都必須 fail-closed。"""
+    """enabled、缺列、重複列、未知與 malformed token 都必須 fail-closed。"""
     c=case
     (c['root']/'control-mode').write_text(mode)
     before=snapshot(c)

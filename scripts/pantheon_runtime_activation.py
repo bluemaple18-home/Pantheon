@@ -311,11 +311,15 @@ def maintenance_control(binding: dict, manifest: dict, fd: int) -> None:
     disabled = run('print-disabled', domain)
     _require(disabled.returncode == 0, 'disabled readback UNKNOWN')
     for label in formal_runtime.SERVICE_LABELS:
-        values = re.findall(
-            r'"' + re.escape(label) + r'"\s*=>\s*(true|false|enabled|disabled)\b',
-            disabled.stdout,
+        marker = f'"{label}"'
+        lines = [line for line in disabled.stdout.splitlines() if marker in line]
+        _require(len(lines) == 1, f'disabled identity drift: {label}')
+        match = re.fullmatch(
+            r'\s*"' + re.escape(label) + r'"\s*=>\s*(true|false|enabled|disabled)\s*',
+            lines[0],
         )
-        _require(values in (['true'], ['disabled']), f'disabled identity drift: {label}')
+        _require(match is not None and match.group(1) in ('true', 'disabled'),
+                 f'disabled identity drift: {label}')
         reply = run('print', f'{domain}/{label}')
         _require(reply.returncode in (3, 113), f'loaded/UNKNOWN service: {label}: {reply.returncode}')
 
