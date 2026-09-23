@@ -2284,6 +2284,89 @@ def test_collect_ready_translation_runs_keeps_reject_deferred_without_blocking_a
     assert ledger["quarantined_runs"] == []
 
 
+
+def test_collect_ready_translation_runs_orders_fresh_runs_by_registered_at(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.test_agy_source_authority_contract import new_brief
+
+    source = new_brief()["articles"][0]["source"]
+    queue_root = tmp_path / "queue"
+    runs = [
+        ("translate-older", "en", "2026-09-23T17:20:21+08:00", "zz-older.json"),
+        ("translate-newer", "ko", "2026-09-23T17:40:21+08:00", "aa-newer.json"),
+    ]
+    for run_id, locale, registered_at, state_name in runs:
+        run_dir = tmp_path / "runs" / run_id
+        article = {
+            "article_id": f"AUTO-001:{locale}",
+            "locale": locale,
+            "source_article_id": "AUTO-001",
+        }
+        _write_json(
+            run_dir / "brief.json",
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "mode": "translate_existing",
+                "articles": [
+                    {
+                        "source_article_id": "AUTO-001",
+                        "source_sha256": "same",
+                        "source": source,
+                    }
+                ],
+            },
+        )
+        _write_json(
+            run_dir / "candidate.json",
+            {"run_id": run_id, "mode": "translate_existing", "articles": [article]},
+        )
+        _write_json(
+            run_dir / "review.json",
+            {
+                "run_id": run_id,
+                "articles": [
+                    {
+                        "article_id": article["article_id"],
+                        "verdict": "APPROVE",
+                        "hard_failure": False,
+                        "findings": [],
+                    }
+                ],
+            },
+        )
+        _write_json(
+            queue_root / "runs" / state_name,
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "run_dir": str(run_dir),
+                "registered_at": registered_at,
+                "status": "complete",
+                "result": {"candidate": str(run_dir / "candidate.json")},
+            },
+        )
+
+    monkeypatch.setattr(
+        publisher.multilingual, "validate_translation_candidate", lambda _brief, _candidate: None
+    )
+    monkeypatch.setattr(publisher.pipeline, "validate_review", lambda _review, _articles: None)
+    monkeypatch.setattr(
+        publisher.multilingual, "translation_findings", lambda _brief, _articles: []
+    )
+    monkeypatch.setattr(
+        publisher.multilingual, "load_source_article", lambda _repo, _article_id: source
+    )
+    monkeypatch.setattr(publisher.multilingual, "source_sha256", lambda _source: "same")
+
+    ready = publisher.collect_ready_translation_runs(
+        tmp_path, queue_root, tmp_path / "state", limit=1
+    )
+
+    assert [state["run_id"] for state, _, _, _ in ready] == ["translate-older"]
+
+
 def _sealed_publisher_fixture(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

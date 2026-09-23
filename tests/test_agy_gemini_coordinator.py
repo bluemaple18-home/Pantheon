@@ -2175,6 +2175,59 @@ def test_lane_mode_advances_one_run_per_content_lane(tmp_path: Path, monkeypatch
     }
 
 
+def test_lane_mode_surfaces_completed_translation_reviewer_rejects_as_action_required(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from test_agy_source_authority_contract import new_brief
+
+    queue_root = tmp_path / "queue"
+    source = new_brief("en")["articles"][0]["source"]
+    records = []
+    for source_run_id, locale in (("source-ja", "ja"), ("source-ko", "ko")):
+        record = coordinator.multilingual.enqueue_article_translations(
+            tmp_path,
+            queue_root,
+            source_run_id=source_run_id,
+            article_id=source["article_id"],
+            locales=[locale],
+            lane="i18n-new",
+            source_loader=lambda *_args: source,
+        )[0]
+        records.append(record)
+        state_path = coordinator._state_path(record["run_id"], queue_root)
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["status"] = "complete"
+        state["result"] = {
+            "status": "complete",
+            "run_id": record["run_id"],
+            "approved_by_reviewer": 0 if locale == "ja" else 1,
+        }
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    rejected_run_id = records[0]["run_id"]
+    monkeypatch.setattr(coordinator.publisher, "legacy_article_ids", lambda _repo: set())
+
+    summary = cycle_once(
+        queue_root,
+        tick=lambda *_args, **_kwargs: {"status": "unexpected"},
+        process=lambda _root, **_kwargs: {"status": "idle"},
+        repo_root=tmp_path,
+        lane_mode=True,
+    )
+
+    assert summary["active"] == 0
+    assert summary["action_required"] == {
+        "review_rejected": 1,
+        "review_rejected_run_ids": [rejected_run_id],
+        "by_lane": {"i18n-new": 1, "i18n-rewrite": 0},
+    }
+    rejected_state = json.loads(
+        coordinator._state_path(rejected_run_id, queue_root).read_text(encoding="utf-8")
+    )
+    assert rejected_state["status"] == "complete"
+
+
 def test_lane_mode_continues_oldest_registered_run_until_terminal(
     tmp_path: Path,
     monkeypatch,
@@ -14279,3 +14332,30 @@ raise SystemExit('unexpected command; native forwarding forbidden')
             time.sleep(.02)
         if fault == 'timeout' and (tmp_path / 'started').exists():
             assert (tmp_path / 'done').exists(), 'finally release 未清理 timeout payload'
+
+
+@pytest.mark.parametrize("selected", [None, frozenset({"selected"})])
+def test_translation_reject_summary_does_not_migrate_registry(
+    tmp_path: Path, selected: frozenset[str] | None, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from test_agy_multilingual_pipeline import translation_brief
+
+    queue = tmp_path / "queue"
+    (queue / "runs").mkdir(parents=True)
+    run = tmp_path / "old"
+    run.mkdir()
+    brief = translation_brief("ja")
+    brief["run_id"] = "unselected-old"
+    (run / "brief.json").write_text(json.dumps(brief), encoding="utf-8")
+    state = {"run_id": "unselected-old", "run_dir": str(run), "status": "complete",
+             "result": {"status": "complete", "approved_by_reviewer": 0}}
+    path = coordinator._state_path("unselected-old", queue)
+    path.write_text(json.dumps(state), encoding="utf-8")
+    before = path.read_bytes()
+    if selected is not None:
+        def unexpected_lane_check(*args, **kwargs):
+            raise AssertionError("未選run不得進lane判定")
+        monkeypatch.setattr(coordinator, "_lane_for_state_or_none", unexpected_lane_check)
+    result = coordinator._translation_review_reject_summary(queue, set(), selected)
+    assert result["review_rejected"] == (1 if selected is None else 0)
+    assert path.read_bytes() == before

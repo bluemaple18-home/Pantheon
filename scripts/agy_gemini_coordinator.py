@@ -3047,6 +3047,64 @@ def _failed_states(queue_root: Path) -> list[dict[str, Any]]:
     )
 
 
+def _translation_review_rejected_states(
+    queue_root: Path,
+    legacy_article_ids: set[str],
+    selected_run_ids: frozenset[str] | None = None,
+) -> list[dict[str, Any]]:
+    states: list[dict[str, Any]] = []
+    runs_root = queue_root / "runs"
+    for path in sorted(runs_root.glob("*.json")) if runs_root.exists() else []:
+        state = json.loads(path.read_text(encoding="utf-8"))
+        if selected_run_ids is not None and str(state.get("run_id") or "") not in selected_run_ids:
+            continue
+        result = state.get("result")
+        if (
+            state.get("status") != "complete"
+            or not isinstance(result, dict)
+            or result.get("status") != "complete"
+            or result.get("approved_by_reviewer") != 0
+        ):
+            continue
+        lane = _lane_for_state_or_none(state, legacy_article_ids)
+        if lane in {"i18n-new", "i18n-rewrite"}:
+            states.append(state)
+    return sorted(
+        states,
+        key=lambda state: (
+            str(state.get("updated_at") or ""),
+            str(state.get("registered_at") or ""),
+            str(state.get("run_id") or ""),
+        ),
+    )
+
+
+def _translation_review_reject_summary(
+    queue_root: Path,
+    legacy_article_ids: set[str],
+    selected_run_ids: frozenset[str] | None = None,
+) -> dict[str, Any]:
+    states = _translation_review_rejected_states(queue_root, legacy_article_ids, selected_run_ids)
+    if selected_run_ids is not None:
+        states = [
+            state
+            for state in states
+            if str(state.get("run_id") or "") in selected_run_ids
+        ]
+    by_lane = {"i18n-new": 0, "i18n-rewrite": 0}
+    run_ids: list[str] = []
+    for state in states:
+        lane = _lane_for_state_or_none(state, legacy_article_ids)
+        if lane in by_lane:
+            by_lane[lane] += 1
+        run_ids.append(str(state["run_id"]))
+    return {
+        "review_rejected": len(run_ids),
+        "review_rejected_run_ids": run_ids,
+        "by_lane": by_lane,
+    }
+
+
 def _lane_queue_root(queue_root: Path, lane: str) -> Path:
     if lane not in CONTENT_LANES:
         raise ValueError(f"unknown content lane: {lane}")
@@ -6453,6 +6511,13 @@ def cycle_once(
                 legacy_article_ids,
             )
             summary["lanes"] = lane_inventory
+            review_rejected = _translation_review_reject_summary(
+                root,
+                legacy_article_ids,
+                selected_run_ids,
+            )
+            if review_rejected["review_rejected"]:
+                summary["action_required"] = review_rejected
             if translation_replacements and (
                 translation_replacements.get("created", 0)
                 or translation_replacements.get("skipped")

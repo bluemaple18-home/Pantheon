@@ -3402,12 +3402,18 @@ def _run_files(queue_root: Path) -> list[Path]:
 def _fresh_first_run_files(queue_root: Path, state_root: Path, phase: str) -> list[Path]:
     """未失敗候選優先；已有 retry 記錄者排到 fresh queue 之後。"""
 
-    def priority(path: Path) -> tuple[bool, str]:
+    def priority(path: Path) -> tuple[bool, str, str]:
         try:
-            run_id = str(_read_json(path).get("run_id") or "")
+            state = _read_json(path)
+            run_id = str(state.get("run_id") or "")
+            registered_at = str(state.get("registered_at") or "")
         except (OSError, json.JSONDecodeError):
             run_id = ""
-        return (bool(run_id and _retry_path(state_root, phase, run_id).is_file()), path.name)
+            registered_at = ""
+        has_retry = bool(run_id and _retry_path(state_root, phase, run_id).is_file())
+        if phase == "translation":
+            return (has_retry, registered_at, path.name)
+        return (has_retry, path.name, "")
 
     return sorted(_run_files(queue_root), key=priority)
 
