@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from scripts import agy_multilingual_pipeline as multilingual
+from scripts import pantheon_content_runtime_manifest as formal_runtime
 from scripts.agy_gemini_outbox import ExternalJobPending, OutboxGeminiClient
 from scripts.agy_seo_copy_pipeline import article_sha256, build_approval
 
@@ -739,10 +740,15 @@ def test_replacement_approved_stage_cli_loads_exact_descriptor_for_plan_and_exec
     descriptor_path.write_text(json.dumps(fixture["public_replacement"]), encoding="utf-8")
     command = replacement_stage_cli_command(fixture, descriptor_path)
     cwd = Path(multilingual.__file__).parent.parent
-    plan = json.loads(subprocess.run(command, cwd=cwd, check=True, text=True, capture_output=True).stdout)
+    plan = json.loads(subprocess.run(
+        command, cwd=cwd, check=True, text=True, capture_output=True,
+        **formal_runtime.runtime_work_child_transport(),
+    ).stdout)
+    assert plan["status"] == "READY_TO_EXECUTE"
     executed = json.loads(subprocess.run(
         [*command, "--execute", "--expected-plan-digest", plan["plan_digest"]],
         cwd=cwd, check=True, text=True, capture_output=True,
+        **formal_runtime.runtime_work_child_transport(),
     ).stdout)
 
     assert executed["status"] == "STAGED"
@@ -762,9 +768,11 @@ def test_replacement_approved_stage_cli_rejects_descriptor_drift_before_writes(t
     before = {path.relative_to(fixture["run_dir"]): path.read_bytes() for path in fixture["run_dir"].rglob("*") if path.is_file()}
 
     result = subprocess.run(replacement_stage_cli_command(fixture, None if mutation == "missing" else descriptor_path),
-                            cwd=Path(multilingual.__file__).parent.parent, text=True, capture_output=True)
+                            cwd=Path(multilingual.__file__).parent.parent, text=True, capture_output=True,
+                            **formal_runtime.runtime_work_child_transport())
 
     assert result.returncode != 0
+    assert "runtime work lease descriptor is unavailable" not in result.stderr
     assert {path.relative_to(fixture["run_dir"]): path.read_bytes() for path in fixture["run_dir"].rglob("*") if path.is_file()} == before
 
 
