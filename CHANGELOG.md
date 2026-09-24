@@ -2,6 +2,14 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.660] - 2026-09-24
+
+- Release tag：`v0.3.660`
+- 公開文章總數：729（新增多語版本，不新增繁中 registry 條目）
+- 發布範圍：發布通過母語品質、Reviewer 與 deterministic gate 的多語文章 1 個 run；語系：en；run_id：auto-i18n-en-3d4d5533cbe145c0987e。
+- 驗證：publisher clean-origin gate、來源漂移 gate、多語 deterministic gate、focused multilingual pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/translation-0.3.660`
+
 ## [0.3.659] - 2026-09-24
 
 - Release tag：`v0.3.659`
