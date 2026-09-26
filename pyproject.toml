@@ -1,6 +1,6 @@
 [project]
 name = "mystic-engine"
-version = "0.3.683"
+version = "0.3.684"
 description = "Pure Python FastAPI backend for modular divination calculators and AI interpretation."
 readme = "README.md"
 requires-python = ">=3.11"
