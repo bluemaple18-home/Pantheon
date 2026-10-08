@@ -534,6 +534,96 @@ def test_all_formal_installers_and_plists_consume_shared_manifest_identity() -> 
         assert "PANTHEON_RUNTIME_IDENTITY" in body
 
 
+def test_coordinator_installer_routes_mutations_through_shutdown_lease() -> None:
+    script = (
+        Path(__file__).resolve().parents[1]
+        / "scripts/install_agy_gemini_coordinator_launchd.sh"
+    )
+    body = script.read_text(encoding="utf-8")
+
+    assert "shutdown-lease-exec" in body
+    assert "shutdown-lease-assert" in body
+    assert "PANTHEON_RUNTIME_INSTALLER_SHUTDOWN_LEASE_HELD" in body
+    assert body.index("shutdown-lease-exec") < body.index("launchctl bootout")
+
+
+def test_shutdown_lease_exec_blocks_while_shared_runtime_work_is_active(
+    tmp_path: Path,
+) -> None:
+    state = tmp_path / "state"
+    state.mkdir()
+    marker = tmp_path / "must-not-exec"
+
+    with runtime.runtime_work_lease(state):
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "scripts.pantheon_content_runtime_manifest",
+                "shutdown-lease-exec",
+                "--state-root",
+                str(state),
+                "--timeout",
+                "0",
+                "--",
+                sys.executable,
+                "-c",
+                f"from pathlib import Path; Path({str(marker)!r}).write_text('bad')",
+            ],
+            check=False,
+        )
+
+    assert completed.returncode == 75
+    assert not marker.exists()
+
+
+def test_shutdown_lease_assert_rejects_matching_unlocked_descriptor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = tmp_path / "state"
+    state.mkdir()
+    lock_path = state / "runtime-work.lock"
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        monkeypatch.setenv("PANTHEON_RUNTIME_SHUTDOWN_LEASE_FD", str(fd))
+        with pytest.raises(runtime.RuntimeManifestError, match="not exclusive"):
+            runtime.assert_runtime_shutdown_lease(state)
+    finally:
+        os.close(fd)
+
+
+@pytest.mark.parametrize(
+    "unsafe_status",
+    ["STOPPING", "STOP_FAILED", "OPERATOR_REQUIRED", "ROLLBACK_IN_PROGRESS"],
+)
+def test_capacity_stop_intent_blocks_new_formal_work_lease(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    unsafe_status: str,
+) -> None:
+    queue = tmp_path / "queue"
+    state = tmp_path / "state"
+    queue.mkdir()
+    state.mkdir()
+    receipt = queue / "capacity-guard-state.json"
+    receipt.write_text(json.dumps({"status": unsafe_status}) + "\n", encoding="utf-8")
+    receipt.chmod(0o600)
+    monkeypatch.setenv("PANTHEON_FORMAL_RUNTIME", "1")
+    monkeypatch.setenv("PANTHEON_RUNTIME_QUEUE_ROOT", str(queue))
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_SERVICE_LABEL", "com.pantheon.agy-content-publisher"
+    )
+    with pytest.raises(runtime.RuntimeWorkBusy, match="capacity stop is unresolved"):
+        with runtime.runtime_work_lease(state):
+            pytest.fail("不得開始新的正式工作")
+    monkeypatch.setenv(
+        "PANTHEON_RUNTIME_SERVICE_LABEL", "com.pantheon.content-capacity-guard"
+    )
+    with runtime.runtime_work_lease(state):
+        pass
+
+
 def test_aggregate_gate_rejects_mixed_manifest_plists(tmp_path: Path) -> None:
     """REG-PANTHEON-CROSS-ACTOR-PATH-IDENTITY-001 Repair-2。"""
     actor = tmp_path / "actor"

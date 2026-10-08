@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import fcntl
 import plistlib
+from contextlib import contextmanager
 from pathlib import Path
 import pwd
 import shutil
@@ -14,6 +17,8 @@ import pytest
 
 from scripts import pantheon_content_capacity_guard as guard
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
+
+_CANONICAL_PROCESS_BOUNDARY = guard.runtime_activation.run_process_boundary
 
 
 ANONYMIZED_INERT_LAUNCHCTL_FIXTURE = """<target> = {
@@ -66,6 +71,29 @@ def test_publisher_reset_snapshot_uses_top_level_launchctl_identity(tmp_path: Pa
 
 def _completed(returncode: int = 0, stdout: str = "") -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess([], returncode, stdout, "")
+
+
+def _launchctl_loaded_identity(
+    target: str,
+    plist_path: Path,
+    *,
+    state: str = "waiting",
+    runs: int = 1,
+    exit_code: int | None = 0,
+    pid: int | None = None,
+) -> str:
+    rows = [
+        f"{target} = {{",
+        f"\tpath = {plist_path}",
+        f"\tstate = {state}",
+        f"\truns = {runs}",
+    ]
+    if exit_code is not None:
+        rows.append(f"\tlast exit code = {exit_code}")
+    if pid is not None:
+        rows.append(f"\tpid = {pid}")
+    rows.append("}")
+    return "\n".join(rows) + "\n"
 
 
 def _available_snapshot(bytes_used: int = 100 * guard.MIB) -> dict[str, object]:
@@ -122,6 +150,152 @@ def _passing_preflight_receipt(capacity_path: str = "/") -> dict[str, object]:
     }
 
 
+def _seed_pending_capacity_recovery(
+    tmp_path: Path,
+    *,
+    owned_labels: tuple[str, ...],
+) -> tuple[list[Path], Path, dict[str, Path], dict[str, object]]:
+    roots = [tmp_path / name for name in ("queue", "publisher", "logs")]
+    for root in roots:
+        root.mkdir()
+    launch_agents = tmp_path / "LaunchAgents"
+    launch_agents.mkdir()
+    plists = {
+        label: launch_agents / f"{label}.plist" for label in guard.SERVICE_LABELS
+    }
+    for path in plists.values():
+        path.write_text("synthetic\n", encoding="utf-8")
+        path.chmod(0o600)
+    manifest_file = tmp_path / "runtime-manifest.json"
+    manifest_file.write_text("{}\n", encoding="utf-8")
+    manifest_file.chmod(0o600)
+    barrier = tmp_path / "activation.barrier"
+    barrier.write_text("synthetic barrier\n", encoding="utf-8")
+    barrier.chmod(0o600)
+    context: dict[str, object] = {
+        "authorized": True,
+        "blocker": None,
+        "manifest_digest": "a" * 64,
+        "runtime_identity_digest": "b" * 64,
+        "generation": "capacity-resume-test",
+        "barrier_path": str(barrier),
+        "manifest_file": guard._file_identity(manifest_file),
+        "barrier": guard._file_identity(barrier),
+        "owned_roots": {
+            "actor_root": str(tmp_path),
+            "queue_root": str(roots[0]),
+            "publisher_state_root": str(roots[1]),
+            "log_root": str(roots[2]),
+        },
+        "restart_projected_bytes": guard.RECOVERY_PROJECTED_RESTART_BYTES,
+        "plists": {
+            label: guard._file_identity(path)
+            for label, path in plists.items()
+        },
+    }
+    incident = {
+        "schema_version": 2,
+        "incident_id": "capacity-seeded-test",
+        "status": "RECOVERY_PENDING",
+        "started_epoch": 1000,
+        "updated_epoch": 1900,
+        "trigger_reasons": ["admission_available_below_stop_floor"],
+        "automatic_recovery_authorized": True,
+        "authorization_blocker": None,
+        "manifest_digest": context["manifest_digest"],
+        "runtime_identity_digest": context["runtime_identity_digest"],
+        "generation": context["generation"],
+        "barrier_path": context["barrier_path"],
+        "manifest_file": context["manifest_file"],
+        "barrier": context["barrier"],
+        "owned_roots": context["owned_roots"],
+        "restart_projected_bytes": context["restart_projected_bytes"],
+        "plists": context["plists"],
+        "pre_stop_services": {},
+        "disabled_labels_before_stop": [],
+        "stop_targets": list(owned_labels),
+        "owned_labels": list(owned_labels),
+        "stopped_by_guard": list(owned_labels),
+        "stopped_services": list(owned_labels),
+        "stop_verification": {
+            label: {"absent": True} for label in owned_labels
+        },
+        "healthy_samples": 3,
+        "last_healthy_epoch": 1900,
+        "attempts_started": 0,
+        "max_attempts": guard.MAX_AUTOMATIC_RECOVERY_ATTEMPTS,
+        "attempted_labels": [],
+        "started_labels": [],
+        "rollback": None,
+        "restart_measurement": None,
+    }
+    state = roots[0] / "state.json"
+    state.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "status": "RECOVERY_PENDING",
+                "sampled_epoch": 1900,
+                "growth_bytes_per_hour": 0,
+                "high_growth_streak": 0,
+                "growth_streak": 0,
+                "memory_streak": 0,
+                "reasons": [],
+                "telemetry_gaps": [],
+                "recovery_incident": incident,
+                **_available_snapshot(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    state.chmod(0o600)
+    return roots, state, plists, context
+
+
+def _make_recovery_context(
+    tmp_path: Path,
+    roots: list[Path],
+    *,
+    generation: str,
+) -> tuple[dict[str, Path], dict[str, object]]:
+    launch_agents = tmp_path / f"LaunchAgents-{generation}"
+    launch_agents.mkdir()
+    plists = {
+        label: launch_agents / f"{label}.plist" for label in guard.SERVICE_LABELS
+    }
+    for path in plists.values():
+        path.write_text("synthetic\n", encoding="utf-8")
+        path.chmod(0o600)
+    manifest_file = tmp_path / f"runtime-manifest-{generation}.json"
+    manifest_file.write_text("{}\n", encoding="utf-8")
+    manifest_file.chmod(0o600)
+    barrier = tmp_path / f"activation-{generation}.barrier"
+    barrier.write_text("synthetic barrier\n", encoding="utf-8")
+    barrier.chmod(0o600)
+    context: dict[str, object] = {
+        "authorized": True,
+        "blocker": None,
+        "manifest_digest": "a" * 64,
+        "runtime_identity_digest": "b" * 64,
+        "generation": generation,
+        "barrier_path": str(barrier),
+        "manifest_file": guard._file_identity(manifest_file),
+        "barrier": guard._file_identity(barrier),
+        "owned_roots": {
+            "actor_root": str(tmp_path),
+            "queue_root": str(roots[0]),
+            "publisher_state_root": str(roots[1]),
+            "log_root": str(roots[2]),
+        },
+        "restart_projected_bytes": guard.RECOVERY_PROJECTED_RESTART_BYTES,
+        "plists": {
+            label: guard._file_identity(path)
+            for label, path in plists.items()
+        },
+    }
+    return plists, context
+
+
 @pytest.fixture(autouse=True)
 def _stable_canonical_capacity_sensor(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
@@ -132,6 +306,34 @@ def _stable_canonical_capacity_sensor(monkeypatch: pytest.MonkeyPatch) -> None:
             "capacity_source": "macos_foundation_important_usage",
         },
     )
+
+
+@pytest.fixture(autouse=True)
+def _quiescent_canonical_process_boundary(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Guard 測試只驗 policy/orchestration；程序樹故障矩陣由 activation 測試負責。"""
+
+    def boundary(**kwargs: object) -> dict[str, object]:
+        mode = kwargs.get("mode")
+        journal = str(kwargs.get("journal_path"))
+        # Policy fixture 也須交付正式持久 journal；不能讓跨 action 測試依賴不存在的檔案。
+        path = Path(journal)
+        record = guard.runtime_activation._load_boundary_record(path)
+        record.update(active=[], resample_required=False, status="DRAINED" if mode == "drain" else "OBSERVED")
+        record["seen_labels"] = list(dict.fromkeys([*record["seen_labels"], *kwargs.get("arguments", [])]))
+        guard.runtime_activation._write_private_json(path, record)
+        if mode == "drain":
+            return {"status": "DRAINED", "active": [], "journal": journal}
+        if mode == "observe":
+            return {
+                "status": "OBSERVED",
+                "active": [],
+                "resample_required": False,
+                "seen_labels": list(kwargs.get("arguments", [])),
+                "journal": journal,
+            }
+        raise AssertionError(f"unexpected process-boundary mode: {mode}")
+
+    monkeypatch.setattr(guard.runtime_activation, "run_process_boundary", boundary)
 
 
 def _force_safe_child_disk_capacity(env: dict[str, str], tmp_path: Path) -> None:
@@ -462,6 +664,13 @@ def test_check_over_budget_stops_only_registered_services(tmp_path: Path, monkey
     logs = tmp_path / "logs"
     for root in (queue, publisher, logs):
         root.mkdir()
+    roots = [queue, publisher, logs]
+    plists, context = _make_recovery_context(
+        tmp_path,
+        roots,
+        generation="over-budget-stop",
+    )
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
     state = queue / "capacity-state.json"
     monkeypatch.setattr(
         guard,
@@ -469,10 +678,21 @@ def test_check_over_budget_stops_only_registered_services(tmp_path: Path, monkey
         lambda *_roots: {**_available_snapshot(guard.MAX_BYTES + 1), "file_count": 1},
     )
     commands: list[list[str]] = []
+    loaded = set(guard.SERVICE_LABELS)
 
     def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
         commands.append(command)
-        return _completed(113 if command[1] == "print" else 0)
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        label = command[-1].split("/")[-1]
+        if action == "bootout":
+            loaded.discard(label)
+            return _completed()
+        assert action == "print", command
+        if label not in loaded:
+            return _completed(113)
+        return _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
 
     result = guard.check_once(queue, publisher, logs, state, now=1000, stop_runner=runner)
 
@@ -482,6 +702,65 @@ def test_check_over_budget_stops_only_registered_services(tmp_path: Path, monkey
         command[-1].split("/")[-1] for command in commands if command[1] == "bootout"
     ] == list(guard.SERVICE_LABELS)
     assert json.loads(state.read_text())["status"] == "STOPPED"
+
+
+def test_plist_replacement_between_bootouts_blocks_second_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue = tmp_path / "queue"
+    publisher = tmp_path / "publisher"
+    logs = tmp_path / "logs"
+    for root in (queue, publisher, logs):
+        root.mkdir()
+    roots = [queue, publisher, logs]
+    plists, context = _make_recovery_context(
+        tmp_path,
+        roots,
+        generation="bootout-authority-drift",
+    )
+    labels = guard.SERVICE_LABELS[:2]
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    monkeypatch.setattr(
+        guard,
+        "_snapshot",
+        lambda *_roots: {**_available_snapshot(guard.MAX_BYTES + 1), "file_count": 1},
+    )
+    loaded = set(labels)
+    bootouts: list[str] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        label = command[-1].split("/")[-1]
+        if action == "bootout":
+            bootouts.append(label)
+            loaded.discard(label)
+            if label == labels[0]:
+                replacement = plists[labels[1]].with_suffix(".replacement")
+                replacement.write_text("replaced bytes\n", encoding="utf-8")
+                replacement.chmod(0o600)
+                os.replace(replacement, plists[labels[1]])
+            return _completed()
+        assert action == "print", command
+        if label not in loaded:
+            return _completed(113)
+        return _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
+
+    result = guard.check_once(
+        queue,
+        publisher,
+        logs,
+        queue / "capacity-state.json",
+        now=1000,
+        stop_runner=runner,
+    )
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert bootouts == [labels[0]]
+    assert labels[1] in loaded
+    assert result["recovery_incident"]["status"] != "STOPPED"
 
 
 def test_check_within_budget_records_pass_without_bootout(tmp_path: Path, monkeypatch) -> None:
@@ -501,6 +780,2001 @@ def test_check_within_budget_records_pass_without_bootout(tmp_path: Path, monkey
 
     assert result["status"] == "PASS"
     assert result["growth_bytes_per_hour"] == 0
+
+
+def test_capacity_guard_persists_owned_stop_before_mutation_and_recovers_after_four_samples(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots = [tmp_path / name for name in ("queue", "publisher", "logs")]
+    for root in roots:
+        root.mkdir()
+    state = roots[0] / "state.json"
+    launch_agents = tmp_path / "LaunchAgents"
+    launch_agents.mkdir()
+    plists = {
+        label: launch_agents / f"{label}.plist" for label in guard.SERVICE_LABELS
+    }
+    for path in plists.values():
+        path.write_text("synthetic\n", encoding="utf-8")
+        path.chmod(0o600)
+    runtime_receipt = {
+        "status": "PASS",
+        "manifest_digest": "a" * 64,
+        "runtime_identity_digest": "b" * 64,
+        "generation": "capacity-resume-test",
+        "config_version": "formal-runtime-v3-model-route-v1",
+    }
+    manifest_file = tmp_path / "runtime-manifest.json"
+    manifest_file.write_text("{}\n", encoding="utf-8")
+    manifest_file.chmod(0o600)
+    barrier = tmp_path / "activation.barrier"
+    barrier.write_text("synthetic barrier\n", encoding="utf-8")
+    barrier.chmod(0o600)
+    recovery_context = {
+        "authorized": True,
+        "blocker": None,
+        "manifest_digest": runtime_receipt["manifest_digest"],
+        "runtime_identity_digest": runtime_receipt["runtime_identity_digest"],
+        "generation": runtime_receipt["generation"],
+        "barrier_path": str(barrier),
+        "manifest_file": guard._file_identity(manifest_file),
+        "barrier": guard._file_identity(barrier),
+        "owned_roots": {
+            "actor_root": str(tmp_path),
+            "queue_root": str(roots[0]),
+            "publisher_state_root": str(roots[1]),
+            "log_root": str(roots[2]),
+        },
+        "restart_projected_bytes": guard.RECOVERY_PROJECTED_RESTART_BYTES,
+        "plists": {
+            label: guard._file_identity(path)
+            for label, path in plists.items()
+        },
+    }
+    sample = _available_snapshot()
+    sample["disk_free_bytes"] = 19 * guard.GIB
+    sample["admission_available_bytes"] = 19 * guard.GIB
+    loaded = set(guard.SERVICE_LABELS)
+    runs_by_label = {label: 1 for label in guard.SERVICE_LABELS}
+    commands: list[list[str]] = []
+    state_seen_before_first_bootout: list[dict[str, object]] = []
+    state_seen_before_first_bootstrap: list[dict[str, object]] = []
+
+    monkeypatch.setattr(
+        guard.formal_runtime,
+        "validate_runtime_tick",
+        lambda *_args, **_kwargs: dict(runtime_receipt),
+    )
+    monkeypatch.setattr(
+        guard,
+        "_normal_scheduled_service_labels",
+        lambda _receipt: frozenset(guard.SERVICE_LABELS),
+    )
+    monkeypatch.setattr(
+        guard,
+        "_activation_only_service_labels",
+        lambda _receipt: frozenset(),
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: dict(sample))
+    monkeypatch.setattr(
+        guard,
+        "_recovery_context",
+        lambda _receipt: dict(recovery_context),
+        raising=False,
+    )
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        if command[1] == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if command[1] == "bootout":
+            if not state_seen_before_first_bootout:
+                state_seen_before_first_bootout.append(json.loads(state.read_text()))
+            loaded.discard(command[-1].rsplit("/", 1)[-1])
+            return _completed()
+        if command[1] == "bootstrap":
+            if not state_seen_before_first_bootstrap:
+                state_seen_before_first_bootstrap.append(json.loads(state.read_text()))
+            label = Path(command[-1]).stem
+            loaded.add(label)
+            runs_by_label[label] = 1
+            return _completed()
+        assert command[1] == "print", command
+        label = command[-1].rsplit("/", 1)[-1]
+        if label not in loaded:
+            return _completed(113)
+        return _completed(
+            0,
+            _launchctl_loaded_identity(
+                command[-1],
+                plists[label],
+                runs=runs_by_label[label],
+            ),
+        )
+
+    stopped = guard.check_once(*roots, state, now=1000, stop_runner=runner)
+
+    assert stopped["status"] == "STOPPED"
+    assert stopped["recovery_incident"]["status"] == "STOPPED"
+    assert stopped["recovery_incident"]["owned_labels"] == list(guard.SERVICE_LABELS)
+    assert state_seen_before_first_bootout[0]["status"] == "STOPPING"
+    assert state_seen_before_first_bootout[0]["recovery_incident"]["status"] == "STOPPING"
+
+    sample["disk_free_bytes"] = 100 * guard.GIB
+    sample["admission_available_bytes"] = 100 * guard.GIB
+    for index in range(1, 4):
+        pending = guard.check_once(
+            *roots,
+            state,
+            now=1000 + index * 300,
+            stop_runner=runner,
+        )
+        assert pending["status"] == "RECOVERY_PENDING"
+        assert pending["recovery_incident"]["healthy_samples"] == index
+        assert loaded == set()
+
+    started = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+
+    assert started["status"] == "RECOVERY_VERIFYING"
+    assert started["recovery_incident"]["status"] == "RECOVERY_VERIFYING"
+    assert started["recovery_incident"]["attempts_started"] == 1
+    assert loaded == set(guard.SERVICE_LABELS)
+    runs_by_label.update({label: 2 for label in guard.SERVICE_LABELS})
+    recovered = guard.check_once(*roots, state, now=2500, stop_runner=runner)
+
+    assert recovered["status"] == "PASS"
+    assert recovered["recovery_incident"]["status"] == "RECOVERED"
+    assert state_seen_before_first_bootstrap[0]["status"] == "RECOVERY_IN_PROGRESS"
+    assert (
+        state_seen_before_first_bootstrap[0]["recovery_incident"]["attempts_started"]
+        == 1
+    )
+    assert [command[1] for command in commands].count("bootstrap") == len(
+        guard.SERVICE_LABELS
+    )
+    measurement = recovered["recovery_incident"]["restart_measurement"]
+    assert {
+        key: measurement[key]
+        for key in (
+            "pre_admission_available_bytes",
+            "post_admission_available_bytes",
+            "admission_drop_bytes",
+            "project_growth_bytes",
+            "measured_restart_bytes",
+            "projected_restart_bytes",
+            "pre_rss_bytes",
+            "post_rss_bytes",
+            "rss_growth_bytes",
+            "pre_swap_used_bytes",
+            "post_swap_used_bytes",
+            "swap_growth_bytes",
+            "stop_floor_bytes",
+        )
+    } == {
+        "pre_admission_available_bytes": 100 * guard.GIB,
+        "post_admission_available_bytes": 100 * guard.GIB,
+        "admission_drop_bytes": 0,
+        "project_growth_bytes": 0,
+        "measured_restart_bytes": 0,
+        "projected_restart_bytes": guard.RECOVERY_PROJECTED_RESTART_BYTES,
+        "pre_rss_bytes": 0,
+        "post_rss_bytes": 0,
+        "rss_growth_bytes": 0,
+        "pre_swap_used_bytes": 0,
+        "post_swap_used_bytes": 0,
+        "swap_growth_bytes": 0,
+        "stop_floor_bytes": 20 * guard.GIB,
+    }
+    assert measurement["sample_count"] == guard.RECOVERY_POST_RESUME_HEALTHY_SAMPLES
+    assert measurement["rss_growth_limit_bytes"] == guard.RECOVERY_RSS_GROWTH_LIMIT_BYTES
+    assert measurement["swap_growth_limit_bytes"] == guard.RECOVERY_SWAP_GROWTH_LIMIT_BYTES
+    assert len(measurement["samples"]) == guard.RECOVERY_POST_RESUME_HEALTHY_SAMPLES
+    bootstrap_count = [command[1] for command in commands].count("bootstrap")
+    retained = guard.check_once(*roots, state, now=2800, stop_runner=runner)
+    assert retained["status"] == "PASS"
+    assert retained["recovery_incident"]["status"] == "RECOVERED"
+    assert [command[1] for command in commands].count("bootstrap") == bootstrap_count
+
+
+def test_capacity_recovery_respects_manual_disable_before_bootstrap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, _plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(label,),
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    commands: list[list[str]] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        assert command[1] == "print-disabled"
+        return _completed(
+            0,
+            f'disabled services = {{\n\t"{label}" => true\n}}\n',
+        )
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert (
+        result["recovery_incident"]["authorization_blocker"]
+        == "owned_service_manually_disabled"
+    )
+    assert result["recovery_incident"]["disabled_labels_at_recovery"] == [label]
+    assert all(command[1] != "bootstrap" for command in commands)
+
+
+def test_capacity_stop_owns_only_loaded_services_not_already_disabled_or_absent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots = [tmp_path / name for name in ("queue", "publisher", "logs")]
+    for root in roots:
+        root.mkdir()
+    state = roots[0] / "state.json"
+    launch_agents = tmp_path / "LaunchAgents"
+    launch_agents.mkdir()
+    plists = {
+        label: launch_agents / f"{label}.plist" for label in guard.SERVICE_LABELS
+    }
+    for path in plists.values():
+        path.write_text("synthetic\n", encoding="utf-8")
+        path.chmod(0o600)
+    manifest_file = tmp_path / "runtime-manifest.json"
+    manifest_file.write_text("{}\n", encoding="utf-8")
+    manifest_file.chmod(0o600)
+    barrier = tmp_path / "activation.barrier"
+    barrier.write_text("synthetic barrier\n", encoding="utf-8")
+    barrier.chmod(0o600)
+    disabled_label = guard.SERVICE_LABELS[0]
+    absent_label = guard.SERVICE_LABELS[1]
+    loaded = set(guard.SERVICE_LABELS) - {absent_label}
+    context = {
+        "authorized": True,
+        "blocker": None,
+        "manifest_digest": "a" * 64,
+        "runtime_identity_digest": "b" * 64,
+        "generation": "capacity-stop-ownership-test",
+        "barrier_path": str(barrier),
+        "manifest_file": guard._file_identity(manifest_file),
+        "barrier": guard._file_identity(barrier),
+        "owned_roots": {
+            "actor_root": str(tmp_path),
+            "queue_root": str(roots[0]),
+            "publisher_state_root": str(roots[1]),
+            "log_root": str(roots[2]),
+        },
+        "restart_projected_bytes": guard.RECOVERY_PROJECTED_RESTART_BYTES,
+        "plists": {
+            label: guard._file_identity(path)
+            for label, path in plists.items()
+        },
+    }
+    sample = _available_snapshot()
+    sample["disk_free_bytes"] = 19 * guard.GIB
+    sample["admission_available_bytes"] = 19 * guard.GIB
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: dict(sample))
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    commands: list[list[str]] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(
+                0,
+                f'disabled services = {{\n\t"{disabled_label}" => true\n}}\n',
+            )
+        if action == "bootout":
+            loaded.discard(command[-1].rsplit("/", 1)[-1])
+            return _completed()
+        assert action == "print", command
+        label = command[-1].rsplit("/", 1)[-1]
+        if label not in loaded:
+            return _completed(113)
+        return _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
+
+    result = guard.check_once(*roots, state, now=1000, stop_runner=runner)
+
+    incident = result["recovery_incident"]
+    assert result["status"] == "STOPPED"
+    assert set(incident["pre_stop_loaded_labels"]) == set(guard.SERVICE_LABELS) - {
+        absent_label
+    }
+    assert set(incident["owned_labels"]) == set(guard.SERVICE_LABELS) - {
+        disabled_label,
+        absent_label,
+    }
+    assert incident["disabled_labels_before_stop"] == [disabled_label]
+    assert incident["pre_stop_services"][absent_label]["topology"] == "ABSENT"
+    assert [
+        command[-1].rsplit("/", 1)[-1]
+        for command in commands
+        if command[1] == "bootout"
+    ] == [
+        label
+        for label in guard.SERVICE_LABELS
+        if label not in {disabled_label, absent_label}
+    ]
+
+
+def test_malformed_capacity_state_is_preserved_and_blocks_all_launchctl_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots = [tmp_path / name for name in ("queue", "publisher", "logs")]
+    for root in roots:
+        root.mkdir()
+    state = roots[0] / "state.json"
+    original = b'{"status":"RECOVERY_PENDING"'
+    state.write_bytes(original)
+    state.chmod(0o600)
+    monkeypatch.setattr(
+        guard,
+        "_snapshot",
+        lambda *_args, **_kwargs: _available_snapshot(guard.MAX_BYTES + 1),
+    )
+    calls: list[list[str]] = []
+
+    def forbidden(command: list[str]) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        raise AssertionError("malformed state 不得觸發 launchctl")
+
+    result = guard.check_once(*roots, state, now=1000, stop_runner=forbidden)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    incident = result["recovery_incident"]
+    assert incident["authorization_blocker"].startswith("capacity_state_malformed:")
+    evidence = Path(incident["invalid_state_evidence"])
+    assert evidence.read_bytes() == original
+    assert json.loads(state.read_text())["status"] == "OPERATOR_REQUIRED"
+    assert calls == []
+
+
+@pytest.mark.parametrize("sampled_epoch", ["broken", 5000])
+def test_invalid_capacity_state_sampled_epoch_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    sampled_epoch: object,
+) -> None:
+    roots, state, _plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(guard.SERVICE_LABELS[0],),
+    )
+    payload = json.loads(state.read_text())
+    payload["sampled_epoch"] = sampled_epoch
+    state.write_text(json.dumps(payload), encoding="utf-8")
+    state.chmod(0o600)
+    original = state.read_bytes()
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    calls: list[list[str]] = []
+
+    def forbidden(command: list[str]) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        raise AssertionError("invalid sampled_epoch 不得觸發 launchctl mutation")
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=forbidden)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    incident = result["recovery_incident"]
+    assert incident["authorization_blocker"] == "capacity_state_sampled_epoch_invalid"
+    evidence = Path(incident["invalid_state_evidence"])
+    assert evidence.read_bytes() == original
+    assert calls == []
+
+
+def test_capacity_state_status_mismatch_fails_closed_before_unhealthy_stop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots, state, _plists, _context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(guard.SERVICE_LABELS[0],),
+    )
+    payload = json.loads(state.read_text())
+    payload["status"] = "PASS"
+    state.write_text(json.dumps(payload), encoding="utf-8")
+    state.chmod(0o600)
+    monkeypatch.setattr(
+        guard,
+        "_snapshot",
+        lambda *_args, **_kwargs: _available_snapshot(guard.MAX_BYTES + 1),
+    )
+
+    def forbidden(_command: list[str]) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("status mismatch 不得觸發 launchctl")
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=forbidden)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert (
+        result["recovery_incident"]["authorization_blocker"]
+        == "capacity_state_status_mismatch"
+    )
+
+
+def test_operator_required_remains_terminal_even_when_capacity_is_unhealthy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots, state, _plists, _context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(guard.SERVICE_LABELS[0],),
+    )
+    payload = json.loads(state.read_text())
+    payload["status"] = "OPERATOR_REQUIRED"
+    payload["recovery_incident"]["status"] = "OPERATOR_REQUIRED"
+    payload["recovery_incident"]["automatic_recovery_authorized"] = False
+    payload["recovery_incident"]["authorization_blocker"] = "manual_handoff"
+    state.write_text(json.dumps(payload), encoding="utf-8")
+    state.chmod(0o600)
+    monkeypatch.setattr(
+        guard,
+        "_snapshot",
+        lambda *_args, **_kwargs: _available_snapshot(guard.MAX_BYTES + 1),
+    )
+
+    def forbidden(_command: list[str]) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("operator-owned state 不得再次 mutation")
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=forbidden)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert result["recovery_incident"]["authorization_blocker"] == "manual_handoff"
+
+
+def test_unknown_recovery_incident_status_fails_closed_before_launchctl(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots, state, _plists, _context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(guard.SERVICE_LABELS[0],),
+    )
+    payload = json.loads(state.read_text())
+    payload["recovery_incident"]["status"] = "UNKNOWN_TRANSITION"
+    state.write_text(json.dumps(payload), encoding="utf-8")
+    state.chmod(0o600)
+    monkeypatch.setattr(
+        guard,
+        "_snapshot",
+        lambda *_args, **_kwargs: _available_snapshot(guard.MAX_BYTES + 1),
+    )
+
+    def forbidden(_command: list[str]) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("unknown incident status 不得觸發 launchctl")
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=forbidden)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert (
+        result["recovery_incident"]["authorization_blocker"]
+        == "capacity_recovery_incident_unknown_status"
+    )
+
+
+def test_unreadable_capacity_state_path_stays_unmodified_and_unpersisted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots = [tmp_path / name for name in ("queue", "publisher", "logs")]
+    for root in roots:
+        root.mkdir()
+    state = roots[0] / "state.json"
+    state.mkdir()
+    monkeypatch.setattr(
+        guard,
+        "_snapshot",
+        lambda *_args, **_kwargs: _available_snapshot(guard.MAX_BYTES + 1),
+    )
+
+    def forbidden(_command: list[str]) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("unreadable state 不得觸發 launchctl")
+
+    result = guard.check_once(*roots, state, now=1000, stop_runner=forbidden)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert result["state_persisted"] is False
+    assert result["recovery_incident"]["authorization_blocker"].startswith(
+        "capacity_state_unreadable:"
+    )
+    assert state.is_dir()
+
+
+def test_existing_shared_runtime_lease_blocks_recovery_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, _plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(label,),
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    commands: list[list[str]] = []
+
+    def forbidden(command: list[str]) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        raise AssertionError("shared lease contention 不得觸發 launchctl")
+
+    with runtime_manifest.runtime_work_lease(roots[1]):
+        with pytest.raises(runtime_manifest.RuntimeManifestError, match="cannot upgrade"):
+            guard.check_once(*roots, state, now=2200, stop_runner=forbidden)
+
+    assert commands == []
+    persisted = json.loads(state.read_text())
+    assert persisted["status"] == "RECOVERY_PENDING"
+    assert persisted["recovery_incident"]["healthy_samples"] == 4
+
+
+def test_second_capacity_guard_cannot_enter_while_state_writer_lock_is_held(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots = [tmp_path / name for name in ("queue", "publisher", "logs")]
+    for root in roots:
+        root.mkdir()
+    state = roots[0] / "state.json"
+    lock_path = state.with_name(f".{state.name}.lock")
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    monkeypatch.setattr(
+        guard,
+        "_snapshot",
+        lambda *_args, **_kwargs: pytest.fail("第二個 guard 不得開始 sampling"),
+    )
+    try:
+        with pytest.raises(runtime_manifest.RuntimeWorkBusy, match="state writer is busy"):
+            guard.check_once(*roots, state, now=1000)
+    finally:
+        os.close(descriptor)
+
+
+def test_parent_directory_fsync_failure_stops_before_first_bootout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots = [tmp_path / name for name in ("queue", "publisher", "logs")]
+    for root in roots:
+        root.mkdir()
+    plists, context = _make_recovery_context(
+        tmp_path,
+        roots,
+        generation="directory-fsync-failure",
+    )
+    monkeypatch.setattr(
+        guard,
+        "_snapshot",
+        lambda *_args, **_kwargs: _available_snapshot(guard.MAX_BYTES + 1),
+    )
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    monkeypatch.setattr(
+        guard,
+        "_fsync_directory",
+        lambda _path: (_ for _ in ()).throw(OSError("synthetic directory fsync")),
+    )
+    loaded = set(guard.SERVICE_LABELS)
+    mutations: list[list[str]] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action in {"bootout", "bootstrap"}:
+            mutations.append(command)
+            return _completed()
+        assert action == "print", command
+        label = command[-1].rsplit("/", 1)[-1]
+        if label not in loaded:
+            return _completed(113)
+        return _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
+
+    with pytest.raises(OSError, match="synthetic directory fsync"):
+        guard.check_once(*roots, roots[0] / "state.json", now=1000, stop_runner=runner)
+
+    assert mutations == []
+
+
+def test_same_path_plist_replacement_blocks_before_bootstrap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(label,),
+    )
+    replacement = plists[label].with_suffix(".replacement")
+    replacement.write_bytes(plists[label].read_bytes())
+    replacement.chmod(0o600)
+    os.replace(replacement, plists[label])
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    commands: list[list[str]] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        if command[1] == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        assert command[1] == "print", command
+        return _completed(113)
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert (
+        result["recovery_incident"]["authorization_blocker"]
+        == "recovery_plist_identity_drift"
+    )
+    assert all(command[1] != "bootstrap" for command in commands)
+
+
+def test_same_path_barrier_replacement_is_context_drift_before_launchctl(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots, state, _plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(guard.SERVICE_LABELS[0],),
+    )
+    barrier_path = Path(str(context["barrier_path"]))
+    replacement = barrier_path.with_suffix(".replacement")
+    replacement.write_bytes(barrier_path.read_bytes())
+    replacement.chmod(0o600)
+    os.replace(replacement, barrier_path)
+    current_context = dict(context)
+    current_context["barrier"] = guard._file_identity(barrier_path)
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(
+        guard,
+        "_recovery_context",
+        lambda _receipt: dict(current_context),
+    )
+
+    def forbidden(_command: list[str]) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("barrier drift 不得觸發 launchctl")
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=forbidden)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert (
+        result["recovery_incident"]["authorization_blocker"]
+        == "recovery_context_drift:barrier"
+    )
+
+
+def test_delayed_service_crash_inside_stabilization_window_rolls_back(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(label,),
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded = False
+    service = {"state": "spawn scheduled", "runs": 1, "exit_code": 75}
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            loaded = True
+            return _completed()
+        if action == "bootout":
+            loaded = False
+            return _completed()
+        assert action == "print", command
+        if not loaded:
+            return _completed(113)
+        return _completed(
+            0,
+            _launchctl_loaded_identity(
+                command[-1],
+                plists[label],
+                state=str(service["state"]),
+                runs=int(service["runs"]),
+                exit_code=int(service["exit_code"]),
+            ),
+        )
+
+    started = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+    assert started["status"] == "RECOVERY_VERIFYING"
+
+    service.update(state="not running", runs=2, exit_code=78)
+    result = guard.check_once(*roots, state, now=2500, stop_runner=runner)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    incident = result["recovery_incident"]
+    assert incident["authorization_blocker"] == "resume_execution_failed"
+    assert incident["recovery_failure"] == "resume_execution_failed"
+    assert incident["execution_verification"]["services"][label]["reason"] == (
+        "service_exit_nonzero:78"
+    )
+    assert incident["rollback"]["status"] == "ROLLBACK_COMPLETE"
+    assert incident["rollback"]["launchd_absent"] is True
+    assert loaded is False
+
+
+def test_capacity_recovery_no_run_timeout_rolls_back(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(label,),
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded = False
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            loaded = True
+            return _completed()
+        if action == "bootout":
+            loaded = False
+            return _completed()
+        assert action == "print", command
+        if not loaded:
+            return _completed(113)
+        return _completed(
+            0,
+            _launchctl_loaded_identity(
+                command[-1],
+                plists[label],
+                state="waiting",
+                runs=1,
+                exit_code=0,
+            ),
+        )
+
+    started = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+    assert started["status"] == "RECOVERY_VERIFYING"
+
+    result = guard.check_once(
+        *roots,
+        state,
+        now=2200 + guard.RECOVERY_EXECUTION_TIMEOUT_SECONDS + 1,
+        stop_runner=runner,
+    )
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    incident = result["recovery_incident"]
+    assert incident["authorization_blocker"] == "resume_execution_timeout"
+    assert incident["recovery_failure"] == "resume_execution_timeout"
+    assert incident["execution_verification"]["services"][label]["reason"] == (
+        "successful_terminal_run_not_observed"
+    )
+    assert incident["rollback"]["status"] == "ROLLBACK_COMPLETE"
+    assert incident["rollback"]["launchd_absent"] is True
+    assert loaded is False
+
+
+def test_busy_work_persists_stop_intent_then_stops_after_quiescence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, seeded_state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path, owned_labels=(label,),
+    )
+    seeded_state.unlink()
+    state = roots[0] / "capacity-guard-state.json"
+    sample = _available_snapshot()
+    sample["admission_available_bytes"] = 19 * guard.GIB
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: dict(sample))
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    monkeypatch.setattr(
+        guard.formal_runtime, "validate_runtime_tick",
+        lambda *_args, **_kwargs: {"status": "PASS"},
+    )
+    monkeypatch.setattr(
+        guard, "_normal_scheduled_service_labels",
+        lambda _receipt: frozenset(guard.SERVICE_LABELS),
+    )
+    loaded = True
+    bootouts: list[list[str]] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootout":
+            bootouts.append(command)
+            loaded = False
+            return _completed()
+        assert action == "print", command
+        if not loaded or not command[-1].endswith(label):
+            return _completed(113)
+        return _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
+
+    lock_path = roots[1] / "runtime-work.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    monkeypatch.setattr(guard, "RECOVERY_SHUTDOWN_TIMEOUT_SECONDS", 0)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        pending = guard.check_once(*roots, state, now=1000, stop_runner=runner)
+    finally:
+        os.close(descriptor)
+    assert pending["status"] == "STOPPING"
+    assert pending["recovery_incident"]["stop_deferred_for_work"] is True
+    assert json.loads(state.read_text())["status"] == "STOPPING"
+    assert bootouts == []
+    pending_payload = json.loads(state.read_text())
+    monkeypatch.setenv("PANTHEON_FORMAL_RUNTIME", "1")
+    monkeypatch.setenv("PANTHEON_RUNTIME_QUEUE_ROOT", str(roots[0]))
+    monkeypatch.setenv("PANTHEON_RUNTIME_SERVICE_LABEL", label)
+    with pytest.raises(runtime_manifest.RuntimeWorkBusy, match="capacity stop is unresolved"):
+        with runtime_manifest.runtime_work_lease(roots[1]):
+            pytest.fail("待停機時不得啟動新工作")
+    monkeypatch.delenv("PANTHEON_FORMAL_RUNTIME")
+
+    monkeypatch.setattr(guard, "RECOVERY_SHUTDOWN_TIMEOUT_SECONDS", 30.0)
+    real_stop = guard.runtime_activation.stop_capacity_services
+
+    def interrupt_before_effect(*_args, **_kwargs):
+        raise KeyboardInterrupt("simulated crash before canonical action")
+
+    monkeypatch.setattr(
+        guard.runtime_activation, "stop_capacity_services", interrupt_before_effect
+    )
+    with pytest.raises(KeyboardInterrupt, match="simulated crash"):
+        guard.check_once(*roots, state, now=1300, stop_runner=runner)
+    persisted = json.loads(state.read_text())
+    assert persisted["status"] == "STOPPING"
+    assert persisted["recovery_incident"]["stop_deferred_for_work"] is True
+    assert bootouts == []
+    monkeypatch.setattr(guard.runtime_activation, "stop_capacity_services", real_stop)
+    incident = pending_payload["recovery_incident"]
+    prepared_path = guard._recovery_action_receipt_path(state, incident, "stop")
+    prepared_path.write_text(
+        json.dumps({
+            "action": "capacity-stop",
+            "incident_id": incident["incident_id"],
+            "status": "PREPARED",
+            "mutation_started": False,
+            "pre_stop": {},
+            "process_drain": {},
+            "services": {},
+            "stopped_labels": [],
+            "labels": incident["stop_targets"],
+            "manifest_digest": incident["manifest_digest"],
+            "runtime_identity_digest": incident["runtime_identity_digest"],
+            "generation": incident["generation"],
+            "owned_roots": incident["owned_roots"],
+            "receipt_path": str(prepared_path),
+        }),
+        encoding="utf-8",
+    )
+    prepared_path.chmod(0o600)
+
+    stopped = guard.check_once(*roots, state, now=1600, stop_runner=runner)
+    assert stopped["status"] == "STOPPED"
+    assert stopped["recovery_incident"]["stop_deferred_for_work"] is False
+    assert stopped["recovery_incident"]["stop_action_receipt"] is not None
+    assert len(bootouts) == 1
+
+    state.write_text(json.dumps(pending_payload), encoding="utf-8")
+    state.chmod(0o600)
+    reconciled = guard.check_once(*roots, state, now=1900, stop_runner=runner)
+    assert reconciled["status"] == "STOPPED"
+    assert reconciled["recovery_incident"]["stop_action_receipt"] is not None
+    assert len(bootouts) == 1
+
+    action_path = Path(stopped["recovery_incident"]["stop_action_receipt"]["path"])
+    interrupted_action = json.loads(action_path.read_text())
+    interrupted_action["status"] = "DRAINING"
+    action_path.write_text(json.dumps(interrupted_action), encoding="utf-8")
+    action_path.chmod(0o600)
+    state.write_text(json.dumps(pending_payload), encoding="utf-8")
+    state.chmod(0o600)
+    blocked = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+    assert blocked["status"] == "OPERATOR_REQUIRED"
+    assert blocked["recovery_incident"]["authorization_blocker"] == (
+        "deferred_stop_action_interrupted"
+    )
+    assert len(bootouts) == 1
+    monkeypatch.setenv("PANTHEON_FORMAL_RUNTIME", "1")
+    with pytest.raises(runtime_manifest.RuntimeWorkBusy, match="capacity stop is unresolved"):
+        with runtime_manifest.runtime_work_lease(roots[1]):
+            pytest.fail("operator handoff不得放行新工作")
+
+
+@pytest.mark.parametrize("expire", [False, True])
+@pytest.mark.parametrize("active_runs", [1, 2])
+def test_capacity_recovery_running_job_survives_no_start_deadline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    expire: bool,
+    active_runs: int,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path, owned_labels=(label,),
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded = False
+    running = True
+    runs = 1
+    bootouts: list[list[str]] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            loaded = True
+            return _completed()
+        if action == "bootout":
+            bootouts.append(command)
+            loaded = False
+            return _completed()
+        assert action == "print", command
+        if not loaded:
+            return _completed(113)
+        return _completed(
+            0,
+            _launchctl_loaded_identity(
+                command[-1], plists[label],
+                state="running" if running else "not running",
+                runs=runs, exit_code=0, pid=4321 if running else None,
+            ),
+        )
+
+    assert guard.check_once(*roots, state, now=2200, stop_runner=runner)["status"] == "RECOVERY_VERIFYING"
+    runs = active_runs
+    real_boundary = guard.runtime_activation.run_process_boundary
+
+    def boundary(*args, **kwargs):
+        if kwargs.get("mode") == "observe":
+            return {
+                "status": "PASS",
+                "active": [{"pid": 4321, "label": label}] if running else [],
+                "resample_required": False,
+                "seen_labels": [label],
+            }
+        return real_boundary(*args, **kwargs)
+
+    monkeypatch.setattr(guard.runtime_activation, "run_process_boundary", boundary)
+    for tick in (2500, 3101, 3900):
+        result = guard.check_once(*roots, state, now=tick, stop_runner=runner)
+        assert result["status"] == "RECOVERY_VERIFYING", result["recovery_incident"]
+        assert bootouts == []
+    if expire:
+        result = guard.check_once(
+            *roots, state,
+            now=2500 + guard.RECOVERY_ACTIVE_RUN_TIMEOUT_SECONDS + 1,
+            stop_runner=runner,
+        )
+        assert result["status"] == "OPERATOR_REQUIRED"
+        assert result["recovery_incident"]["recovery_failure"] == (
+            "resume_active_run_timeout"
+        )
+        assert bootouts == []
+        return
+    running = False
+    runs = 2
+    result = guard.check_once(*roots, state, now=4200, stop_runner=runner)
+    assert result["status"] == "PASS"
+
+
+@pytest.mark.parametrize("expire_gap", [False, True])
+def test_capacity_recovery_restart_gap_after_long_run_does_not_use_no_start_deadline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    expire_gap: bool,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path, owned_labels=(label,),
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded = False
+    running = True
+    runs = 1
+    bootouts: list[list[str]] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            loaded = True
+            return _completed()
+        if action == "bootout":
+            bootouts.append(command)
+            loaded = False
+            return _completed()
+        assert action == "print", command
+        if not loaded:
+            return _completed(113)
+        return _completed(
+            0,
+            _launchctl_loaded_identity(
+                command[-1], plists[label],
+                state="running" if running else "not running",
+                runs=runs, exit_code=0, pid=4321 if running else None,
+            ),
+        )
+
+    assert guard.check_once(*roots, state, now=2200, stop_runner=runner)["status"] == "RECOVERY_VERIFYING"
+    real_boundary = guard.runtime_activation.run_process_boundary
+
+    def boundary(*args, **kwargs):
+        if kwargs.get("mode") == "observe":
+            return {
+                "status": "PASS",
+                "active": [{"pid": 4321, "label": label}] if running else [],
+                "resample_required": False,
+                "seen_labels": [label],
+            }
+        return real_boundary(*args, **kwargs)
+
+    monkeypatch.setattr(guard.runtime_activation, "run_process_boundary", boundary)
+    assert guard.check_once(*roots, state, now=2500, stop_runner=runner)["status"] == "RECOVERY_VERIFYING"
+    assert guard.check_once(*roots, state, now=3900, stop_runner=runner)["status"] == "RECOVERY_VERIFYING"
+
+    # 第一次長任務已正常結束，但 launchd 尚未進入下一次 StartInterval run。
+    running = False
+    gap = guard.check_once(*roots, state, now=3950, stop_runner=runner)
+    assert gap["status"] == "RECOVERY_VERIFYING"
+    assert bootouts == []
+    assert gap["recovery_incident"]["active_run_last_seen_epoch"][label] == 3900
+
+    if expire_gap:
+        expired = guard.check_once(
+            *roots, state,
+            now=3900 + guard.RECOVERY_EXECUTION_TIMEOUT_SECONDS + 1,
+            stop_runner=runner,
+        )
+        assert expired["status"] == "OPERATOR_REQUIRED"
+        assert expired["recovery_incident"]["recovery_failure"] == (
+            "resume_execution_timeout"
+        )
+        return
+
+    running = True
+    runs = 2
+    assert guard.check_once(*roots, state, now=4010, stop_runner=runner)["status"] == "RECOVERY_VERIFYING"
+    running = False
+    done = guard.check_once(*roots, state, now=4310, stop_runner=runner)
+    assert done["status"] == "PASS"
+    assert done["recovery_incident"]["active_run_first_seen_epoch"] == {}
+    assert done["recovery_incident"]["active_run_last_seen_epoch"] == {}
+
+
+def test_capacity_recovery_detached_lineage_has_bounded_wait(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path, owned_labels=(label,),
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded = False
+    runs = 1
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            loaded = True
+            return _completed()
+        if action == "bootout":
+            loaded = False
+            return _completed()
+        assert action == "print", command
+        if not loaded:
+            return _completed(113)
+        return _completed(
+            0, _launchctl_loaded_identity(command[-1], plists[label], runs=runs)
+        )
+
+    assert guard.check_once(*roots, state, now=2200, stop_runner=runner)["status"] == "RECOVERY_VERIFYING"
+    runs = 2
+    monkeypatch.setattr(
+        guard.runtime_activation,
+        "verify_capacity_resume_execution",
+        lambda *_args, **_kwargs: {
+            "status": "PENDING",
+            "services": {label: {"status": "PASS"}},
+            "process_observation": {"active": [{"pid": 4321}]},
+            "lineage_missing_labels": [],
+        },
+    )
+    first = guard.check_once(*roots, state, now=2500, stop_runner=runner)
+    assert first["status"] == "RECOVERY_VERIFYING"
+    assert first["recovery_incident"]["lineage_pending_first_seen_epoch"] == 2500
+    expired = guard.check_once(
+        *roots, state,
+        now=2500 + guard.RECOVERY_EXECUTION_TIMEOUT_SECONDS + 1,
+        stop_runner=runner,
+    )
+    assert expired["status"] == "OPERATOR_REQUIRED"
+    assert expired["recovery_incident"]["recovery_failure"] == (
+        "resume_lineage_timeout"
+    )
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    ["missing_start", "future_lineage", "future_active", "future_active_last_seen"],
+)
+def test_capacity_recovery_missing_verification_start_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    corruption: str,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path, owned_labels=(label,),
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded = False
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            loaded = True
+            return _completed()
+        if action == "bootout":
+            raise AssertionError("invalid verification state不得自行停服務")
+        assert action == "print", command
+        return (
+            _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
+            if loaded else _completed(113)
+        )
+
+    assert guard.check_once(*roots, state, now=2200, stop_runner=runner)["status"] == "RECOVERY_VERIFYING"
+    payload = json.loads(state.read_text())
+    if corruption == "missing_start":
+        payload["recovery_incident"].pop("verification_started_epoch")
+    elif corruption == "future_lineage":
+        payload["recovery_incident"]["lineage_pending_first_seen_epoch"] = 1_000_000_000_000
+    elif corruption == "future_active":
+        payload["recovery_incident"]["active_run_first_seen_epoch"] = {
+            label: 1_000_000_000_000
+        }
+    else:
+        payload["recovery_incident"]["active_run_first_seen_epoch"] = {label: 2200}
+        payload["recovery_incident"]["active_run_last_seen_epoch"] = {
+            label: 1_000_000_000_000
+        }
+    state.write_text(json.dumps(payload), encoding="utf-8")
+    state.chmod(0o600)
+    result = guard.check_once(*roots, state, now=2500, stop_runner=runner)
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert result["recovery_incident"]["authorization_blocker"] == (
+        "capacity_recovery_incident_invalid"
+    )
+
+
+def test_delayed_rss_peak_inside_stabilization_window_rolls_back(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(label,),
+    )
+    snapshots = [_available_snapshot() for _ in range(2)]
+    snapshots[-1]["rss_bytes"] = guard.RECOVERY_RSS_GROWTH_LIMIT_BYTES + 1
+    samples = iter(snapshots)
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: dict(next(samples)))
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded = False
+    runs = 1
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded, runs
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            loaded = True
+            return _completed()
+        if action == "bootout":
+            loaded = False
+            return _completed()
+        assert action == "print", command
+        if not loaded:
+            return _completed(113)
+        return _completed(
+            0,
+            _launchctl_loaded_identity(command[-1], plists[label], runs=runs),
+        )
+
+    started = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+    assert started["status"] == "RECOVERY_VERIFYING"
+    runs = 2
+    result = guard.check_once(*roots, state, now=2500, stop_runner=runner)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    incident = result["recovery_incident"]
+    assert incident["authorization_blocker"] == "restart_measurement_outside_reserve"
+    assert incident["recovery_failure"] == "restart_measurement_outside_reserve"
+    assert incident["restart_measurement"]["rss_growth_bytes"] == (
+        guard.RECOVERY_RSS_GROWTH_LIMIT_BYTES + 1
+    )
+    assert incident["rollback"]["status"] == "ROLLBACK_COMPLETE"
+    assert incident["rollback"]["launchd_absent"] is True
+
+
+@pytest.mark.parametrize(
+    ("peak_kind", "measurement_field"),
+    (
+        ("admission", "admission_drop_bytes"),
+        ("project", "project_growth_bytes"),
+        ("swap", "swap_growth_bytes"),
+    ),
+)
+def test_delayed_restart_peak_gates_each_resource_dimension(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    peak_kind: str,
+    measurement_field: str,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(label,),
+    )
+    snapshots = [_available_snapshot() for _ in range(2)]
+    if peak_kind == "admission":
+        snapshots[-1]["admission_available_bytes"] = (
+            int(snapshots[0]["admission_available_bytes"])
+            - guard.RECOVERY_PROJECTED_RESTART_BYTES
+            - 1
+        )
+    elif peak_kind == "project":
+        snapshots[-1]["bytes"] = (
+            int(snapshots[0]["bytes"])
+            + guard.RECOVERY_PROJECTED_RESTART_BYTES
+            + 1
+        )
+    else:
+        snapshots[-1]["swap_used_bytes"] = (
+            guard.RECOVERY_SWAP_GROWTH_LIMIT_BYTES + 1
+        )
+    samples = iter(snapshots)
+    monkeypatch.setattr(
+        guard,
+        "_snapshot",
+        lambda *_args, **_kwargs: dict(next(samples)),
+    )
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded = False
+    runs = 1
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded, runs
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            loaded = True
+            return _completed()
+        if action == "bootout":
+            loaded = False
+            return _completed()
+        assert action == "print", command
+        if not loaded:
+            return _completed(113)
+        return _completed(
+            0,
+            _launchctl_loaded_identity(command[-1], plists[label], runs=runs),
+        )
+
+    started = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+    assert started["status"] == "RECOVERY_VERIFYING"
+    runs = 2
+    result = guard.check_once(*roots, state, now=2500, stop_runner=runner)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    incident = result["recovery_incident"]
+    assert incident["recovery_failure"] == "restart_measurement_outside_reserve"
+    assert incident["restart_measurement"][measurement_field] > 0
+    if peak_kind in {"admission", "project"}:
+        assert (
+            incident["restart_measurement"][measurement_field]
+            > guard.RECOVERY_PROJECTED_RESTART_BYTES
+        )
+    else:
+        assert (
+            incident["restart_measurement"][measurement_field]
+            > guard.RECOVERY_SWAP_GROWTH_LIMIT_BYTES
+        )
+    assert incident["authorization_blocker"] == "restart_measurement_outside_reserve"
+    assert incident["rollback"]["status"] == "ROLLBACK_COMPLETE"
+    assert loaded is False
+
+
+def test_failed_stabilization_without_exclusive_rollback_lease_stays_unknown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(label,),
+    )
+    snapshots = [_available_snapshot() for _ in range(2)]
+    snapshots[-1]["rss_bytes"] = guard.RECOVERY_RSS_GROWTH_LIMIT_BYTES + 1
+    samples = iter(snapshots)
+    monkeypatch.setattr(
+        guard,
+        "_snapshot",
+        lambda *_args, **_kwargs: dict(next(samples)),
+    )
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    real_shutdown_lease = guard.formal_runtime.runtime_shutdown_lease
+    lease_calls = 0
+
+    @contextmanager
+    def staged_shutdown_lease(*args, **kwargs):
+        nonlocal lease_calls
+        lease_calls += 1
+        if lease_calls == 2:
+            raise runtime_manifest.RuntimeWorkBusy("synthetic inherited child lease")
+        with real_shutdown_lease(*args, **kwargs) as descriptor:
+            yield descriptor
+
+    monkeypatch.setattr(
+        guard.formal_runtime,
+        "runtime_shutdown_lease",
+        staged_shutdown_lease,
+    )
+    loaded = False
+    runs = 1
+    bootouts: list[list[str]] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded, runs
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            loaded = True
+            return _completed()
+        if action == "bootout":
+            bootouts.append(command)
+            loaded = False
+            return _completed()
+        assert action == "print", command
+        if not loaded:
+            return _completed(113)
+        return _completed(
+            0,
+            _launchctl_loaded_identity(command[-1], plists[label], runs=runs),
+        )
+
+    started = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+    assert started["status"] == "RECOVERY_VERIFYING"
+    assert lease_calls == 1
+    runs = 2
+    result = guard.check_once(*roots, state, now=2500, stop_runner=runner)
+
+    assert lease_calls == 2
+    assert result["status"] == "OPERATOR_REQUIRED"
+    incident = result["recovery_incident"]
+    assert incident["authorization_blocker"] == "partial_recovery_rollback_unknown"
+    assert incident["rollback"] == {
+        "status": "ROLLBACK_UNKNOWN",
+        "services": {},
+        "reason": "runtime_shutdown_lease_unavailable",
+    }
+    assert loaded is True
+    assert bootouts == []
+
+
+def test_manual_disable_before_second_bootstrap_rolls_back_first_label(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    labels = guard.SERVICE_LABELS[:2]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=labels,
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded: set[str] = set()
+    disabled_checks = 0
+    bootstrapped: list[str] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal disabled_checks
+        action = command[1]
+        if action == "print-disabled":
+            disabled_checks += 1
+            if disabled_checks >= 4:
+                return _completed(
+                    0,
+                    f'disabled services = {{\n\t"{labels[1]}" => true\n}}\n',
+                )
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            label = Path(command[-1]).stem
+            bootstrapped.append(label)
+            loaded.add(label)
+            return _completed()
+        label = command[-1].rsplit("/", 1)[-1]
+        if action == "bootout":
+            loaded.discard(label)
+            return _completed()
+        assert action == "print", command
+        if label not in loaded:
+            return _completed(113)
+        return _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    incident = result["recovery_incident"]
+    assert incident["authorization_blocker"] == "owned_service_manually_disabled"
+    assert incident["recovery_failure"] == "owned_service_manually_disabled"
+    assert incident["rollback"]["status"] == "ROLLBACK_COMPLETE"
+    assert incident["rollback"]["launchd_absent"] is True
+    assert bootstrapped == [labels[0]]
+    assert loaded == set()
+
+
+def test_post_bootstrap_unknown_rolls_back_attempted_loaded_label(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(label,),
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded = False
+    unknown_once = False
+    bootouts: list[str] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded, unknown_once
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            loaded = True
+            unknown_once = True
+            return _completed()
+        if action == "bootout":
+            bootouts.append(command[-1].rsplit("/", 1)[-1])
+            loaded = False
+            return _completed()
+        assert action == "print", command
+        if not loaded:
+            return _completed(113)
+        if unknown_once:
+            unknown_once = False
+            return _completed(0, "malformed launchctl output\n")
+        return _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    incident = result["recovery_incident"]
+    assert incident["attempted_labels"] == [label]
+    assert incident["started_labels"] == []
+    # bootstrap 後尚未 capture lineage 的 UNKNOWN，不得藉新 rollback journal 宣稱完成。
+    assert incident["rollback"]["status"] == "ROLLBACK_UNKNOWN"
+    assert "journal binding is invalid" in incident["rollback"]["reason"]
+    assert "launchd_absent" not in incident["rollback"]
+    assert bootouts == []
+    assert loaded is True
+
+
+def test_no_guard_owned_service_never_claims_recovered(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots, state, _plists, context = _seed_pending_capacity_recovery(
+        tmp_path, owned_labels=()
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        if command[1] == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        raise AssertionError("沒有 Guard ownership 不得執行 launchctl mutation")
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert result["recovery_incident"]["authorization_blocker"] == "no_guard_owned_services"
+    assert result["recovery_incident"].get("recovery_result") != "AUTOMATIC_RECOVERY_COMPLETE"
+
+
+def test_receipt_drift_after_bootstrap_rolls_back_live_service(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path, owned_labels=(label,)
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded = False
+    bootouts: list[str] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            loaded = True
+            return _completed()
+        if action == "bootout":
+            bootouts.append(command[-1].rsplit("/", 1)[-1])
+            loaded = False
+            return _completed()
+        assert action == "print", command
+        if not loaded:
+            return _completed(113)
+        return _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
+
+    started = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+    assert started["status"] == "RECOVERY_VERIFYING"
+    receipt_identity = started["recovery_incident"]["resume_action_receipt"]
+    Path(str(receipt_identity["path"])).write_text("drift\n", encoding="utf-8")
+
+    result = guard.check_once(*roots, state, now=2500, stop_runner=runner)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert result["recovery_incident"]["recovery_failure"] == "resume_action_receipt_identity_drift"
+    assert result["recovery_incident"]["rollback"]["status"] == "ROLLBACK_UNKNOWN"
+    assert "resume action receipt identity drift" in result["recovery_incident"]["rollback"]["reason"]
+    assert bootouts == []
+    assert loaded is True
+
+
+@pytest.mark.parametrize(
+    "fault", ["runtime_validation", "post_execution_context", "barrier_file_drift"]
+)
+def test_verification_authority_failure_never_claims_pass(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path, owned_labels=(label,)
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    drift = False
+    original_validate = guard.formal_runtime.validate_runtime_tick
+
+    def validate_runtime(*args, **kwargs):
+        if drift and fault == "runtime_validation":
+            raise guard.formal_runtime.RuntimeManifestError("synthetic runtime drift")
+        return original_validate(*args, **kwargs)
+
+    def recovery_context(_receipt):
+        result = dict(context)
+        if drift and fault == "post_execution_context":
+            result["generation"] = "replacement-generation"
+        if drift and fault == "barrier_file_drift":
+            result["barrier"] = guard._file_identity(Path(str(context["barrier_path"])))
+        return result
+
+    def execution_proof(*args, **kwargs):
+        nonlocal drift
+        drift = True
+        return {"status": "PASS", "services": {}}
+
+    monkeypatch.setattr(guard.formal_runtime, "validate_runtime_tick", validate_runtime)
+    monkeypatch.setattr(guard, "_recovery_context", recovery_context)
+    monkeypatch.setattr(
+        guard.runtime_activation, "verify_capacity_resume_execution", execution_proof
+    )
+    loaded = False
+    bootouts: list[str] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            loaded = True
+            return _completed()
+        if action == "bootout":
+            bootouts.append(command[-1].rsplit("/", 1)[-1])
+            loaded = False
+            return _completed()
+        assert action == "print", command
+        if not loaded:
+            return _completed(113)
+        return _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
+
+    started = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+    assert started["status"] == "RECOVERY_VERIFYING"
+    if fault == "runtime_validation":
+        drift = True
+    if fault == "barrier_file_drift":
+        Path(str(context["barrier_path"])).write_text("replacement\n", encoding="utf-8")
+        drift = True
+    result = guard.check_once(*roots, state, now=2500, stop_runner=runner)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    if fault == "barrier_file_drift":
+        assert result["recovery_incident"]["rollback"]["status"] == "ROLLBACK_UNKNOWN"
+        assert bootouts == []
+        assert loaded is True
+    else:
+        assert result["recovery_incident"]["rollback"]["status"] == "ROLLBACK_COMPLETE"
+        assert bootouts == [label]
+        assert loaded is False
+
+
+def test_post_bootstrap_unknown_never_claims_rollback_complete_when_live_is_unknown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, _plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(label,),
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded = False
+    bootouts: list[str] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            loaded = True
+            return _completed()
+        if action == "bootout":
+            bootouts.append(command[-1].rsplit("/", 1)[-1])
+            loaded = False
+            return _completed()
+        assert action == "print", command
+        if not loaded:
+            return _completed(113)
+        return _completed(0, "malformed launchctl output\n")
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    incident = result["recovery_incident"]
+    assert incident["authorization_blocker"] == "partial_recovery_rollback_unknown"
+    assert incident["rollback"]["status"] == "ROLLBACK_UNKNOWN"
+    assert "launchd_absent" not in incident["rollback"]
+    assert bootouts == []
+    assert loaded is True
+
+
+def test_resume_receipt_identity_failure_rolls_back_mutated_label(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(label,),
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded = False
+    real_file_identity = guard._file_identity
+    failed = False
+
+    def failing_file_identity(path: Path) -> dict[str, object]:
+        nonlocal failed
+        if path.name.endswith(".resume.json") and not failed:
+            failed = True
+            raise OSError("synthetic resume receipt identity failure")
+        return real_file_identity(path)
+
+    monkeypatch.setattr(guard, "_file_identity", failing_file_identity)
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            loaded = True
+            return _completed()
+        if action == "bootout":
+            loaded = False
+            return _completed()
+        assert action == "print", command
+        if not loaded:
+            return _completed(113)
+        return _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+
+    assert failed is True
+    assert result["status"] == "OPERATOR_REQUIRED"
+    incident = result["recovery_incident"]
+    assert incident["attempted_labels"] == [label]
+    assert incident["rollback"]["status"] == "ROLLBACK_COMPLETE"
+    assert incident["rollback"]["launchd_absent"] is True
+    assert loaded is False
+
+
+def test_plist_replacement_between_bootstraps_blocks_second_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    labels = guard.SERVICE_LABELS[:2]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=labels,
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded: set[str] = set()
+    bootstrapped: list[str] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            label = Path(command[-1]).stem
+            bootstrapped.append(label)
+            loaded.add(label)
+            if label == labels[0]:
+                replacement = plists[labels[1]].with_suffix(".replacement")
+                replacement.write_text("replaced bytes\n", encoding="utf-8")
+                replacement.chmod(0o600)
+                os.replace(replacement, plists[labels[1]])
+            return _completed()
+        label = command[-1].rsplit("/", 1)[-1]
+        if action == "bootout":
+            loaded.discard(label)
+            return _completed()
+        assert action == "print", command
+        if label not in loaded:
+            return _completed(113)
+        return _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert bootstrapped == [labels[0]]
+    assert loaded == {labels[0]}
+    assert result["recovery_incident"]["rollback"]["status"] == "ROLLBACK_UNKNOWN"
+    assert "launchd_absent" not in result["recovery_incident"]["rollback"]
+
+
+def test_capacity_recovery_waits_when_restart_projection_would_cross_reserve(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots, state, _plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(guard.SERVICE_LABELS[0],),
+    )
+    sample = _available_snapshot()
+    sample["disk_free_bytes"] = 20 * guard.GIB + guard.RECOVERY_PROJECTED_RESTART_BYTES // 2
+    sample["admission_available_bytes"] = sample["disk_free_bytes"]
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: dict(sample))
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+
+    def forbidden(_command: list[str]) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("insufficient restart reserve must not call launchctl")
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=forbidden)
+
+    assert result["status"] == "RECOVERY_PENDING"
+    assert result["recovery_incident"]["healthy_samples"] == 0
+    assert result["recovery_incident"]["recovery_wait_reasons"] == [
+        "restart_projection_below_reserve"
+    ]
+
+
+def test_capacity_recovery_resets_consecutive_health_when_capacity_falls_again(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots, state, _plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(guard.SERVICE_LABELS[0],),
+    )
+    sample = _available_snapshot()
+    sample["disk_free_bytes"] = 19 * guard.GIB
+    sample["admission_available_bytes"] = 19 * guard.GIB
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: dict(sample))
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        assert command[1] in {"bootout", "print"}
+        return _completed(113 if command[1] == "print" else 0)
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+
+    assert result["status"] == "STOPPED"
+    assert result["recovery_incident"]["healthy_samples"] == 0
+    assert result["recovery_incident"]["last_healthy_epoch"] is None
+
+
+def test_capacity_recovery_blocks_runtime_identity_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots, state, _plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(guard.SERVICE_LABELS[0],),
+    )
+    drift = dict(context)
+    drift["generation"] = "capacity-resume-drift"
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(drift))
+
+    def forbidden(_command: list[str]) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("runtime identity drift must not call launchctl")
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=forbidden)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert (
+        result["recovery_incident"]["authorization_blocker"]
+        == "recovery_context_drift:generation"
+    )
+
+
+@pytest.mark.parametrize("rollback_unknown", [False, True])
+def test_capacity_recovery_partial_bootstrap_rolls_back_and_requires_operator(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    rollback_unknown: bool,
+) -> None:
+    labels = guard.SERVICE_LABELS[:2]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=labels,
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded: set[str] = set()
+    commands: list[list[str]] = []
+    rollback_state_seen: list[dict[str, object]] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            label = Path(command[-1]).stem
+            if label == labels[1]:
+                return _completed(5)
+            loaded.add(label)
+            return _completed()
+        if action == "bootout":
+            if not rollback_state_seen:
+                rollback_state_seen.append(json.loads(state.read_text()))
+            label = command[-1].rsplit("/", 1)[-1]
+            if not (rollback_unknown and label == labels[0]):
+                loaded.discard(label)
+            return _completed(5 if rollback_unknown and label == labels[0] else 0)
+        assert action == "print", command
+        label = command[-1].rsplit("/", 1)[-1]
+        if label not in loaded:
+            return _completed(113)
+        return _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
+
+    result = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert result["recovery_incident"]["attempts_started"] == 1
+    incident = result["recovery_incident"]
+    assert incident["recovery_failure"] == "bootstrap_or_identity_failed"
+    if rollback_unknown:
+        assert incident["authorization_blocker"] == "partial_recovery_rollback_unknown"
+        assert incident["rollback"]["status"] == "ROLLBACK_UNKNOWN"
+        assert "launchd_absent" not in incident["rollback"]
+    else:
+        assert incident["authorization_blocker"] == "bootstrap_or_identity_failed"
+        assert incident["rollback"]["status"] == "ROLLBACK_COMPLETE"
+        assert incident["rollback"]["launchd_absent"] is True
+    assert [command[1] for command in commands].count("bootstrap") == 2
+    assert loaded == ({labels[0]} if rollback_unknown else set())
+    assert rollback_state_seen[0]["status"] == "ROLLBACK_IN_PROGRESS"
+    assert (
+        rollback_state_seen[0]["recovery_incident"]["rollback"]["status"]
+        == "ROLLBACK_IN_PROGRESS"
+    )
+
+
+def test_capacity_recovery_rejects_loaded_service_with_failed_exit_code(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(
+        tmp_path,
+        owned_labels=(label,),
+    )
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    loaded = False
+    service = {"state": "spawn scheduled", "runs": 1, "exit_code": 75}
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        nonlocal loaded
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        if action == "bootstrap":
+            loaded = True
+            return _completed()
+        if action == "bootout":
+            loaded = False
+            return _completed()
+        assert action == "print", command
+        if not loaded:
+            return _completed(113)
+        return _completed(
+            0,
+            _launchctl_loaded_identity(
+                command[-1],
+                plists[label],
+                state=str(service["state"]),
+                runs=int(service["runs"]),
+                exit_code=int(service["exit_code"]),
+            ),
+        )
+
+    started = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+    assert started["status"] == "RECOVERY_VERIFYING"
+    service.update(state="not running", runs=2, exit_code=78)
+    result = guard.check_once(*roots, state, now=2500, stop_runner=runner)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert result["recovery_incident"]["rollback"]["status"] == "ROLLBACK_COMPLETE"
+    assert result["recovery_incident"]["rollback"]["launchd_absent"] is True
+    assert result["recovery_incident"]["authorization_blocker"] == "resume_execution_failed"
+    assert result["recovery_incident"]["recovery_failure"] == "resume_execution_failed"
+    assert loaded is False
 
 
 def test_check_uses_current_memory_as_baseline_after_unknown_previous_sample(
@@ -536,7 +2810,11 @@ def test_check_uses_current_memory_as_baseline_after_unknown_previous_sample(
         stop_runner=forbidden,
     )
 
-    assert result["status"] == "PASS"
+    assert result["status"] == "OPERATOR_REQUIRED"
+    assert (
+        result["recovery_incident"]["authorization_blocker"]
+        == "legacy_stop_without_owned_incident"
+    )
     assert result["memory_streak"] == 0
     assert result["rss_bytes"] == 0
     assert result["swap_used_bytes"] == 0
@@ -549,6 +2827,12 @@ def test_two_high_growth_cycles_trigger_bounded_stop_loss(
     roots = [tmp_path / name for name in ("queue", "publisher", "logs")]
     for root in roots:
         root.mkdir()
+    plists, context = _make_recovery_context(
+        tmp_path,
+        roots,
+        generation="high-growth-stop",
+    )
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
     samples = iter(
         [
             512 * guard.MIB,
@@ -562,10 +2846,21 @@ def test_two_high_growth_cycles_trigger_bounded_stop_loss(
 
     monkeypatch.setattr(guard, "_snapshot", snapshot)
     commands: list[list[str]] = []
+    loaded = set(guard.SERVICE_LABELS)
 
     def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
         commands.append(command)
-        return _completed(113 if command[1] == "print" else 0)
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        label = command[-1].split("/")[-1]
+        if action == "bootout":
+            loaded.discard(label)
+            return _completed()
+        assert action == "print", command
+        if label not in loaded:
+            return _completed(113)
+        return _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
 
     state = roots[0] / "state.json"
     baseline = guard.check_once(*roots, state, now=1000, stop_runner=runner)
@@ -3402,24 +5697,85 @@ def test_stop_loss_is_stopped_only_after_every_registered_identity_is_absent(
     roots = [tmp_path / name for name in ("queue", "publisher", "logs")]
     for root in roots:
         root.mkdir()
+    plists, context = _make_recovery_context(
+        tmp_path,
+        roots,
+        generation="stop-verification",
+    )
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
     sample = _available_snapshot(guard.MAX_BYTES + 1)
     monkeypatch.setattr(guard, "_snapshot", lambda *_roots: sample)
     failed_label = guard.SERVICE_LABELS[2]
+    loaded = set(guard.SERVICE_LABELS)
 
     def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
         label = command[-1].split("/")[-1]
-        if command[1] == "bootout":
-            return _completed(5 if label == failed_label else 0)
-        if label == failed_label:
-            return _completed(0, "pid = 4242\n")
-        return _completed(113)
+        if action == "bootout":
+            if label == failed_label:
+                return _completed(5)
+            loaded.discard(label)
+            return _completed()
+        assert action == "print", command
+        if label not in loaded:
+            return _completed(113)
+        return _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
 
     result = guard.check_once(*roots, roots[0] / "state.json", stop_runner=runner)
 
-    assert result["status"] == "STOP_FAILED"
-    assert result["stop_verification"][failed_label]["absent"] is False
-    assert result["stop_verification"][failed_label]["bootout_returncode"] == 5
-    assert set(result["stop_verification"]) == set(guard.SERVICE_LABELS)
+    assert result["status"] == "OPERATOR_REQUIRED"
+    incident = result["recovery_incident"]
+    assert incident["authorization_blocker"] == "capacity_stop_effector_failed"
+    assert incident["stopped_by_guard"] == list(guard.SERVICE_LABELS[:2])
+    receipt_identity = incident["stop_action_receipt"]
+    action = guard.runtime_activation.load_action_receipt(
+        Path(str(receipt_identity["path"]))
+    )
+    assert action["status"] == "UNKNOWN_OR_FAILED"
+    assert action["services"][failed_label]["bootout_returncode"] == 5
+    assert action["services"][failed_label]["post_stop"]["topology"] == "LOADED"
+
+
+def test_failed_bootout_that_becomes_absent_does_not_grant_recovery_ownership(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots = [tmp_path / name for name in ("queue", "publisher", "logs")]
+    for root in roots:
+        root.mkdir()
+    plists, context = _make_recovery_context(
+        tmp_path, roots, generation="bootout-unknown"
+    )
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    monkeypatch.setattr(
+        guard, "_snapshot", lambda *_roots: _available_snapshot(guard.MAX_BYTES + 1)
+    )
+    loaded = set(guard.SERVICE_LABELS)
+    bootouts: list[str] = []
+
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+        action = command[1]
+        if action == "print-disabled":
+            return _completed(0, "disabled services = {\n}\n")
+        label = command[-1].rsplit("/", 1)[-1]
+        if action == "bootout":
+            bootouts.append(label)
+            loaded.discard(label)
+            return _completed(5)
+        assert action == "print", command
+        if label not in loaded:
+            return _completed(113)
+        return _completed(0, _launchctl_loaded_identity(command[-1], plists[label]))
+
+    result = guard.check_once(*roots, roots[0] / "state.json", stop_runner=runner)
+
+    assert result["status"] == "OPERATOR_REQUIRED"
+    incident = result["recovery_incident"]
+    assert incident["authorization_blocker"] == "capacity_stop_effector_failed"
+    assert incident["stopped_by_guard"] == []
+    assert bootouts == [guard.SERVICE_LABELS[0]]
 
 
 def test_bounded_runner_records_two_write_cycles_reclamation_and_stop_loss(
@@ -3504,3 +5860,79 @@ def test_rss_reconciles_only_proven_process_lifecycle(monkeypatch: pytest.Monkey
         assert result["value"] is None
     assert ps_calls == (3 if change == "churn" else 2 if change == "replace" else 1)
 _REAL_HOST_CAPACITY_SAMPLE = guard._host_capacity_sample
+
+
+def test_real_guard_rollback_retains_trusted_orphan_until_quiescent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F1：真 guard→verify→stop seam，舊 orphan 離開 roots 後仍存活就不得 bootout／完成。"""
+    activation = guard.runtime_activation
+    label = guard.SERVICE_LABELS[0]
+    roots, state, plists, context = _seed_pending_capacity_recovery(tmp_path, owned_labels=(label,))
+    monkeypatch.setattr(guard, "_snapshot", lambda *_args, **_kwargs: _available_snapshot())
+    monkeypatch.setattr(guard, "_recovery_context", lambda _receipt: dict(context))
+    monkeypatch.setattr(activation, "run_process_boundary", _CANONICAL_PROCESS_BOUNDARY)
+    loaded = [False]
+    orphan = [False]
+    calls = []
+    births = []
+    clock = [0.0]
+    monkeypatch.setattr(activation.os, "getpid", lambda: 50000)
+    monkeypatch.setattr(activation.os, "getpgrp", lambda: 50000)
+    monkeypatch.setattr(activation.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(activation.time, "sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds))
+
+    def birth(pid, _row, _record):
+        births.append(pid)
+        return None if pid == 123 and orphan[0] else [1, pid]
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("真 guard seam 測試禁止 native I/O")
+
+    monkeypatch.setattr(activation, "_process_birth_identity", birth)
+    monkeypatch.setattr(activation.subprocess, "run", forbidden)
+    monkeypatch.setattr(activation.os, "kill", forbidden)
+    monkeypatch.setattr(activation.ctypes, "CDLL", forbidden)
+
+    def runner(command):
+        calls.append(command)
+        if command[:2] == ["launchctl", "print-disabled"]:
+            return _completed(0, "disabled services = {\n}\n")
+        if command[:2] == ["launchctl", "bootstrap"]:
+            loaded[0] = True
+            return _completed()
+        if command[:2] == ["launchctl", "bootout"]:
+            loaded[0] = False
+            return _completed()
+        if command[:2] == ["launchctl", "print"]:
+            if not loaded[0]:
+                return _completed(113)
+            return _completed(0, _launchctl_loaded_identity(
+                command[-1], plists[label], state="waiting" if orphan[0] else "running",
+                runs=2 if orphan[0] else 1, pid=None if orphan[0] else 123,
+            ))
+        if command[0] == "/bin/ps":
+            body = "100 1 100 S /bin/sleep 300\n" if orphan[0] else f"123 1 9001 S {tmp_path}/actor/job\n100 123 100 S /bin/sleep 300\n"
+            return _completed(0, body)
+        if command[0] == "/usr/sbin/lsof":
+            return _completed(0, "p100\nfcwd\nn/\n")
+        raise AssertionError(command)
+
+    started = guard.check_once(*roots, state, now=2200, stop_runner=runner)
+    assert started["status"] == "RECOVERY_VERIFYING"
+    orphan[0] = True
+    pending = guard.check_once(*roots, state, now=2500, stop_runner=runner)
+    assert pending["recovery_incident"]["execution_verification"]["process_observation"]["active"] == [100]
+    expired = guard.check_once(*roots, state, now=2500 + guard.RECOVERY_EXECUTION_TIMEOUT_SECONDS + 1, stop_runner=runner)
+    incident = expired["recovery_incident"]
+    assert incident["rollback"]["status"] == "ROLLBACK_UNKNOWN", "存活可信 orphan 不得被新的空 journal 抹掉"
+    assert not any(command[:2] == ["launchctl", "bootout"] for command in calls)
+    assert loaded[0] and 100 in births
+    resume_identity = incident["resume_action_receipt"]
+    stopped = activation.load_action_receipt(Path(incident["rollback_action_receipt"]["path"]))
+    assert stopped["status"] == "BLOCKED" and not stopped["mutation_started"]
+    assert stopped["prior_lineage"]["resume_action_receipt"] == resume_identity
+    target = activation.load_action_receipt(Path(stopped["process_journal_path"]))
+    assert target["status"] == "UNKNOWN_OR_FAILED" and "deadline exceeded" in target["error"]
+    assert target["processes"]["100"]["birth"] == [1, 100] and target["groups"] == [100, 9001]
+    assert clock[0] == guard.RECOVERY_SHUTDOWN_TIMEOUT_SECONDS

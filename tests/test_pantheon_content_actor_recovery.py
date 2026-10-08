@@ -29,6 +29,36 @@ def _fake_absent_launchctl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     launchctl.chmod(0o700)
     monkeypatch.setenv("PATH", f"{fake_bin}:{os.environ.get('PATH', '')}")
 
+    sensor = tmp_path / "safe-capacity" / "host_capacity_sensor.py"
+    sensor.parent.mkdir()
+    sensor.write_text(
+        "from types import SimpleNamespace\n"
+        "def measure_host_capacity(path):\n"
+        "    return SimpleNamespace(total_bytes=200 * 1024**3, "
+        "physical_available_bytes=100 * 1024**3, "
+        "admission_available_bytes=100 * 1024**3, "
+        "source='macos_foundation_important_usage')\n",
+        encoding="utf-8",
+    )
+    support = tmp_path / "python-support"
+    support.mkdir()
+    (support / "sitecustomize.py").write_text(
+        "import importlib.util\n"
+        f"_sensor = {str(sensor)!r}\n"
+        "_real_spec = importlib.util.spec_from_file_location\n"
+        "def _fixture_spec(name, location, *args, **kwargs):\n"
+        "    if str(location).endswith('/ai-core/scripts/host_capacity_sensor.py'):\n"
+        "        location = _sensor\n"
+        "    return _real_spec(name, location, *args, **kwargs)\n"
+        "importlib.util.spec_from_file_location = _fixture_spec\n",
+        encoding="utf-8",
+    )
+    inherited = os.environ.get("PYTHONPATH")
+    monkeypatch.setenv(
+        "PYTHONPATH",
+        str(support) if not inherited else f"{support}:{inherited}",
+    )
+
 
 def _source_repo(tmp_path: Path) -> tuple[Path, Path, str]:
     remote = tmp_path / "origin.git"
@@ -71,15 +101,19 @@ def _repair_source_repo(tmp_path: Path) -> tuple[Path, Path, str]:
         "scripts/install_agy_content_publisher_launchd.sh",
         "scripts/install_agy_gemini_coordinator_launchd.sh",
         "scripts/install_pantheon_content_capacity_guard_launchd.sh",
+        "scripts/agy_content_publisher.py",
         "scripts/pantheon_content_actor_recovery.py",
         "scripts/pantheon_content_capability_adapter.py",
         "scripts/pantheon_content_capability_probe.py",
+        "scripts/pantheon_content_capacity_guard.py",
         "scripts/pantheon_content_runtime_manifest.py",
+        "scripts/pantheon_runtime_activation.py",
     ]
     for relative in repair_paths:
         destination = source / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(repo / relative, destination)
+        assert destination.read_bytes() == (repo / relative).read_bytes()
     _git(source, "add", *repair_paths)
     _git(source, "commit", "--allow-empty", "-qm", "repair-2 fixture")
     _git(source, "push", "-q", "origin", "main")

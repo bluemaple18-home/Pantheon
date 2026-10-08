@@ -458,6 +458,16 @@ def _publisher_step(
                 )
             return subprocess.CompletedProcess(command, 1, "", "unexpected command")
 
+        def fixture_capacity(_path: Path) -> dict[str, Any]:
+            return {
+                "disk_total_bytes": 200 * capacity_guard.GIB,
+                "disk_free_bytes": 100 * capacity_guard.GIB,
+                "admission_available_bytes": 100 * capacity_guard.GIB,
+                "capacity_source": "offline_fixture",
+                "capacity_available": True,
+                "capacity_error": None,
+            }
+
         with _formal_environment(
             manifest_path,
             manifest,
@@ -476,6 +486,7 @@ def _publisher_step(
                 Path(manifest["publisher_state_root"]),
                 Path(manifest["log_root"]),
                 runner=fixture_runner,
+                capacity_sensor=fixture_capacity,
             )
         if guard_result.get("status") != "PASS":
             raise AdapterBlocked("capacity guard production preflight failed")

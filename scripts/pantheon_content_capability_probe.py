@@ -29,6 +29,7 @@ PRODUCTION_SOURCE_FILES = (
     "scripts/agy_content_publisher.py",
     "scripts/pantheon_content_capacity_guard.py",
     "scripts/pantheon_content_runtime_manifest.py",
+    "scripts/pantheon_runtime_activation.py",
     "scripts/pantheon_content_actor_recovery.py",
     "scripts/pantheon_content_capability_adapter.py",
     "scripts/pantheon_content_capability_probe.py",

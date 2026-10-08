@@ -10,6 +10,7 @@ import time
 
 import pytest
 from scripts import pantheon_content_runtime_manifest as runtime
+from scripts import pantheon_runtime_activation as activation
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTALLER = ROOT / 'scripts/install_agy_gemini_coordinator_launchd.sh'
@@ -321,12 +322,9 @@ if kind=='receipt-mv':
 
 def _birth(pid):
     """使用相同 Darwin ABI 取得 native PID birth；不偽造程序存活。"""
-    import ast
-    tree=ast.parse(INSTALLER.read_text().split("normal_activation_boundary() {",1)[1].split("<<'PY'\n",1)[1].split('\nPY\n}',1)[0])
-    selected=[node for node in tree.body if isinstance(node,(ast.Import,ast.ImportFrom)) or isinstance(node,ast.ClassDef) and node.name=='Birth']
-    ns={};exec(compile(ast.Module(body=selected,type_ignores=[]),str(INSTALLER),'exec'),ns)
     import ctypes
-    value=ns['Birth']();lib=ctypes.CDLL('/usr/lib/libproc.dylib',use_errno=True)
+    value=activation.ProcessBirth();lib=ctypes.CDLL('/usr/lib/libproc.dylib',use_errno=True)
+    lib.proc_pidinfo.argtypes=[ctypes.c_int,ctypes.c_int,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_int]
     assert lib.proc_pidinfo(pid,3,0,ctypes.byref(value),ctypes.sizeof(value))==ctypes.sizeof(value)
     return [value.sec,value.usec],value.ppid,value.pgid
 
@@ -469,15 +467,22 @@ if (root/'pause-control').exists():
 
 def test_normal_unknown_boundary_remains_fail_closed(case):
     c=case
+    # 使用 canonical journal metadata／私有寫入，確保命中 UNKNOWN latch，而非格式錯誤。
+    journal=c['stage']/'normal-rollback-drain.json'
+    record=json.loads(journal.read_text())
+    record.update(schema_version=1,resample_required=False)
+    activation._write_private_json(journal,record)
+    original=journal.read_bytes()
     source=INSTALLER.read_text()
-    body='normal_activation_boundary() {'+source.split('normal_activation_boundary() {',1)[1].split('\nPY\n}',1)[0]+'\nPY\n}\n'
+    body='normal_activation_boundary() {'+source.split('normal_activation_boundary() {',1)[1].split('\n}\n',1)[0]+'\n}\n'
     import shlex
-    settings=dict(PYTHON_BIN=sys.executable,STAGE_DIR=str(c['stage']),BARRIER_TIMEOUT_SECONDS='30',USER_ID=str(os.getuid()),RUNTIME_MANIFEST_FILE=c['binding']['manifest_path'])
-    script='\n'.join(k+'='+shlex.quote(v) for k,v in settings.items())+'\n'+body+'normal_activation_boundary drain\n'
+    settings=dict(REPO_ROOT=str(ROOT),PYTHON_BIN=sys.executable,STAGE_DIR=str(c['stage']),BARRIER_TIMEOUT_SECONDS='30',USER_ID=str(os.getuid()),RUNTIME_MANIFEST_FILE=c['binding']['manifest_path'])
+    script='\n'.join(k+'='+shlex.quote(v) for k,v in settings.items())+'\n'+body+'normal_activation_boundary drain '+' '.join(runtime.SERVICE_LABELS)+'\n'
     result=subprocess.run(['/bin/bash'],input=script,text=True,capture_output=True,env=c['env'],cwd=ROOT)
     assert result.returncode!=0
-    assert 'prior normal process evidence is unresolved' in result.stderr
+    assert 'prior process evidence is unresolved' in result.stderr
     assert not (c['root']/'calls').exists()
+    assert journal.read_bytes()==original
 
 
 @pytest.mark.parametrize('drift',['live','receipt','journal'])

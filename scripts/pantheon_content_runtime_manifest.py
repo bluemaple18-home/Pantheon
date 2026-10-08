@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import plistlib
 import re
+import secrets
 import stat
 import subprocess
 import sys
@@ -39,6 +40,7 @@ SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 SHA1_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 GENERATION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 PUBLISHER_EXACT_RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+SHUTDOWN_READINESS_PERMIT_NAME = ".runtime-shutdown-readiness-permit.json"
 
 
 class RuntimeManifestError(ValueError):
@@ -51,6 +53,9 @@ class RuntimeWorkBusy(RuntimeManifestError):
 
 _WORK_LEASE: ContextVar[int | None] = ContextVar("runtime_work_lease", default=None)
 _WORK_LEASE_ROOT: ContextVar[Path | None] = ContextVar("runtime_work_lease_root", default=None)
+_SHUTDOWN_LEASE: ContextVar[int | None] = ContextVar(
+    "runtime_shutdown_lease", default=None
+)
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
 
@@ -63,9 +68,51 @@ def _verify_work_lease(fd: int, path: Path) -> None:
         raise RuntimeManifestError("runtime work lease identity drift")
 
 
+def _assert_capacity_stop_not_pending() -> None:
+    """Guard 已持久化待停機時，拒絕新的正式工作入口。"""
+    if os.environ.get("PANTHEON_FORMAL_RUNTIME") != "1" or os.environ.get(
+        "PANTHEON_RUNTIME_SERVICE_LABEL"
+    ) == "com.pantheon.content-capacity-guard":
+        return
+    queue_root = os.environ.get("PANTHEON_RUNTIME_QUEUE_ROOT")
+    if not queue_root:
+        return
+    state_path = Path(queue_root) / "capacity-guard-state.json"
+    if not state_path.is_absolute():
+        raise RuntimeManifestError("capacity guard state path is invalid")
+    try:
+        descriptor = os.open(state_path, os.O_RDONLY | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return
+    except OSError as error:
+        raise RuntimeManifestError("capacity guard state is unreadable") from error
+    try:
+        held, current = os.fstat(descriptor), state_path.lstat()
+        if (
+            not stat.S_ISREG(current.st_mode)
+            or held.st_uid != os.getuid()
+            or held.st_nlink != 1
+            or stat.S_IMODE(held.st_mode) != 0o600
+            or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)
+        ):
+            raise RuntimeManifestError("capacity guard state identity is untrusted")
+        with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
+            descriptor = -1
+            status = json.load(stream).get("status")
+    except (OSError, ValueError, AttributeError) as error:
+        raise RuntimeManifestError("capacity guard state is unreadable") from error
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    if status in {"STOPPING", "STOP_FAILED", "OPERATOR_REQUIRED", "ROLLBACK_IN_PROGRESS"}:
+        raise RuntimeWorkBusy("capacity stop is unresolved; new work is closed")
+
+
 @contextmanager
 def runtime_work_lease(state_root: Path) -> Iterator[int]:
     """跨 generation 共用同一 inode；正常工作共享，停機獨占。"""
+    if _SHUTDOWN_LEASE.get() is not None:
+        raise RuntimeManifestError("runtime work lease cannot nest under shutdown lease")
     if not state_root.is_absolute() or state_root.resolve(strict=True) != state_root:
         raise RuntimeManifestError("runtime work lease state root is invalid")
     path = state_root / "runtime-work.lock"
@@ -79,6 +126,7 @@ def runtime_work_lease(state_root: Path) -> Iterator[int]:
         except BlockingIOError as error:
             raise RuntimeWorkBusy("runtime shutdown holds work exclusion") from error
         _verify_work_lease(fd, path)
+        _assert_capacity_stop_not_pending()
         context_token = _WORK_LEASE.set(fd)
         root_token = _WORK_LEASE_ROOT.set(state_root)
         yield fd
@@ -89,6 +137,209 @@ def runtime_work_lease(state_root: Path) -> Iterator[int]:
             _WORK_LEASE.reset(context_token)
         # fork/dup/pass_fds 共享 lock；LOCK_UN 會提早解除仍活著的後代。
         os.close(fd)
+
+
+@contextmanager
+def runtime_shutdown_lease(
+    state_root: Path,
+    *,
+    timeout_seconds: float = 5.0,
+    poll_seconds: float = 0.05,
+) -> Iterator[int]:
+    """取得 bounded 獨占 mutation lease；禁止由 shared lease 原地升級。"""
+    if _WORK_LEASE.get() is not None or os.environ.get(
+        "PANTHEON_RUNTIME_WORK_LEASE_FD"
+    ) is not None:
+        raise RuntimeManifestError(
+            "runtime shutdown lease cannot upgrade an active shared work lease"
+        )
+    if _SHUTDOWN_LEASE.get() is not None:
+        raise RuntimeManifestError("runtime shutdown lease is already held")
+    if (
+        not state_root.is_absolute()
+        or state_root.resolve(strict=True) != state_root
+        or timeout_seconds < 0
+        or timeout_seconds > 300
+        or poll_seconds <= 0
+        or poll_seconds > 1
+    ):
+        raise RuntimeManifestError("runtime shutdown lease arguments are invalid")
+    path = state_root / "runtime-work.lock"
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    context_token = None
+    deadline = time.monotonic() + timeout_seconds
+    try:
+        _verify_work_lease(fd, path)
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError as error:
+                if time.monotonic() >= deadline:
+                    raise RuntimeWorkBusy(
+                        "runtime work did not quiesce before shutdown deadline"
+                    ) from error
+                time.sleep(min(poll_seconds, max(0.0, deadline - time.monotonic())))
+        _verify_work_lease(fd, path)
+        context_token = _SHUTDOWN_LEASE.set(fd)
+        yield fd
+    finally:
+        if context_token is not None:
+            _SHUTDOWN_LEASE.reset(context_token)
+        os.close(fd)
+
+
+def assert_runtime_shutdown_lease(state_root: Path) -> None:
+    """讓 mutation helper 驗證自己仍位於同一個獨占 control seam。"""
+    fd = _SHUTDOWN_LEASE.get()
+    if fd is None:
+        inherited = os.environ.get("PANTHEON_RUNTIME_SHUTDOWN_LEASE_FD")
+        if inherited is None:
+            raise RuntimeManifestError("runtime shutdown lease is not held")
+        try:
+            fd = int(inherited)
+        except ValueError as error:
+            raise RuntimeManifestError(
+                "runtime shutdown lease descriptor is invalid"
+            ) from error
+    try:
+        _verify_work_lease(fd, state_root / "runtime-work.lock")
+    except OSError as error:
+        raise RuntimeManifestError("runtime shutdown lease is unavailable") from error
+    # 獨立 open 的 FD 必須被既有 LOCK_EX 擋住；單有相同 inode 的 FD 不算授權。
+    probe_fd = os.open(state_root / "runtime-work.lock", os.O_RDWR | os.O_NOFOLLOW)
+    try:
+        _verify_work_lease(probe_fd, state_root / "runtime-work.lock")
+        try:
+            fcntl.flock(probe_fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError:
+            pass
+        else:
+            raise RuntimeManifestError("runtime shutdown lease is not exclusive")
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise RuntimeManifestError("runtime shutdown lease is not owned") from error
+    finally:
+        os.close(probe_fd)
+
+
+def shutdown_readiness_permit_path(state_root: Path) -> Path:
+    if not state_root.is_absolute() or state_root.resolve(strict=True) != state_root:
+        raise RuntimeManifestError("readiness permit state root is invalid")
+    return state_root / SHUTDOWN_READINESS_PERMIT_NAME
+
+
+def create_shutdown_readiness_permit(
+    state_root: Path,
+    manifest: dict[str, Any],
+    *,
+    barrier: Path,
+    ready_root: Path,
+    labels: list[str],
+    timeout_seconds: float,
+    owner_pid: int,
+) -> dict[str, Any]:
+    """installer 持 exclusive lease 時，僅授權 matching wrapper 寫 readiness。"""
+    assert_runtime_shutdown_lease(state_root)
+    if (
+        Path(str(manifest.get("publisher_state_root", ""))) != state_root
+        or not barrier.is_absolute()
+        or not ready_root.is_absolute()
+        or not labels
+        or len(labels) != len(set(labels))
+        or any(label not in SERVICE_LABELS for label in labels)
+        or not 1 <= timeout_seconds <= 300
+        or owner_pid <= 1
+    ):
+        raise RuntimeManifestError("readiness permit arguments are invalid")
+    lock_path = state_root / "runtime-work.lock"
+    metadata = lock_path.lstat()
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or metadata.st_nlink != 1
+    ):
+        raise RuntimeManifestError("readiness permit lock identity is invalid")
+    now = time.time()
+    payload = {
+        "schema_version": 1,
+        "status": "ACTIVE",
+        "nonce": secrets.token_hex(16),
+        "owner_uid": os.getuid(),
+        "owner_pid": owner_pid,
+        "created_epoch": now,
+        "expires_epoch": now + timeout_seconds,
+        "state_root": str(state_root),
+        "lock_device": metadata.st_dev,
+        "lock_inode": metadata.st_ino,
+        "manifest_digest": manifest.get("manifest_digest"),
+        "runtime_identity_digest": manifest.get("runtime_identity_digest"),
+        "generation": manifest.get("generation"),
+        "barrier_path": str(barrier),
+        "ready_root": str(ready_root),
+        "labels": labels,
+    }
+    path = shutdown_readiness_permit_path(state_root)
+    write_manifest(path, payload)
+    if _read_private_json(path, "readiness permit writeback failed") != payload:
+        raise RuntimeManifestError("readiness permit writeback mismatch")
+    return payload
+
+
+def validate_shutdown_readiness_permit(
+    state_root: Path,
+    manifest: dict[str, Any],
+    *,
+    barrier: Path,
+    ready_root: Path,
+    service_label: str,
+) -> dict[str, Any]:
+    """permit 只放行 readiness；不授權 payload 或一般 protected I/O。"""
+    path = shutdown_readiness_permit_path(state_root)
+    payload = _read_private_json(path, "shutdown readiness permit is unavailable")
+    lock = (state_root / "runtime-work.lock").lstat()
+    owner_pid = payload.get("owner_pid")
+    if type(owner_pid) is not int or owner_pid <= 1:
+        raise RuntimeManifestError("shutdown readiness permit owner is invalid")
+    try:
+        os.kill(owner_pid, 0)
+    except OSError as error:
+        raise RuntimeManifestError("shutdown readiness permit owner is gone") from error
+    if (
+        payload.get("schema_version") != 1
+        or payload.get("status") != "ACTIVE"
+        or payload.get("owner_uid") != os.getuid()
+        or not isinstance(payload.get("nonce"), str)
+        or len(str(payload.get("nonce"))) != 32
+        or type(payload.get("created_epoch")) not in {int, float}
+        or type(payload.get("expires_epoch")) not in {int, float}
+        or float(payload["created_epoch"]) > time.time()
+        or time.time() >= float(payload["expires_epoch"])
+        or float(payload["expires_epoch"]) - float(payload["created_epoch"]) > 300
+        or payload.get("state_root") != str(state_root)
+        or payload.get("lock_device") != lock.st_dev
+        or payload.get("lock_inode") != lock.st_ino
+        or payload.get("manifest_digest") != manifest.get("manifest_digest")
+        or payload.get("runtime_identity_digest")
+        != manifest.get("runtime_identity_digest")
+        or payload.get("generation") != manifest.get("generation")
+        or payload.get("barrier_path") != str(barrier)
+        or payload.get("ready_root") != str(ready_root)
+        or not isinstance(payload.get("labels"), list)
+        or service_label not in payload["labels"]
+    ):
+        raise RuntimeManifestError("shutdown readiness permit identity mismatch")
+    return payload
+
+
+def revoke_shutdown_readiness_permit(state_root: Path) -> None:
+    assert_runtime_shutdown_lease(state_root)
+    path = shutdown_readiness_permit_path(state_root)
+    if not path.exists() and not path.is_symlink():
+        return
+    _read_private_json(path, "shutdown readiness permit is invalid")
+    path.unlink()
 
 
 def runtime_work_pass_fds() -> tuple[int, ...]:
@@ -998,6 +1249,28 @@ def parse_args() -> argparse.Namespace:
         choices=["normal", "activation-only"],
         required=True,
     )
+    shutdown_exec = subparsers.add_parser("shutdown-lease-exec")
+    shutdown_exec.add_argument("--state-root", type=Path, required=True)
+    shutdown_exec.add_argument("--timeout", type=float, default=30.0)
+    shutdown_exec.add_argument("remainder", nargs=argparse.REMAINDER)
+    shutdown_assert = subparsers.add_parser("shutdown-lease-assert")
+    shutdown_assert.add_argument("--state-root", type=Path, required=True)
+    permit_create = subparsers.add_parser("readiness-permit-create")
+    permit_create.add_argument("--state-root", type=Path, required=True)
+    permit_create.add_argument("--manifest", type=Path, required=True)
+    permit_create.add_argument("--expected-digest", required=True)
+    permit_create.add_argument("--barrier", type=Path, required=True)
+    permit_create.add_argument("--ready-root", type=Path, required=True)
+    permit_create.add_argument("--timeout", type=float, required=True)
+    permit_create.add_argument("--owner-pid", type=int, required=True)
+    permit_create.add_argument(
+        "--label",
+        choices=SERVICE_LABELS,
+        action="append",
+        required=True,
+    )
+    permit_revoke = subparsers.add_parser("readiness-permit-revoke")
+    permit_revoke.add_argument("--state-root", type=Path, required=True)
     barrier = subparsers.add_parser("barrier-exec")
     barrier.add_argument("--barrier", type=Path, required=True)
     barrier.add_argument("--expected-digest", required=True)
@@ -1022,6 +1295,62 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if args.command == "shutdown-lease-assert":
+        try:
+            assert_runtime_shutdown_lease(args.state_root)
+            return 0
+        except RuntimeManifestError as error:
+            print(json.dumps({"status": "NO-GO", "error": str(error)}, sort_keys=True))
+            return 78
+    if args.command == "shutdown-lease-exec":
+        command = list(args.remainder)
+        if command[:1] == ["--"]:
+            command = command[1:]
+        if (
+            not command
+            or not args.state_root.is_absolute()
+            or args.timeout < 0
+            or args.timeout > 300
+        ):
+            return 64
+        try:
+            with runtime_shutdown_lease(
+                args.state_root,
+                timeout_seconds=args.timeout,
+            ) as lease_fd:
+                os.set_inheritable(lease_fd, True)
+                environment = os.environ.copy()
+                environment["PANTHEON_RUNTIME_SHUTDOWN_LEASE_FD"] = str(lease_fd)
+                os.execvpe(command[0], command, environment)
+            return 70
+        except RuntimeWorkBusy:
+            return 75
+        except (OSError, RuntimeManifestError):
+            return 78
+    if args.command == "readiness-permit-create":
+        try:
+            manifest = load_manifest(args.manifest, args.expected_digest)
+            permit = create_shutdown_readiness_permit(
+                args.state_root,
+                manifest,
+                barrier=args.barrier,
+                ready_root=args.ready_root,
+                labels=list(args.label),
+                timeout_seconds=args.timeout,
+                owner_pid=args.owner_pid,
+            )
+            print(json.dumps(permit, sort_keys=True))
+            return 0
+        except (OSError, RuntimeManifestError) as error:
+            print(json.dumps({"status": "NO-GO", "error": str(error)}, sort_keys=True))
+            return 78
+    if args.command == "readiness-permit-revoke":
+        try:
+            revoke_shutdown_readiness_permit(args.state_root)
+            return 0
+        except (OSError, RuntimeManifestError) as error:
+            print(json.dumps({"status": "NO-GO", "error": str(error)}, sort_keys=True))
+            return 78
     if args.command == "barrier-activate":
         try:
             manifest = load_manifest(args.manifest, args.expected_digest)
@@ -1068,64 +1397,136 @@ def main() -> int:
             return 78
         if not args.ready_root.is_absolute():
             return 64
-        try:
-            state_root = Path(os.environ.get("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT", ""))
-            with runtime_work_lease(state_root) as lease_fd:
-                manifest = load_manifest(args.manifest, args.expected_digest)
-                if state_root != Path(manifest["publisher_state_root"]):
-                    raise RuntimeManifestError("runtime work lease state root mismatch")
-                validate_runtime_tick(
-                    args.service_label,
-                    queue_root=(
-                        Path(manifest["queue_root"])
-                        / "lanes"
-                        / args.service_label.removeprefix("com.pantheon.agy-gemini-")
-                        if args.service_label.startswith("com.pantheon.agy-gemini-")
-                        and args.service_label != "com.pantheon.agy-gemini-coordinator"
-                        else Path(manifest["queue_root"])
-                    ),
-                    state_root=Path(manifest["publisher_state_root"]),
-                    actor_root=Path(manifest["actor_root"]),
-                    log_root=Path(manifest["log_root"]),
-                    require_activation_token=False,
+        state_root = Path(os.environ.get("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT", ""))
+        deadline = time.monotonic() + args.timeout
+
+        def load_and_validate_runtime() -> dict[str, Any]:
+            manifest = load_manifest(args.manifest, args.expected_digest)
+            if state_root != Path(manifest["publisher_state_root"]):
+                raise RuntimeManifestError("runtime work lease state root mismatch")
+            validate_runtime_tick(
+                args.service_label,
+                queue_root=(
+                    Path(manifest["queue_root"])
+                    / "lanes"
+                    / args.service_label.removeprefix("com.pantheon.agy-gemini-")
+                    if args.service_label.startswith("com.pantheon.agy-gemini-")
+                    and args.service_label != "com.pantheon.agy-gemini-coordinator"
+                    else Path(manifest["queue_root"])
+                ),
+                state_root=Path(manifest["publisher_state_root"]),
+                actor_root=Path(manifest["actor_root"]),
+                log_root=Path(manifest["log_root"]),
+                require_activation_token=False,
+            )
+            validate_execution_python_identity(manifest, command)
+            return manifest
+
+        def acknowledge_and_wait(manifest: dict[str, Any]) -> None:
+            write_readiness_ack(args.ready_root, manifest, args.service_label)
+            while not args.barrier.exists():
+                if time.monotonic() >= deadline:
+                    raise RuntimeWorkBusy("activation barrier wait timed out")
+                time.sleep(min(0.2, max(0.0, deadline - time.monotonic())))
+            validate_barrier(args.barrier, manifest)
+            validate_execution_python_identity(manifest, command)
+
+        def activation_only_result(manifest: dict[str, Any]) -> int:
+            print(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "activation_only": True,
+                        "service_label": args.service_label,
+                        "manifest_digest": manifest["manifest_digest"],
+                        "generation": manifest["generation"],
+                    },
+                    sort_keys=True,
                 )
-                validate_execution_python_identity(manifest, command)
-                write_readiness_ack(args.ready_root, manifest, args.service_label)
-                deadline = time.monotonic() + args.timeout
-                while not args.barrier.exists():
-                    if time.monotonic() >= deadline:
-                        return 75
-                    time.sleep(0.2)
-                validate_barrier(args.barrier, manifest)
-                validate_execution_python_identity(manifest, command)
-                os.environ["PANTHEON_RUNTIME_ACTIVATION_TOKEN"] = str(args.barrier)
-                if args.activation_only:
-                    print(
-                        json.dumps(
-                            {
-                                "status": "PASS",
-                                "activation_only": True,
-                                "service_label": args.service_label,
-                                "manifest_digest": manifest["manifest_digest"],
-                                "generation": manifest["generation"],
-                            },
-                            sort_keys=True,
-                        )
+            )
+            return 0
+
+        def exec_with_shared_lease(lease_fd: int) -> int:
+            previous_fd = os.environ.get("PANTHEON_RUNTIME_WORK_LEASE_FD")
+            os.environ["PANTHEON_RUNTIME_WORK_LEASE_FD"] = str(lease_fd)
+            try:
+                os.set_inheritable(lease_fd, True)
+                os.execv(command[0], command)
+            finally:
+                if previous_fd is None:
+                    os.environ.pop("PANTHEON_RUNTIME_WORK_LEASE_FD", None)
+                else:
+                    os.environ["PANTHEON_RUNTIME_WORK_LEASE_FD"] = previous_fd
+            return 70
+
+        try:
+            capacity_guard_ready = False
+            try:
+                with runtime_work_lease(state_root) as lease_fd:
+                    manifest = load_and_validate_runtime()
+                    acknowledge_and_wait(manifest)
+                    os.environ["PANTHEON_RUNTIME_ACTIVATION_TOKEN"] = str(
+                        args.barrier
                     )
-                    return 0
-                previous_fd = os.environ.get("PANTHEON_RUNTIME_WORK_LEASE_FD")
-                os.environ["PANTHEON_RUNTIME_WORK_LEASE_FD"] = str(lease_fd)
-                try:
-                    # execv 保留此 FD；成功後由同一服務程序的生命週期持有。
-                    os.set_inheritable(lease_fd, True)
-                    os.execv(command[0], command)
-                finally:
-                    # exec 失敗或測試替身返回時，避免留下已失效的 FD 編號。
-                    if previous_fd is None:
-                        os.environ.pop("PANTHEON_RUNTIME_WORK_LEASE_FD", None)
+                    if args.activation_only:
+                        return activation_only_result(manifest)
+                    if args.service_label == "com.pantheon.content-capacity-guard":
+                        if os.environ.get("PANTHEON_RUNTIME_WORK_LEASE_FD") is not None:
+                            raise RuntimeManifestError(
+                                "capacity guard wrapper inherited a nested work lease"
+                            )
+                        capacity_guard_ready = True
                     else:
-                        os.environ["PANTHEON_RUNTIME_WORK_LEASE_FD"] = previous_fd
-                return 70
+                        return exec_with_shared_lease(lease_fd)
+                if capacity_guard_ready:
+                    # Guard payload 自行切換 shared sampling 與 exclusive mutation。
+                    os.execv(command[0], command)
+                    return 70
+            except RuntimeWorkBusy:
+                manifest = load_and_validate_runtime()
+                try:
+                    validate_shutdown_readiness_permit(
+                        state_root,
+                        manifest,
+                        barrier=args.barrier,
+                        ready_root=args.ready_root,
+                        service_label=args.service_label,
+                    )
+                except (OSError, RuntimeManifestError):
+                    # 任意 shutdown exclusion 沒有 matching permit 時不得寫 readiness。
+                    return 75
+                acknowledge_and_wait(manifest)
+                if args.activation_only:
+                    os.environ["PANTHEON_RUNTIME_ACTIVATION_TOKEN"] = str(
+                        args.barrier
+                    )
+                    return activation_only_result(manifest)
+                while True:
+                    try:
+                        capacity_guard_ready = False
+                        with runtime_work_lease(state_root) as lease_fd:
+                            manifest = load_and_validate_runtime()
+                            validate_barrier(args.barrier, manifest)
+                            validate_execution_python_identity(manifest, command)
+                            os.environ["PANTHEON_RUNTIME_ACTIVATION_TOKEN"] = str(
+                                args.barrier
+                            )
+                            if (
+                                args.service_label
+                                == "com.pantheon.content-capacity-guard"
+                            ):
+                                capacity_guard_ready = True
+                            else:
+                                return exec_with_shared_lease(lease_fd)
+                        if capacity_guard_ready:
+                            os.execv(command[0], command)
+                            return 70
+                    except RuntimeWorkBusy:
+                        if time.monotonic() >= deadline:
+                            return 75
+                        time.sleep(
+                            min(0.05, max(0.0, deadline - time.monotonic()))
+                        )
         except RuntimeWorkBusy:
             return 75
         except (RuntimeManifestError, OSError):

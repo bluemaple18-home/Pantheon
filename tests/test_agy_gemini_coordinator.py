@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import ctypes
 import errno
 import hashlib
@@ -19,6 +18,7 @@ from scripts import agy_gemini_coordinator as coordinator
 from scripts import agy_gemini_runner as runner
 from scripts import agy_seo_copy_pipeline as pipeline
 from scripts import pantheon_content_runtime_manifest as runtime_manifest
+from scripts import pantheon_runtime_activation as runtime_activation
 from scripts.agy_gemini_coordinator import build_campaign_dry_run_workset, cycle_once, read_run_state, register_run, seed_legacy_rewrite_runs, seed_new_matrix_runs
 from scripts.agy_gemini_outbox import ExternalJobPending, consume_external_response, create_external_request
 
@@ -9229,6 +9229,7 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
     expected_rollback_status: str,
     fail_before_bootstrap: bool,
     admission_fault: str | None = None,
+    signal_fault: str | None = None,
 ) -> None:
     """REG-PANTHEON-FOUR-LANE-INSTALL-ROLLBACK-001 動態 rollback。"""
     repo_root = Path(__file__).resolve().parents[1]
@@ -9238,6 +9239,7 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         pool=pool,
         state=tmp_path / "state.json",
     )
+    _install_normal_boundary_test_observer(tmp_path, env)
     env["PANTHEON_ACTIVATION_CORRELATION_ID"] = (
         f"apf-004-rollback-{expected_rollback_status.lower()}"
     )
@@ -9293,7 +9295,9 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         "  label=${2##*/}\n"
         f"  if [ '{rollback_fail_at}' = '-3' ] && [ -f '{tmp_path}/unknown-after-bootout' ]; then exit 2; fi\n"
         f"  [ -f '{loaded}/'$label ] || exit 113\n"
-        "  printf '%s\\n' '\tstate = waiting' '\truns = 0'\n"
+        f"  printf '%s\\n' \"$2 = {{\" "
+        f"\"path = {launch_agents}/$label.plist\" "
+        "'state = waiting' 'runs = 0' 'last exit code = 0' '}'\n"
         "  exit 0\n"
         "fi\n"
         "if [ \"$1\" = \"bootout\" ]; then\n"
@@ -9311,6 +9315,7 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         f"  count=$(cat '{bootstrap_count}' 2>/dev/null || printf 0)\n"
         "  count=$((count + 1))\n"
         f"  printf '%s' \"$count\" > '{bootstrap_count}'\n"
+        f"  if [ '{signal_fault}' != 'None' ] && [ \"$count\" -eq 3 ]; then kill -{signal_fault or 'TERM'} \"$PPID\"; exit 9; fi\n"
         f"  if [ '{int(fail_before_bootstrap)}' = '0' ] && {{ [ \"$count\" -eq 3 ] || [ \"$count\" -eq {rollback_fail_at} ]; }}; then exit 1; fi\n"
         "  label=${3##*/}\n"
         "  label=${label%.plist}\n"
@@ -9413,7 +9418,8 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
             time.sleep(.01)
         assert (tmp_path / 'old-done').exists()
         (tmp_path / 'activate.stderr').write_text(activated.stderr)
-    assert activated.returncode == (23 if fail_before_bootstrap else 1), activated.stderr
+    expected_returncode = (130 if signal_fault == "INT" else 143) if signal_fault else (23 if fail_before_bootstrap else 1)
+    assert activated.returncode == expected_returncode, activated.stderr
     if expected_rollback_status == "ROLLBACK_COMPLETE":
         for label in labels:
             assert (launch_agents / f"{label}.plist").read_bytes() == previous
@@ -9442,7 +9448,7 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
     }
     assert receipt["exit_reason"] == {
         "phase": "bootout_previous_services" if fail_before_bootstrap else "bootstrap_staged_services",
-        "exit_code": 23 if fail_before_bootstrap else 1,
+        "exit_code": expected_returncode,
     }
     mutations = mutation_log.read_text(encoding="utf-8")
     assert mutations.count("bootout") >= 2
@@ -9453,6 +9459,20 @@ def test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
         assert receipt["rollback_check_ids"] == []
     if fail_before_bootstrap:
         assert mutations.count("bootstrap") == len(labels)
+
+
+@pytest.mark.parametrize("signal_fault", ["INT", "TERM"])
+def test_four_lane_activation_signal_rolls_back(
+    tmp_path: Path,
+    signal_fault: str,
+) -> None:
+    test_four_lane_activation_failure_restores_previous_plists_and_loaded_state(
+        tmp_path,
+        rollback_fail_at=0,
+        expected_rollback_status="ROLLBACK_COMPLETE",
+        fail_before_bootstrap=False,
+        signal_fault=signal_fault,
+    )
 
 
 @pytest.mark.parametrize("fault", ["before-write", "stage-effect", "invalid-stage", "publish-effect", "publish-unknown"])
@@ -9490,6 +9510,7 @@ def test_four_lane_activation_success_commits_matching_private_stage(
         pool=pool,
         state=tmp_path / "state.json",
     )
+    _install_normal_boundary_test_observer(tmp_path, env)
     env["PANTHEON_ACTIVATION_CORRELATION_ID"] = "apf-004-private-green"
     manifest = runtime_manifest.load_manifest(Path(env["PANTHEON_RUNTIME_MANIFEST_FILE"]))
     stage_dir = fake_home / "Library/LaunchAgents/.pantheon-four-lane-stage"
@@ -9512,7 +9533,9 @@ def test_four_lane_activation_success_commits_matching_private_stage(
         "  case \"$2\" in *com.pantheon.agy-gemini-runner) exit 113;; esac\n"
         "  label=${2##*/}\n"
         f"  [ -f '{loaded}/'$label ] || exit 113\n"
-        "  printf '%s\\n' '\tstate = waiting' '\truns = 0'\n"
+        f"  printf '%s\\n' \"$2 = {{\" "
+        f"\"path = {stage_dir.parent}/$label.plist\" "
+        "'state = waiting' 'runs = 0' 'last exit code = 0' '}'\n"
         "  exit 0\n"
         "fi\n"
         "if [ \"$1\" = \"bootout\" ]; then\n"
@@ -9913,6 +9936,47 @@ def test_publisher_only_bounded_activation_replaces_only_publisher(
             )
             continue
         assert live_path.read_bytes() == live_payloads[label]
+
+
+def test_publisher_only_signal_rolls_back_live_plist(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env, fake_home, _log, _manifest, _barrier, loaded, live_payloads = (
+        _prepare_publisher_only_activation_fixture(tmp_path)
+    )
+    controller = tmp_path / "bin/launchctl"
+    base = controller.with_name("launchctl-base")
+    controller.rename(base)
+    fired = tmp_path / "publisher-signal-fired"
+    controller.write_text(
+        f"#!{sys.executable}\n"
+        "import os, signal, sys\nfrom pathlib import Path\n"
+        f"base = {str(base)!r}\nfired = Path({str(fired)!r})\n"
+        "if sys.argv[1] == 'bootstrap' and not fired.exists():\n"
+        "    fired.touch()\n"
+        "    os.kill(os.getppid(), signal.SIGTERM)\n"
+        "    sys.exit(9)\n"
+        "os.execv(base, [base, *sys.argv[1:]])\n",
+        encoding="utf-8",
+    )
+    controller.chmod(0o700)
+
+    result = subprocess.run(
+        ["/bin/bash", str(repo_root / "scripts/install_agy_gemini_coordinator_launchd.sh"),
+         "--activate-publisher-only"],
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=30,
+    )
+
+    stage = fake_home / "Library/LaunchAgents/.pantheon-four-lane-stage"
+    receipt = json.loads((stage / "failure-receipt.json").read_text())
+    publisher = "com.pantheon.agy-content-publisher"
+    assert result.returncode == 143, result.stderr
+    assert receipt["status"] == "ROLLBACK_COMPLETE"
+    assert receipt["exit_reason"]["exit_code"] == 143
+    assert (fake_home / "Library/LaunchAgents" / f"{publisher}.plist").read_bytes() == live_payloads[publisher]
+    assert (loaded / publisher).exists()
+    for label, original in live_payloads.items():
+        if label != publisher:
+            assert (fake_home / "Library/LaunchAgents" / f"{label}.plist").read_bytes() == original
 
 
 @pytest.mark.parametrize(
@@ -14031,41 +14095,30 @@ def test_disclosure_amendment_registry_job_drift_stops_before_consume_or_write(d
     assert all(path.read_bytes() == value for path, value in before.items() if path != registry_path)
 
 
-def _normal_activation_boundary_namespace() -> dict[str, object]:
-    """只抽出 installer 的程序觀測函式，讓 race 可 deterministic 驗證。"""
-    script = Path(__file__).resolve().parents[1] / 'scripts/install_agy_gemini_coordinator_launchd.sh'
-    source = script.read_text()
-    body = source.split('normal_activation_boundary() {', 1)[1].split("<<'PY'\n", 1)[1].split('\nPY\n}', 1)[0]
-    tree = ast.parse(body)
-    keep = []
-    for node in tree.body:
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            keep.append(node)
-        elif isinstance(node, ast.ClassDef) and node.name == 'Birth':
-            keep.append(node)
-        elif isinstance(node, ast.FunctionDef) and node.name in {'identity', 'observe'}:
-            keep.append(node)
-    namespace: dict[str, object] = {'mode': 'observe'}
-    exec(compile(ast.Module(body=keep, type_ignores=[]), str(script), 'exec'), namespace)
-    return namespace
+def test_normal_activation_boundary_delegates_to_canonical_module() -> None:
+    """installer 只保留薄 shell adapter，程序邊界由 canonical Python 模組擁有。"""
+    script = Path(__file__).resolve().parents[1] / "scripts/install_agy_gemini_coordinator_launchd.sh"
+    source = script.read_text(encoding="utf-8")
+    body = source.split("normal_activation_boundary() {", 1)[1].split("\n}\n", 1)[0]
+
+    assert "-m scripts.pantheon_runtime_activation process-boundary" in body
+    assert "<<'PY'" not in body
 
 
 def test_normal_boundary_first_seen_esrch_is_confirmed_and_retains_lineage(monkeypatch) -> None:
     """ps 首見後自然退出要雙重確認，並保留 lineage 供下一輪追子程序。"""
-    boundary = _normal_activation_boundary_namespace()
     record = {'processes': {}, 'groups': [], 'seen_labels': [], 'resample_required': False}
-    boundary['record'] = record
 
     class Query:
         def __call__(self, *args):
             ctypes.set_errno(errno.ESRCH)
             return 0
 
-    monkeypatch.setattr(boundary['ctypes'], 'CDLL', lambda *args, **kwargs: type('Lib', (), {'proc_pidinfo': Query()})())
-    monkeypatch.setattr(boundary['os'], 'kill', lambda pid, sig: (_ for _ in ()).throw(ProcessLookupError(errno.ESRCH, 'gone')))
+    monkeypatch.setattr(runtime_activation.ctypes, 'CDLL', lambda *args, **kwargs: type('Lib', (), {'proc_pidinfo': Query()})())
+    monkeypatch.setattr(runtime_activation.os, 'kill', lambda pid, sig: (_ for _ in ()).throw(ProcessLookupError(errno.ESRCH, 'gone')))
     row = {'ppid': 100, 'pgid': 101, 'zombie': False, 'command': 'short-lived'}
 
-    assert boundary['identity'](8858, row) is None
+    assert runtime_activation._process_birth_identity(8858, row, record) is None
     assert record['resample_required'] is True
     assert record['processes']['8858']['birth'] is None
     assert record['processes']['8858']['ppid'] == 100
@@ -14074,52 +14127,206 @@ def test_normal_boundary_first_seen_esrch_is_confirmed_and_retains_lineage(monke
 
 @pytest.mark.parametrize('confirm', ['still-present', 'permission'])
 def test_normal_boundary_first_seen_esrch_ambiguous_confirmation_stays_unknown(monkeypatch, confirm: str) -> None:
-    boundary = _normal_activation_boundary_namespace()
-    boundary['record'] = {'processes': {}, 'groups': [], 'seen_labels': [], 'resample_required': False}
+    record = {'processes': {}, 'groups': [], 'seen_labels': [], 'resample_required': False}
 
     class Query:
         def __call__(self, *args):
             ctypes.set_errno(errno.ESRCH)
             return 0
 
-    monkeypatch.setattr(boundary['ctypes'], 'CDLL', lambda *args, **kwargs: type('Lib', (), {'proc_pidinfo': Query()})())
+    monkeypatch.setattr(runtime_activation.ctypes, 'CDLL', lambda *args, **kwargs: type('Lib', (), {'proc_pidinfo': Query()})())
     if confirm == 'still-present':
-        monkeypatch.setattr(boundary['os'], 'kill', lambda pid, sig: None)
+        monkeypatch.setattr(runtime_activation.os, 'kill', lambda pid, sig: None)
     else:
-        monkeypatch.setattr(boundary['os'], 'kill', lambda pid, sig: (_ for _ in ()).throw(PermissionError(errno.EPERM, 'denied')))
-    with pytest.raises(RuntimeError, match='UNKNOWN'):
-        boundary['identity'](8858, {'ppid': 100, 'pgid': 101, 'zombie': False, 'command': 'short-lived'})
+        monkeypatch.setattr(runtime_activation.os, 'kill', lambda pid, sig: (_ for _ in ()).throw(PermissionError(errno.EPERM, 'denied')))
+    with pytest.raises(runtime_activation.RuntimeActivationError, match='UNKNOWN'):
+        runtime_activation._process_birth_identity(
+            8858,
+            {'ppid': 100, 'pgid': 101, 'zombie': False, 'command': 'short-lived'},
+            record,
+        )
 
 
-def test_normal_boundary_retained_parent_lineage_tracks_reparented_child(monkeypatch) -> None:
-    boundary = _normal_activation_boundary_namespace()
+def test_normal_boundary_retained_parent_lineage_tracks_reparented_child(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     record = {
+        'schema_version': 1,
         'processes': {'8858': {'birth': None, 'ppid': 100, 'pgid': 101, 'zombie': False, 'command': 'gone-parent'}},
         'groups': [101], 'seen_labels': [], 'resample_required': False,
     }
-    boundary.update(record=record, arguments=[], domain='gui/501', owned_roots=['/runtime'])
-    boundary['services'] = lambda: {}
-    boundary['save'] = lambda: None
-    boundary['identity'] = lambda pid, row: [12, pid]
-    monkeypatch.setattr(boundary['os'], 'getpgrp', lambda: 99999)
+    roots = {name: tmp_path / name for name in ('actor_root', 'queue_root', 'publisher_state_root', 'log_root')}
+    for path in roots.values():
+        path.mkdir()
+    journal = tmp_path / 'normal-boundary.json'
+    runtime_activation._write_private_json(journal, record)
+    queried = []
 
-    class Result:
-        returncode = 0
-        stdout = ''
+    def birth(pid, row, record):
+        # 父程序已退出；targeted absence 與仍存活後代須提供一致的生命週期證據。
+        queried.append(pid)
+        return None if pid == 8858 else [12, pid]
 
-    def command(argv):
-        result = Result()
-        if argv[0] == '/bin/ps':
-            result.stdout = '9001 8858 9001 S child-worker\n'
-        elif argv[0] == '/usr/sbin/lsof':
-            result.stdout = 'p9001\nfcwd\nn/outside\n'
-        else:
-            raise AssertionError(argv)
-        return result
+    monkeypatch.setattr(runtime_activation, '_process_birth_identity', birth)
+    monkeypatch.setattr(runtime_activation.os, 'getpgrp', lambda: 99999)
 
-    boundary['command'] = command
-    assert boundary['observe']() == [9001]
-    assert record['processes']['9001']['ppid'] == 8858
+    def command(argv: list[str]) -> subprocess.CompletedProcess[str]:
+        if argv[:2] == ['launchctl', 'print']:
+            target = argv[-1]
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                f'{target} = {{\n\tpath = /tmp/service.plist\n\tstate = waiting\n\truns = 1\n\tlast exit code = 0\n}}\n',
+                '',
+            )
+        if argv[:2] == ['/bin/ps', '-axo']:
+            return subprocess.CompletedProcess(argv, 0, '9001 8858 9001 S child-worker\n', '')
+        if argv[:2] == ['/usr/sbin/lsof', '-a']:
+            return subprocess.CompletedProcess(argv, 0, 'p9001\nfcwd\nn/outside\n', '')
+        raise AssertionError(argv)
+
+    observed = runtime_activation.run_process_boundary(
+        journal_path=journal,
+        timeout_seconds=5,
+        domain='gui/501',
+        owned_roots={field: str(path) for field, path in roots.items()},
+        mode='observe',
+        arguments=['com.pantheon.test'],
+        runner=command,
+    )
+    persisted = runtime_activation.load_action_receipt(journal)
+    assert observed['active'] == [9001]
+    assert persisted['processes']['9001']['ppid'] == 8858
+    assert queried == [8858, 9001]
+    assert persisted['processes']['8858'] == record['processes']['8858']
+
+
+def _install_normal_boundary_test_observer(
+    tmp_path: Path,
+    env: dict[str, str],
+) -> None:
+    """在 sandbox 內提供 deterministic ps/lsof/libproc；正式程式仍走原 CLI。"""
+    support = tmp_path / "normal-boundary-test-support"
+    support.mkdir()
+    (support / "sitecustomize.py").write_text(
+        '''import ctypes
+import errno
+import json
+import os
+from pathlib import Path
+import subprocess
+
+_root_value = os.environ.get("PANTHEON_BOUNDARY_TEST_ROOT")
+if _root_value:
+    _root = Path(_root_value)
+    _real_run = subprocess.run
+    _real_cdll = ctypes.CDLL
+    _rows = {}
+
+    class _Birth(ctypes.Structure):
+        _fields_ = [
+            (name, ctypes.c_uint32)
+            for name in (
+                "flags", "status", "xstatus", "pid", "ppid", "uid",
+                "gid", "ruid", "rgid", "svuid", "svgid", "reserved",
+            )
+        ]
+        _fields_ += [("comm", ctypes.c_char * 16), ("name", ctypes.c_char * 32)]
+        _fields_ += [
+            (name, ctypes.c_uint32)
+            for name in ("nfiles", "pgid", "jobc", "tdev", "tpgid")
+        ]
+        _fields_ += [
+            ("nice", ctypes.c_int32),
+            ("sec", ctypes.c_uint64),
+            ("usec", ctypes.c_uint64),
+        ]
+
+    def _pid(path):
+        try:
+            value = path.read_text().strip()
+        except OSError:
+            return None
+        return int(value) if value.isdigit() else None
+
+    def _process_rows():
+        case_path = _root / "case.json"
+        if not case_path.exists():
+            return {}
+        case = json.loads(case_path.read_text())
+        cwd = str(case["cwd"])
+        parent = _pid(_root / "payload-pid")
+        child = _pid(_root / "child-pid")
+        rows = {}
+        if parent is not None and not (_root / "done").exists() and child is None:
+            rows[parent] = {
+                "ppid": 1,
+                "pgid": parent,
+                "command": cwd + "/payload.py",
+                "cwd": cwd,
+            }
+        if child is not None and not (_root / "child-done").exists():
+            rows[child] = {
+                "ppid": parent or 1,
+                "pgid": parent or child,
+                "command": cwd + "/child.py",
+                "cwd": cwd,
+            }
+        return rows
+
+    def _run(command, *args, **kwargs):
+        global _rows
+        if isinstance(command, (list, tuple)) and list(command[:2]) == ["/bin/ps", "-axo"]:
+            _rows = _process_rows()
+            stdout = "".join(
+                f"{pid} {row['ppid']} {row['pgid']} S {row['command']}\\n"
+                for pid, row in sorted(_rows.items())
+            )
+            return subprocess.CompletedProcess(command, 0, stdout, "")
+        if isinstance(command, (list, tuple)) and list(command[:2]) == ["/usr/sbin/lsof", "-a"]:
+            rows = _process_rows()
+            stdout = "".join(
+                f"p{pid}\\nfcwd\\nn{row['cwd']}\\n"
+                for pid, row in sorted(rows.items())
+            )
+            return subprocess.CompletedProcess(command, 0, stdout, "")
+        return _real_run(command, *args, **kwargs)
+
+    class _ProcPidInfo:
+        def __call__(self, pid, _flavor, _arg, buffer, size):
+            row = _rows.get(int(pid))
+            if row is None:
+                ctypes.set_errno(errno.ESRCH)
+                return 0
+            value = ctypes.cast(buffer, ctypes.POINTER(_Birth)).contents
+            value.pid = int(pid)
+            value.ppid = int(row["ppid"])
+            value.pgid = int(row["pgid"])
+            value.sec = 1
+            value.usec = int(pid)
+            ctypes.set_errno(0)
+            return int(size)
+
+    class _LibProc:
+        def __init__(self):
+            self.proc_pidinfo = _ProcPidInfo()
+
+    def _cdll(name, *args, **kwargs):
+        if name == "/usr/lib/libproc.dylib":
+            return _LibProc()
+        return _real_cdll(name, *args, **kwargs)
+
+    subprocess.run = _run
+    ctypes.CDLL = _cdll
+''',
+        encoding="utf-8",
+    )
+    existing = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        f"{support}{os.pathsep}{existing}" if existing else str(support)
+    )
+    env["PANTHEON_BOUNDARY_TEST_ROOT"] = str(tmp_path)
 
 
 @pytest.mark.parametrize('fault', ['aggregate', 'partial', 'preadmitted-child', 'timeout', 'unknown', 'fence', 'fast-exit', 'fast-exit-child', 'identity', 'diagnostic-timeout'])
@@ -14130,6 +14337,7 @@ def test_normal_failure_waits_for_real_payload_before_restore(tmp_path: Path, fa
     script = repo / 'scripts/install_agy_gemini_coordinator_launchd.sh'
     pool, _ = _write_installer_pool(tmp_path)
     env, home, _ = _installer_test_env(tmp_path, pool=pool, state=tmp_path / 'state.json')
+    _install_normal_boundary_test_observer(tmp_path, env)
     env['PANTHEON_USER_HOME_DIR'] = str(home)
     short_drain_faults = {'timeout', 'unknown', 'fence', 'identity', 'diagnostic-timeout'}
     # 正常 bootstrap/observe 使用既有10秒；短預算只注入精確 drain argv。
@@ -14142,19 +14350,26 @@ def test_normal_failure_waits_for_real_payload_before_restore(tmp_path: Path, fa
         (tmp_path / 'drain-budget-config.json').write_text(json.dumps({
             'stage': str(stage), 'domain': f'gui/{os.getuid()}',
             'manifest': env['PANTHEON_RUNTIME_MANIFEST_FILE'],
-            'labels': list(runtime_manifest.SERVICE_LABELS),
+            # installer 的普通 LABELS 為五 coordinator → publisher → guard。
+            'labels': [*runtime_manifest.SERVICE_LABELS[1:-1],
+                       runtime_manifest.SERVICE_LABELS[0], runtime_manifest.SERVICE_LABELS[-1]],
         }))
-        (injection / 'sitecustomize.py').write_text("""import json,os,sys,time
+        (injection / 'sitecustomize.py').write_text("""import json,os,runpy,sys,time
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
+# 多個 PYTHONPATH 不會逐一載入 sitecustomize；沿用既有 deterministic observer。
+runpy.run_path(str(root/'normal-boundary-test-support'/'sitecustomize.py'))
 config=json.loads((root/'drain-budget-config.json').read_text())
-if (len(sys.argv)==13 and sys.argv[0]=='-' and
-    sys.argv[1:6]==[config['stage'],'10',config['domain'],config['manifest'],'drain'] and
-    len(set(sys.argv[6:]))==7 and set(sys.argv[6:])==set(config['labels'])):
+expected=['-m','scripts.pantheon_runtime_activation','process-boundary',
+ '--journal',str(Path(config['stage'])/'normal-rollback-drain.json'),
+ '--timeout','10','--domain',config['domain'],'--manifest',config['manifest'],
+ 'drain',*config['labels']]
+if (sys.orig_argv[1:]==expected and sys.argv==['-m',*expected[2:]]):
  original=list(sys.argv)
- sys.argv[2]='2'
+ sys.argv[5]='2'
  with (root/'drain-budget-hit.jsonl').open('a') as stream:
   stream.write(json.dumps({'original_argv':original,'effective_argv':sys.argv,
+   'original_command':sys.orig_argv,
    'pid':os.getpid(),'time':time.monotonic(),
    'failure_injected':(root/'failure-injected').exists(),
    'payload_done':(root/'done').exists()})+chr(10))
@@ -14215,18 +14430,20 @@ case=json.loads((root/'case.json').read_text());barrier=Path(case['barrier'])
 def event(name,**kw):
  with (root/'timeline.jsonl').open('a') as f:f.write(json.dumps({'event':name,'time':time.monotonic(),**kw})+'\\n')
 if args[0]=='print':
- label=args[1].split('/')[-1];path=root/'loaded'/label
+ target=args[1];label=target.split('/')[-1];path=root/'loaded'/label
  if not path.exists():sys.exit(113)
  if case['fault']=='unknown' and not barrier.exists():sys.exit(2)
  if case['fault']=='diagnostic-timeout' and not barrier.exists():time.sleep(4)
  pid=path.read_text()
  if (root/'done').exists() or (root/'child-pid').exists():pid=''
+ print(target+' = {')
+ print(chr(9)+'path = '+str(root/'loaded'/(label+'.plist')))
  print(chr(9)+'state = '+('running' if pid else 'waiting'))
  print(chr(9)+'runs = '+('1' if path.read_text() else '0'))
- print(chr(9)+'coalition = {');print(chr(9)*2+'state = running');print(chr(9)+'}')
  if pid:
   # 已結束的本地程序仍可能為 zombie；由正式診斷確認，而非假造不存在。
   print(chr(9)+'pid = '+pid)
+ print('}')
  sys.exit(0)
 if args[0]=='bootstrap':
  target=Path(args[2]);label=target.stem
@@ -14296,8 +14513,9 @@ raise SystemExit('unexpected command; native forwarding forbidden')
         }, indent=2))
         if fault in short_drain_faults - {'fence'}:
             assert hits, '指定 drain timeout 尚未命中，不能以較早 UNKNOWN 冒充'
-            assert all(hit['failure_injected'] and hit['original_argv'][2] == '10'
-                       and hit['effective_argv'][2] == '2' and hit['effective_argv'][5] == 'drain'
+            assert all(hit['failure_injected'] and hit['original_argv'][5] == '10'
+                       and hit['effective_argv'][5] == '2' and hit['effective_argv'][10] == 'drain'
+                       and hit['original_command'][1:4] == ['-m', 'scripts.pantheon_runtime_activation', 'process-boundary']
                        for hit in hits), hits
         else:
             assert not hits, hits

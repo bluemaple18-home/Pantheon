@@ -2352,10 +2352,16 @@ def recover_exhausted_create_retries(
         }
 
 
+class _ReleaseTestChildEnvironment(dict[str, str]):
+    """release gate 明示移除 runtime 身分後，不得被 transport 重新注入。"""
+
+
 def _runtime_work_child_transport(
     env: Mapping[str, str] | None = None,
 ) -> tuple[tuple[int, ...], dict[str, str] | None]:
     """讓必要子程序沿用既有 runtime work lease，不另造 lifecycle。"""
+    if isinstance(env, _ReleaseTestChildEnvironment):
+        return formal_runtime.runtime_work_pass_fds(), dict(env)
     lease_fds = formal_runtime.runtime_work_pass_fds()
     if not lease_fds:
         return (), None if env is None else dict(env)
@@ -4642,7 +4648,7 @@ def _release_test_child_env() -> dict[str, str]:
             key.startswith(prefix) for prefix in _RELEASE_TEST_ENV_PREFIXES
         ):
             env.pop(key, None)
-    return env
+    return _ReleaseTestChildEnvironment(env)
 
 
 def _run_release_tests(repo_root: Path) -> None:

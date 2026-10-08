@@ -24,6 +24,18 @@ RUNTIME_RECEIPT = {
 }
 
 
+def test_production_identity_changes_when_activation_boundary_changes(tmp_path: Path) -> None:
+    """程序安全接點異動不能沿用舊正式能力證據。"""
+    activation_path = "scripts/pantheon_runtime_activation.py"
+    for relative in {*probe.PRODUCTION_SOURCE_FILES, activation_path}:
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("original source\n", encoding="utf-8")
+    before = probe.production_source_digest(tmp_path)
+    (tmp_path / activation_path).write_text("repaired process boundary\n", encoding="utf-8")
+    assert probe.production_source_digest(tmp_path) != before
+
+
 def _source_identity() -> tuple[str, str]:
     parent = subprocess.run(
         ["git", "rev-parse", "HEAD"],

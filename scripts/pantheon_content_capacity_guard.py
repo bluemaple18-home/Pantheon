@@ -4,17 +4,21 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack, contextmanager, nullcontext
 import ctypes
 from datetime import datetime
+import fcntl
 import hashlib
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import plistlib
 import pwd
 import re
 import resource
+import stat
 import subprocess
 import sys
 import tempfile
@@ -22,6 +26,7 @@ import time
 from typing import Any, Callable
 
 from scripts import pantheon_content_runtime_manifest as formal_runtime
+from scripts import pantheon_runtime_activation as runtime_activation
 
 
 GIB = 1024**3
@@ -41,6 +46,29 @@ SERVICE_TRANSITION_RECHECK_SECONDS = 0.25
 LOG_MAX_BYTES = 32 * MIB
 LOG_RETAIN_BYTES = 4 * MIB
 MEMORY_STEP_BYTES = 128 * MIB
+RECOVERY_HEALTHY_SAMPLES = 4
+RECOVERY_SAMPLE_MIN_SECONDS = 240
+RECOVERY_PROJECTED_RESTART_BYTES = DEFAULT_PROJECTED_BYTES
+MAX_AUTOMATIC_RECOVERY_ATTEMPTS = 1
+RECOVERY_SHUTDOWN_TIMEOUT_SECONDS = 30.0
+RECOVERY_POST_RESUME_HEALTHY_SAMPLES = 1
+RECOVERY_EXECUTION_TIMEOUT_SECONDS = 900
+# 已觀測新文工作需約 29 分鐘；容納一次排程取樣與收尾，仍保留有界停損。
+RECOVERY_ACTIVE_RUN_TIMEOUT_SECONDS = 45 * 60
+RECOVERY_RSS_GROWTH_LIMIT_BYTES = 512 * MIB
+RECOVERY_SWAP_GROWTH_LIMIT_BYTES = 128 * MIB
+OPEN_RECOVERY_STATUSES = frozenset(
+    {
+        "STOPPING",
+        "STOPPED",
+        "STOP_FAILED",
+        "RECOVERY_PENDING",
+        "RECOVERY_IN_PROGRESS",
+        "RECOVERY_VERIFYING",
+        "ROLLBACK_IN_PROGRESS",
+        "OPERATOR_REQUIRED",
+    }
+)
 SERVICE_LABELS = (
     "com.pantheon.agy-content-publisher",
     "com.pantheon.agy-gemini-coordinator",
@@ -74,6 +102,58 @@ LOG_NAMES = tuple(
 Runner = Callable[[list[str]], subprocess.CompletedProcess[str]]
 SwapFallback = Callable[[], tuple[int | None, str | None]]
 CapacitySensor = Callable[[Path], dict[str, Any]]
+
+
+def _verify_private_lock(fd: int, path: Path, *, field: str) -> None:
+    held = os.fstat(fd)
+    current = path.lstat()
+    if (
+        not stat.S_ISREG(current.st_mode)
+        or current.st_uid != os.getuid()
+        or current.st_nlink != 1
+        or stat.S_IMODE(current.st_mode) != 0o600
+        or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)
+    ):
+        raise formal_runtime.RuntimeManifestError(f"{field} identity drift")
+
+
+@contextmanager
+def _state_writer_lock(state_file: Path):
+    """同一 state file 僅允許一個 Guard tick 寫入或派送 mutation。"""
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = state_file.with_name(f".{state_file.name}.lock")
+    descriptor = os.open(
+        lock_path,
+        os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
+        0o600,
+    )
+    try:
+        _verify_private_lock(
+            descriptor,
+            lock_path,
+            field="capacity guard state writer lock",
+        )
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise formal_runtime.RuntimeWorkBusy(
+                "capacity guard state writer is busy"
+            ) from error
+        _verify_private_lock(
+            descriptor,
+            lock_path,
+            field="capacity guard state writer lock",
+        )
+        yield
+    finally:
+        os.close(descriptor)
+
+
+def _sampling_lease(publisher_root: Path):
+    """正式 runtime 的 read-only sampling 受 shared lease 保護。"""
+    if os.environ.get("PANTHEON_FORMAL_RUNTIME") != "1":
+        return nullcontext()
+    return formal_runtime.runtime_work_lease(publisher_root.resolve(strict=True))
 
 
 def _host_capacity_sample(path: Path) -> dict[str, Any]:
@@ -246,54 +326,18 @@ def _launchctl_top_level_identity(
     output: str,
     *,
     expected_target: str,
-) -> dict[str, list[str]] | None:
-    """只解析 root service object 的 state/path/exit；結構不完整時回傳 None。"""
-    depth = 0
-    root_started = False
-    root_closed = False
-    states: list[str] = []
-    paths: list[str] = []
-    last_exit_codes: list[int] = []
-    for raw_line in output.splitlines():
-        if not raw_line.strip():
-            continue
-        if not root_started:
-            if raw_line != f"{expected_target} = {{":
-                return None
-            root_started = True
-            depth = 1
-            continue
-        line = raw_line.strip()
-        if root_closed:
-            return None
-        if line == "}":
-            depth -= 1
-            if depth < 0:
-                return None
-            if depth == 0:
-                root_closed = True
-            continue
-        if LAUNCHCTL_OBJECT_START_PATTERN.fullmatch(line) is not None:
-            depth += 1
-            continue
-        if "{" in line or "}" in line:
-            return None
-        if depth == 1:
-            match = LAUNCHCTL_STATE_FIELD_PATTERN.fullmatch(line)
-            if match is not None:
-                states.append(match.group(1))
-            match = LAUNCHCTL_PATH_FIELD_PATTERN.fullmatch(line)
-            if match is not None:
-                paths.append(match.group(1))
-            match = LAUNCHCTL_LAST_EXIT_CODE_FIELD_PATTERN.fullmatch(line)
-            if match is not None:
-                last_exit_codes.append(int(match.group(1)))
-    if not root_started or not root_closed or depth != 0:
+) -> dict[str, list[Any]] | None:
+    """沿用 canonical parser，並維持 Guard 既有的 stable identity 契約。"""
+    identity = runtime_activation.parse_launchctl_service_identity(
+        output,
+        expected_target=expected_target,
+    )
+    if identity is None:
         return None
     return {
-        "states": states,
-        "paths": paths,
-        "last_exit_codes": last_exit_codes,
+        "states": identity["states"],
+        "paths": identity["paths"],
+        "last_exit_codes": identity["last_exit_codes"],
     }
 
 
@@ -303,6 +347,24 @@ def _file_sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _file_identity(path: Path) -> dict[str, Any]:
+    try:
+        return runtime_activation.capture_file_identity(path, require_private=False)
+    except runtime_activation.RuntimeActivationError as error:
+        raise OSError(str(error)) from error
+
+
+def _same_file_identity(expected: object) -> bool:
+    return runtime_activation.file_identity_matches(
+        expected,
+        require_private=False,
+    )
+
+
+def _valid_file_identity_record(value: object) -> bool:
+    return runtime_activation.valid_file_identity_record(value)
 
 
 def _snapshot_launchctl_identity(output: str, *, expected_path: Path) -> dict[str, Any]:
@@ -957,12 +1019,63 @@ def _swap_used_bytes(
     }
 
 
-def _read_state(path: Path) -> dict[str, Any]:
+def _read_state(path: Path) -> tuple[dict[str, Any], str | None]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
+        raw = path.read_bytes()
+    except FileNotFoundError:
+        return {}, None
+    except OSError as error:
+        return {}, f"capacity_state_unreadable:{type(error).__name__}"
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        return {}, f"capacity_state_malformed:{type(error).__name__}"
+    if not isinstance(payload, dict):
+        return {}, "capacity_state_not_object"
+    return payload, None
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(
+        path,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW,
+    )
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _preserve_invalid_state(path: Path) -> str | None:
+    """覆寫 malformed state 前保存 exact bytes；保存失敗時維持原檔。"""
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return None
+    digest = hashlib.sha256(raw).hexdigest()
+    evidence = path.with_name(f".{path.name}.invalid-{digest[:20]}.raw")
+    if evidence.exists():
+        return str(evidence)
+    descriptor = os.open(
+        evidence,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+        0o600,
+    )
+    try:
+        offset = 0
+        while offset < len(raw):
+            written = os.write(descriptor, raw[offset:])
+            if written <= 0:
+                raise OSError("capacity guard invalid state evidence write failed")
+            offset += written
+        os.fsync(descriptor)
+    except Exception:
+        evidence.unlink(missing_ok=True)
+        raise
+    finally:
+        os.close(descriptor)
+    _fsync_directory(path.parent)
+    return str(evidence)
 
 
 def _write_state(path: Path, payload: dict[str, Any]) -> None:
@@ -982,25 +1095,591 @@ def _write_state(path: Path, payload: dict[str, Any]) -> None:
         os.close(descriptor)
         descriptor = -1
         os.replace(temporary, path)
+        _fsync_directory(path.parent)
+        try:
+            readback = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise OSError("capacity guard state readback failed") from error
+        if readback != payload or not _state_file_is_private(path):
+            raise OSError("capacity guard state durable readback mismatch")
     finally:
         if descriptor >= 0:
             os.close(descriptor)
         temporary.unlink(missing_ok=True)
 
 
-def _stop_services(runner: Runner = _run) -> dict[str, dict[str, Any]]:
-    outcomes: dict[str, dict[str, Any]] = {}
-    domain = f"gui/{os.getuid()}"
-    for label in SERVICE_LABELS:
-        bootout = runner(["launchctl", "bootout", f"{domain}/{label}"])
-        verified = runner(["launchctl", "print", f"{domain}/{label}"])
-        outcomes[label] = {
-            "bootout_returncode": bootout.returncode,
-            "verify_returncode": verified.returncode,
-            "absent": verified.returncode in {3, 113},
-            "loaded_identity": verified.stdout.strip() if verified.returncode == 0 else "",
+def _state_file_is_private(path: Path) -> bool:
+    try:
+        metadata = path.lstat()
+    except OSError:
+        return False
+    return (
+        stat.S_ISREG(metadata.st_mode)
+        and not path.is_symlink()
+        and metadata.st_uid == os.getuid()
+        and metadata.st_nlink == 1
+        and stat.S_IMODE(metadata.st_mode) == 0o600
+    )
+
+
+def _recovery_context(runtime_receipt: dict[str, Any]) -> dict[str, Any]:
+    """只從目前正式 normal runtime 推導可自動恢復的 immutable identity。"""
+    unavailable = {
+        "authorized": False,
+        "blocker": "formal_normal_recovery_context_unavailable",
+    }
+    if _normal_scheduled_service_labels(runtime_receipt) != frozenset(SERVICE_LABELS):
+        return unavailable
+    try:
+        manifest_path = Path(os.environ["PANTHEON_RUNTIME_MANIFEST"])
+        expected_digest = os.environ["PANTHEON_RUNTIME_MANIFEST_DIGEST"]
+        manifest = formal_runtime.load_manifest(manifest_path, expected_digest)
+        manifest_file = _file_identity(manifest_path)
+        expected_guard = formal_runtime.receipt_for_label(manifest, CAPACITY_GUARD_LABEL)
+        if any(runtime_receipt.get(field) != value for field, value in expected_guard.items()):
+            return unavailable
+        home = Path(
+            os.environ.get("PANTHEON_USER_HOME_DIR")
+            or pwd.getpwuid(os.getuid()).pw_dir
+        ).resolve(strict=True)
+        launch_agents = home / "Library" / "LaunchAgents"
+        plist_paths = [
+            launch_agents / f"{label}.plist" for label in formal_runtime.SERVICE_LABELS
+        ]
+        formal_runtime.aggregate_plist_preflight(
+            manifest,
+            plist_paths,
+            expected_activation_mode="normal",
+        )
+        barrier = (
+            Path(manifest["publisher_state_root"])
+            / f"four-lane-activation-{manifest['generation']}.barrier"
+        )
+        formal_runtime.validate_barrier(barrier, manifest)
+        barrier_identity = _file_identity(barrier)
+        for label, path in zip(formal_runtime.SERVICE_LABELS, plist_paths):
+            with path.open("rb") as stream:
+                payload = plistlib.load(stream)
+            arguments = payload.get("ProgramArguments")
+            if not isinstance(arguments, list):
+                return unavailable
+            if (
+                formal_runtime._single_argument_value(arguments, "--service-label")
+                != label
+                or Path(
+                    formal_runtime._single_argument_value(arguments, "--manifest")
+                )
+                != manifest_path
+                or formal_runtime._single_argument_value(
+                    arguments, "--expected-digest"
+                )
+                != manifest["manifest_digest"]
+                or Path(formal_runtime._single_argument_value(arguments, "--barrier"))
+                != barrier
+            ):
+                return unavailable
+        business_plists = {
+            label: _file_identity(launch_agents / f"{label}.plist")
+            for label in SERVICE_LABELS
         }
-    return outcomes
+        if (
+            not _same_file_identity(manifest_file)
+            or not _same_file_identity(barrier_identity)
+            or not all(_same_file_identity(item) for item in business_plists.values())
+        ):
+            return unavailable
+    except (
+        KeyError,
+        OSError,
+        plistlib.InvalidFileException,
+        formal_runtime.RuntimeManifestError,
+    ):
+        return unavailable
+    return {
+        "authorized": True,
+        "blocker": None,
+        "manifest_digest": manifest["manifest_digest"],
+        "runtime_identity_digest": manifest["runtime_identity_digest"],
+        "generation": manifest["generation"],
+        "barrier_path": str(barrier),
+        "manifest_file": manifest_file,
+        "barrier": barrier_identity,
+        "owned_roots": {
+            field: manifest[field]
+            for field in ("actor_root", "queue_root", "publisher_state_root", "log_root")
+        },
+        "restart_projected_bytes": RECOVERY_PROJECTED_RESTART_BYTES,
+        "plists": business_plists,
+    }
+
+
+def _disabled_service_labels(
+    runner: Runner,
+) -> tuple[frozenset[str] | None, str | None]:
+    try:
+        return (
+            runtime_activation.read_disabled_service_labels(
+                SERVICE_LABELS,
+                runner=runner,
+            ),
+            None,
+        )
+    except runtime_activation.RuntimeActivationError as error:
+        return None, f"launchctl_print_disabled_failed:{error}"
+
+
+def _capture_recovery_incident(
+    *,
+    timestamp: float,
+    reasons: list[str],
+    recovery_context: dict[str, Any],
+    runner: Runner,
+) -> dict[str, Any]:
+    context_authorized = recovery_context.get("authorized") is True
+    automatic = context_authorized
+    blocker = recovery_context.get("blocker") if not automatic else None
+    disabled: frozenset[str] = frozenset()
+    observations: dict[str, dict[str, Any]] = {}
+    pre_stop_loaded_labels: list[str] = []
+    stop_targets: list[str] = []
+    plists = recovery_context.get("plists")
+    disabled_known = False
+    if context_authorized:
+        disabled_result, disabled_error = _disabled_service_labels(runner)
+        if disabled_result is None:
+            automatic = False
+            blocker = disabled_error
+        else:
+            disabled = disabled_result
+            disabled_known = True
+    if context_authorized and isinstance(plists, dict):
+        domain = f"gui/{os.getuid()}"
+        for label in SERVICE_LABELS:
+            plist = plists.get(label)
+            expected_path = (
+                Path(str(plist.get("path"))) if isinstance(plist, dict) else None
+            )
+            target = f"{domain}/{label}"
+            try:
+                observed = runner(["launchctl", "print", target])
+            except OSError:
+                observations[label] = {
+                    "topology": "UNKNOWN",
+                    "returncode": None,
+                }
+                automatic = False
+                blocker = f"pre_stop_service_identity_unknown:{label}"
+                continue
+            if observed.returncode in {3, 113}:
+                observations[label] = {
+                    "topology": "ABSENT",
+                    "returncode": observed.returncode,
+                    "manual_disabled": label in disabled,
+                }
+                continue
+            identity = (
+                _launchctl_top_level_identity(
+                    observed.stdout,
+                    expected_target=target,
+                )
+                if observed.returncode == 0
+                else None
+            )
+            if (
+                expected_path is None
+                or identity is None
+                or identity["paths"] != [str(expected_path)]
+                or len(identity["states"]) != 1
+                or identity["states"][0]
+                not in {"running", "not running", "waiting", "spawn scheduled"}
+                or identity["last_exit_codes"] not in ([], [0])
+            ):
+                observations[label] = {
+                    "topology": "UNKNOWN",
+                    "returncode": observed.returncode,
+                }
+                automatic = False
+                blocker = f"pre_stop_service_identity_unknown:{label}"
+                continue
+            observations[label] = {
+                "topology": "LOADED",
+                "returncode": 0,
+                "identity": identity,
+                "manual_disabled": label in disabled if disabled_known else None,
+            }
+            pre_stop_loaded_labels.append(label)
+            if disabled_known and label not in disabled:
+                stop_targets.append(label)
+    elif context_authorized:
+        automatic = False
+        blocker = "recovery_plist_identity_missing"
+    owned_labels = list(stop_targets) if automatic else []
+    identity_seed = {
+        "sampled_epoch": timestamp,
+        "reasons": reasons,
+        "manifest_digest": recovery_context.get("manifest_digest"),
+        "generation": recovery_context.get("generation"),
+        "stop_targets": stop_targets,
+    }
+    incident_id = "capacity-" + hashlib.sha256(
+        json.dumps(identity_seed, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()[:20]
+    return {
+        "schema_version": 2,
+        "incident_id": incident_id,
+        "status": "STOPPING",
+        "started_epoch": timestamp,
+        "updated_epoch": timestamp,
+        "trigger_reasons": list(reasons),
+        "automatic_recovery_authorized": automatic,
+        "authorization_blocker": blocker,
+        "manifest_digest": recovery_context.get("manifest_digest"),
+        "runtime_identity_digest": recovery_context.get("runtime_identity_digest"),
+        "generation": recovery_context.get("generation"),
+        "barrier_path": recovery_context.get("barrier_path"),
+        "manifest_file": recovery_context.get("manifest_file"),
+        "barrier": recovery_context.get("barrier"),
+        "owned_roots": recovery_context.get("owned_roots"),
+        "restart_projected_bytes": recovery_context.get(
+            "restart_projected_bytes", RECOVERY_PROJECTED_RESTART_BYTES
+        ),
+        "plists": plists if isinstance(plists, dict) else {},
+        "pre_stop_services": observations,
+        "pre_stop_loaded_labels": pre_stop_loaded_labels,
+        "disabled_labels_before_stop": sorted(disabled),
+        "stop_targets": stop_targets,
+        "owned_labels": owned_labels,
+        "stopped_by_guard": [],
+        "stopped_services": [],
+        "stop_verification": {},
+        "healthy_samples": 0,
+        "last_healthy_epoch": None,
+        "attempts_started": 0,
+        "max_attempts": MAX_AUTOMATIC_RECOVERY_ATTEMPTS,
+        "attempted_labels": [],
+        "started_labels": [],
+        "rollback": None,
+        "stop_action_receipt": None,
+        "resume_action_receipt": None,
+        "rollback_action_receipt": None,
+        "execution_verification": None,
+        "restart_baseline": None,
+        "restart_samples": [],
+        "post_resume_healthy_samples": 0,
+        "last_post_resume_epoch": None,
+        "verification_started_epoch": None,
+        "active_run_first_seen_epoch": {},
+        "active_run_last_seen_epoch": {},
+        "lineage_pending_first_seen_epoch": None,
+        "restart_measurement": None,
+    }
+
+
+def _load_open_recovery_incident(
+    previous: dict[str, Any],
+    state_file: Path,
+) -> tuple[dict[str, Any] | None, str | None]:
+    candidate = previous.get("recovery_incident")
+    previous_status = previous.get("status")
+    if not previous and not state_file.exists():
+        return None, None
+    if previous_status not in {*OPEN_RECOVERY_STATUSES, "PASS"}:
+        return None, "capacity_state_status_unknown"
+    if not isinstance(candidate, dict):
+        if previous_status in OPEN_RECOVERY_STATUSES:
+            return None, "legacy_stop_without_owned_incident"
+        if previous_status == "PASS":
+            return None, None
+        return None, "capacity_recovery_incident_missing"
+    candidate = dict(candidate)
+    candidate.setdefault("stop_action_receipt", None)
+    candidate.setdefault("resume_action_receipt", None)
+    candidate.setdefault("rollback_action_receipt", None)
+    candidate.setdefault("execution_verification", None)
+    candidate.setdefault("restart_baseline", None)
+    candidate.setdefault("restart_samples", [])
+    candidate.setdefault("post_resume_healthy_samples", 0)
+    candidate.setdefault("last_post_resume_epoch", None)
+    candidate.setdefault("verification_started_epoch", None)
+    candidate.setdefault("active_run_first_seen_epoch", {})
+    candidate.setdefault("active_run_last_seen_epoch", {})
+    candidate.setdefault("lineage_pending_first_seen_epoch", None)
+    incident_status = candidate.get("status")
+    if incident_status == "RECOVERED":
+        if previous_status != "PASS":
+            return None, "capacity_state_status_mismatch"
+    elif incident_status not in OPEN_RECOVERY_STATUSES:
+        return None, "capacity_recovery_incident_unknown_status"
+    elif previous_status != incident_status:
+        return None, "capacity_state_status_mismatch"
+    if not _state_file_is_private(state_file):
+        return None, "capacity_state_identity_untrusted"
+    owned = candidate.get("owned_labels")
+    stop_targets = candidate.get("stop_targets")
+    stopped_by_guard = candidate.get("stopped_by_guard")
+    attempts = candidate.get("attempts_started")
+    healthy_samples = candidate.get("healthy_samples")
+    attempted_labels = candidate.get("attempted_labels")
+    started_labels = candidate.get("started_labels")
+    restart_samples = candidate.get("restart_samples")
+    post_resume_healthy_samples = candidate.get("post_resume_healthy_samples")
+    active_run_first_seen = candidate.get("active_run_first_seen_epoch")
+    active_run_last_seen = candidate.get("active_run_last_seen_epoch")
+    lineage_pending_first_seen = candidate.get("lineage_pending_first_seen_epoch")
+    if (
+        candidate.get("schema_version") != 2
+        or not isinstance(candidate.get("incident_id"), str)
+        or not isinstance(stop_targets, list)
+        or len(stop_targets) != len(set(stop_targets))
+        or any(label not in SERVICE_LABELS for label in stop_targets)
+        or not isinstance(owned, list)
+        or len(owned) != len(set(owned))
+        or any(label not in SERVICE_LABELS for label in owned)
+        or not set(owned).issubset(stop_targets)
+        or not isinstance(stopped_by_guard, list)
+        or len(stopped_by_guard) != len(set(stopped_by_guard))
+        or any(label not in SERVICE_LABELS for label in stopped_by_guard)
+        or not set(stopped_by_guard).issubset(stop_targets)
+        or type(attempts) is not int
+        or attempts < 0
+        or attempts > MAX_AUTOMATIC_RECOVERY_ATTEMPTS
+        or type(healthy_samples) is not int
+        or healthy_samples < 0
+        or not isinstance(attempted_labels, list)
+        or any(label not in SERVICE_LABELS for label in attempted_labels)
+        or not set(attempted_labels).issubset(owned)
+        or not isinstance(started_labels, list)
+        or any(label not in SERVICE_LABELS for label in started_labels)
+        or not set(started_labels).issubset(attempted_labels)
+        or not isinstance(restart_samples, list)
+        or type(post_resume_healthy_samples) is not int
+        or post_resume_healthy_samples < 0
+        or not isinstance(active_run_first_seen, dict)
+        or any(
+            label not in SERVICE_LABELS
+            or type(epoch) not in (int, float)
+            or epoch < 0
+            or epoch > 1_000_000_000_000
+            or not math.isfinite(epoch)
+            for label, epoch in active_run_first_seen.items()
+        )
+        or not isinstance(active_run_last_seen, dict)
+        or any(
+            label not in SERVICE_LABELS
+            or type(epoch) not in (int, float)
+            or epoch < 0
+            or epoch > 1_000_000_000_000
+            or not math.isfinite(epoch)
+            for label, epoch in active_run_last_seen.items()
+        )
+        or not set(active_run_last_seen).issubset(active_run_first_seen)
+        or any(
+            active_run_last_seen[label] < active_run_first_seen[label]
+            for label in active_run_last_seen
+        )
+        or (
+            lineage_pending_first_seen is not None
+            and (
+                type(lineage_pending_first_seen) not in (int, float)
+                or lineage_pending_first_seen < 0
+                or lineage_pending_first_seen > 1_000_000_000_000
+                or not math.isfinite(lineage_pending_first_seen)
+            )
+        )
+        or candidate.get("max_attempts") != MAX_AUTOMATIC_RECOVERY_ATTEMPTS
+    ):
+        return None, "capacity_recovery_incident_invalid"
+    if candidate.get("automatic_recovery_authorized") is True:
+        plists = candidate.get("plists")
+        barrier_path = candidate.get("barrier_path")
+        barrier = candidate.get("barrier")
+        manifest_file = candidate.get("manifest_file")
+        owned_roots = candidate.get("owned_roots")
+        if (
+            formal_runtime.SHA256_PATTERN.fullmatch(
+                str(candidate.get("manifest_digest", ""))
+            )
+            is None
+            or formal_runtime.SHA256_PATTERN.fullmatch(
+                str(candidate.get("runtime_identity_digest", ""))
+            )
+            is None
+            or formal_runtime.GENERATION_PATTERN.fullmatch(
+                str(candidate.get("generation", ""))
+            )
+            is None
+            or not isinstance(barrier_path, str)
+            or not Path(barrier_path).is_absolute()
+            or not _valid_file_identity_record(barrier)
+            or barrier.get("path") != barrier_path
+            or not _valid_file_identity_record(manifest_file)
+            or not isinstance(owned_roots, dict)
+            or set(owned_roots)
+            != {"actor_root", "queue_root", "publisher_state_root", "log_root"}
+            or any(
+                not isinstance(path, str) or not Path(path).is_absolute()
+                for path in owned_roots.values()
+            )
+            or candidate.get("restart_projected_bytes")
+            != RECOVERY_PROJECTED_RESTART_BYTES
+            or not isinstance(plists, dict)
+            or set(plists) != set(SERVICE_LABELS)
+        ):
+            return None, "capacity_recovery_incident_invalid"
+        for label in SERVICE_LABELS:
+            if not _valid_file_identity_record(plists.get(label)):
+                return None, "capacity_recovery_incident_invalid"
+    for field in (
+        "stop_action_receipt",
+        "resume_action_receipt",
+        "rollback_action_receipt",
+    ):
+        value = candidate.get(field)
+        if value is not None and not _valid_file_identity_record(value):
+            return None, "capacity_recovery_incident_invalid"
+    if incident_status == "RECOVERY_VERIFYING" and (
+        not _valid_file_identity_record(candidate.get("resume_action_receipt"))
+        or not isinstance(candidate.get("restart_baseline"), dict)
+        or not candidate.get("started_labels")
+        or type(candidate.get("verification_started_epoch")) not in (int, float)
+        or candidate["verification_started_epoch"] < 0
+        or candidate["verification_started_epoch"] > 1_000_000_000_000
+        or not math.isfinite(candidate["verification_started_epoch"])
+        or type(candidate.get("updated_epoch")) not in (int, float)
+        or candidate["updated_epoch"] > 1_000_000_000_000
+        or not math.isfinite(candidate["updated_epoch"])
+        or candidate["updated_epoch"] < candidate["verification_started_epoch"]
+        or any(
+            epoch < candidate["verification_started_epoch"]
+            or epoch > candidate["updated_epoch"]
+            for epoch in active_run_first_seen.values()
+        )
+        or any(
+            epoch < candidate["verification_started_epoch"]
+            or epoch > candidate["updated_epoch"]
+            for epoch in active_run_last_seen.values()
+        )
+        or (
+            lineage_pending_first_seen is not None
+            and (
+                lineage_pending_first_seen < candidate["verification_started_epoch"]
+                or lineage_pending_first_seen > candidate["updated_epoch"]
+            )
+        )
+    ):
+        return None, "capacity_recovery_incident_invalid"
+    if incident_status == "RECOVERED":
+        return None, None
+    return dict(candidate), None
+
+
+def _recovery_context_mismatch(
+    incident: dict[str, Any],
+    current: dict[str, Any],
+) -> str | None:
+    if incident.get("automatic_recovery_authorized") is not True:
+        return str(incident.get("authorization_blocker") or "automatic_recovery_not_authorized")
+    if current.get("authorized") is not True:
+        return str(current.get("blocker") or "current_recovery_context_unavailable")
+    for field in (
+        "manifest_digest",
+        "runtime_identity_digest",
+        "generation",
+        "barrier_path",
+        "manifest_file",
+        "barrier",
+        "owned_roots",
+        "restart_projected_bytes",
+        "plists",
+    ):
+        if incident.get(field) != current.get(field):
+            return f"recovery_context_drift:{field}"
+    return None
+
+
+def _verify_owned_services_absent(
+    labels: list[str],
+    runner: Runner,
+) -> tuple[bool, dict[str, Any]]:
+    """沿用 canonical lifecycle observer；Guard 不再自行解析 absence。"""
+    return runtime_activation.verify_services_absent(
+        labels,
+        runner=runner,
+    )
+
+
+def _incident_plist_paths(
+    incident: dict[str, Any],
+    labels: list[str],
+) -> dict[str, Path]:
+    plists = incident.get("plists")
+    if not isinstance(plists, dict):
+        raise formal_runtime.RuntimeManifestError("recovery plist identity is missing")
+    result: dict[str, Path] = {}
+    for label in labels:
+        record = plists.get(label)
+        if not _valid_file_identity_record(record):
+            raise formal_runtime.RuntimeManifestError("recovery plist identity is invalid")
+        result[label] = Path(str(record["path"]))
+    return result
+
+
+def _recovery_action_receipt_path(
+    state_file: Path,
+    incident: dict[str, Any],
+    action: str,
+) -> Path:
+    incident_id = str(incident.get("incident_id", ""))
+    if (
+        ACTIVATION_CORRELATION_PATTERN.fullmatch(incident_id) is None
+        or action not in {"stop", "resume", "rollback"}
+    ):
+        raise formal_runtime.RuntimeManifestError("recovery action identity is invalid")
+    return state_file.with_name(
+        f".{state_file.name}.{incident_id}.{action}.json"
+    )
+
+
+def _runtime_action_kwargs(
+    incident: dict[str, Any],
+    labels: list[str],
+) -> dict[str, Any]:
+    owned_roots = incident.get("owned_roots")
+    if not isinstance(owned_roots, dict):
+        raise formal_runtime.RuntimeManifestError("recovery owned roots are missing")
+    manifest_file = incident.get("manifest_file")
+    barrier = incident.get("barrier")
+    plists = incident.get("plists")
+    if (
+        not _valid_file_identity_record(manifest_file)
+        or not _valid_file_identity_record(barrier)
+        or not isinstance(plists, dict)
+    ):
+        raise formal_runtime.RuntimeManifestError("recovery action authority is missing")
+    selected_plists: dict[str, dict[str, Any]] = {}
+    for label in labels:
+        record = plists.get(label)
+        if not _valid_file_identity_record(record):
+            raise formal_runtime.RuntimeManifestError(
+                f"recovery action plist authority is missing: {label}"
+            )
+        selected_plists[label] = dict(record)
+    return {
+        "incident_id": str(incident["incident_id"]),
+        "generation": str(incident["generation"]),
+        "manifest_digest": str(incident["manifest_digest"]),
+        "runtime_identity_digest": str(incident["runtime_identity_digest"]),
+        "owned_roots": owned_roots,
+        "authority": {
+            "schema_version": 1,
+            "generation": str(incident["generation"]),
+            "manifest_digest": str(incident["manifest_digest"]),
+            "runtime_identity_digest": str(incident["runtime_identity_digest"]),
+            "manifest_file": dict(manifest_file),
+            "barrier": dict(barrier),
+            "plists": selected_plists,
+        },
+    }
 
 
 def _snapshot(
@@ -1009,14 +1688,16 @@ def _snapshot(
     log_root: Path,
     *,
     runner: Runner = _run,
+    capacity_sensor: CapacitySensor | None = None,
     expected_inert_labels: frozenset[str] = frozenset(),
     expected_idle_labels: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     roots = (queue_root, publisher_root, log_root)
     measured = [_measure_tree(root) for root in roots]
     raw_total_disk, raw_free_disk = _disk_sample(queue_root)
+    sensor = _host_capacity_sample if capacity_sensor is None else capacity_sensor
     try:
-        capacity = _host_capacity_sample(queue_root)
+        capacity = sensor(queue_root)
     except RuntimeError as error:
         capacity = {
             "disk_total_bytes": raw_total_disk,
@@ -1068,6 +1749,7 @@ def preflight(
     log_root: Path,
     *,
     runner: Runner = _run,
+    capacity_sensor: CapacitySensor | None = None,
 ) -> dict[str, Any]:
     projected_bytes = DEFAULT_PROJECTED_BYTES
     runtime_receipt = formal_runtime.validate_runtime_tick(
@@ -1085,6 +1767,8 @@ def preflight(
     snapshot_options: dict[str, Any] = {}
     if runner is not _run:
         snapshot_options["runner"] = runner
+    if capacity_sensor is not None:
+        snapshot_options["capacity_sensor"] = capacity_sensor
     if expected_inert_labels:
         snapshot_options["expected_inert_labels"] = expected_inert_labels
     if expected_idle_labels:
@@ -1515,36 +2199,77 @@ def validate_preactivation_transition(
     }
 
 
-@formal_runtime.with_runtime_work_lease
-def check_once(
+def _collect_capacity_tick(
     queue_root: Path,
     publisher_root: Path,
     log_root: Path,
     state_file: Path,
     *,
     now: float | None = None,
-    stop_runner: Runner = _run,
 ) -> dict[str, Any]:
-    runtime_receipt = formal_runtime.validate_runtime_tick(
-        "com.pantheon.content-capacity-guard",
-        queue_root=queue_root.resolve(),
-        state_root=publisher_root.resolve(),
-        actor_root=Path(
-            os.environ.get("PANTHEON_RUNTIME_ACTOR_ROOT", Path.cwd())
-        ),
-        log_root=log_root.resolve(),
-    )
-    reclaimed = sum(_trim_log(log_root / name) for name in LOG_NAMES)
-    expected_inert_labels = _activation_only_service_labels(runtime_receipt)
-    expected_idle_labels = _normal_scheduled_service_labels(runtime_receipt)
-    snapshot_options: dict[str, Any] = {}
-    if expected_inert_labels:
-        snapshot_options["expected_inert_labels"] = expected_inert_labels
-    if expected_idle_labels:
-        snapshot_options["expected_idle_labels"] = expected_idle_labels
-    current = _snapshot(queue_root, publisher_root, log_root, **snapshot_options)
-    timestamp = time.time() if now is None else now
-    previous = _read_state(state_file)
+    with _sampling_lease(publisher_root):
+        previous, state_error = _read_state(state_file)
+        state_identity = (
+            _file_identity(state_file)
+            if state_error is None and state_file.exists()
+            else None
+        )
+        runtime_error: str | None = None
+        try:
+            runtime_receipt = formal_runtime.validate_runtime_tick(
+                "com.pantheon.content-capacity-guard",
+                queue_root=queue_root.resolve(),
+                state_root=publisher_root.resolve(),
+                actor_root=Path(
+                    os.environ.get("PANTHEON_RUNTIME_ACTOR_ROOT", Path.cwd())
+                ),
+                log_root=log_root.resolve(),
+            )
+        except (OSError, formal_runtime.RuntimeManifestError) as error:
+            runtime_receipt = None
+            runtime_error = f"runtime_identity_unavailable:{type(error).__name__}"
+        reclaimed = (
+            sum(_trim_log(log_root / name) for name in LOG_NAMES)
+            if runtime_receipt is not None
+            else 0
+        )
+        expected_inert_labels = (
+            _activation_only_service_labels(runtime_receipt)
+            if runtime_receipt is not None
+            else []
+        )
+        expected_idle_labels = (
+            _normal_scheduled_service_labels(runtime_receipt)
+            if runtime_receipt is not None
+            else []
+        )
+        snapshot_options: dict[str, Any] = {}
+        if expected_inert_labels:
+            snapshot_options["expected_inert_labels"] = expected_inert_labels
+        if expected_idle_labels:
+            snapshot_options["expected_idle_labels"] = expected_idle_labels
+        current = _snapshot(queue_root, publisher_root, log_root, **snapshot_options)
+        timestamp = time.time() if now is None else now
+        previous_sampled_raw = previous.get("sampled_epoch", timestamp)
+        if (
+            state_error is None
+            and "sampled_epoch" in previous
+            and (
+                type(previous_sampled_raw) not in (int, float)
+                or not math.isfinite(previous_sampled_raw)
+                or previous_sampled_raw < 0
+                or previous_sampled_raw > timestamp
+            )
+        ):
+            state_error = "capacity_state_sampled_epoch_invalid"
+            previous_sampled_epoch = float(timestamp)
+        else:
+            previous_sampled_epoch = (
+                float(previous_sampled_raw)
+                if type(previous_sampled_raw) in (int, float)
+                and math.isfinite(previous_sampled_raw)
+                else float(timestamp)
+            )
     stop_floor = max(
         HOST_RESERVE_MIN_BYTES,
         (current["disk_total_bytes"] + 9) // 10,
@@ -1566,10 +2291,8 @@ def check_once(
         telemetry_gaps.append("rss_telemetry_unknown")
     if current.get("swap_available") is not True:
         telemetry_gaps.append("swap_telemetry_unknown")
-    if previous.get("status") == "STOP_FAILED":
-        reasons.append("stop_verification_pending")
 
-    elapsed = max(1.0, timestamp - float(previous.get("sampled_epoch", timestamp)))
+    elapsed = max(1.0, timestamp - previous_sampled_epoch)
     delta = current["bytes"] - int(previous.get("bytes", current["bytes"]))
     growth_per_hour = max(0, int(delta * 3600 / elapsed))
     projected = current["bytes"] + growth_per_hour * RECOVERY_WINDOW_SECONDS // 3600
@@ -1611,32 +2334,1157 @@ def check_once(
     if memory_streak >= 2:
         reasons.append("rss_and_swap_growth")
 
-    stop_verification = _stop_services(stop_runner) if reasons else {}
-    all_absent = bool(stop_verification) and all(
-        outcome["absent"] for outcome in stop_verification.values()
-    )
-    status = "PASS" if not reasons else "STOPPED" if all_absent else "STOP_FAILED"
-    receipt: dict[str, Any] = {
-        "schema_version": 1,
-        "status": status,
-        "sampled_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-        "sampled_epoch": timestamp,
-        "reclaimed_log_bytes": reclaimed,
-        "growth_bytes_per_hour": growth_per_hour,
+    if state_error is None:
+        incident, incident_error = _load_open_recovery_incident(previous, state_file)
+    else:
+        incident, incident_error = None, state_error
+    return {
+        "runtime_receipt": runtime_receipt,
+        "runtime_error": runtime_error,
+        "reclaimed": reclaimed,
+        "snapshot_options": snapshot_options,
+        "current": current,
+        "timestamp": timestamp,
+        "previous": previous,
+        "previous_sampled_epoch": previous_sampled_epoch,
+        "state_error": state_error,
+        "state_identity": state_identity,
+        "stop_floor": stop_floor,
+        "reasons": reasons,
+        "admission_available": admission_available,
+        "telemetry_gaps": telemetry_gaps,
+        "growth_per_hour": growth_per_hour,
         "high_growth_streak": high_growth_streak,
         "growth_streak": growth_streak,
         "memory_streak": memory_streak,
-        "reasons": reasons,
-        "telemetry_gaps": telemetry_gaps,
-        "stopped_services": [
-            label for label, outcome in stop_verification.items() if outcome["absent"]
-        ],
-        "stop_verification": stop_verification,
-        **current,
+        "incident": incident,
+        "incident_error": incident_error,
     }
-    _write_state(state_file, receipt)
-    return receipt
 
+
+def check_once(
+    queue_root: Path,
+    publisher_root: Path,
+    log_root: Path,
+    state_file: Path,
+    *,
+    now: float | None = None,
+    stop_runner: Runner = _run,
+) -> dict[str, Any]:
+    with _state_writer_lock(state_file):
+        return _check_once_state_locked(
+            queue_root,
+            publisher_root,
+            log_root,
+            state_file,
+            now=now,
+            stop_runner=stop_runner,
+        )
+
+
+def _check_once_state_locked(
+    queue_root: Path,
+    publisher_root: Path,
+    log_root: Path,
+    state_file: Path,
+    *,
+    now: float | None = None,
+    stop_runner: Runner = _run,
+) -> dict[str, Any]:
+    tick = _collect_capacity_tick(
+        queue_root,
+        publisher_root,
+        log_root,
+        state_file,
+        now=now,
+    )
+    runtime_receipt = tick["runtime_receipt"]
+    runtime_error = tick["runtime_error"]
+    reclaimed = tick["reclaimed"]
+    current = tick["current"]
+    timestamp = tick["timestamp"]
+    previous = tick["previous"]
+    previous_sampled_epoch = tick["previous_sampled_epoch"]
+    state_error = tick["state_error"]
+    state_identity = tick["state_identity"]
+    stop_floor = tick["stop_floor"]
+    reasons = tick["reasons"]
+    admission_available = tick["admission_available"]
+    telemetry_gaps = tick["telemetry_gaps"]
+    growth_per_hour = tick["growth_per_hour"]
+    high_growth_streak = tick["high_growth_streak"]
+    growth_streak = tick["growth_streak"]
+    memory_streak = tick["memory_streak"]
+    incident = tick["incident"]
+    incident_error = tick["incident_error"]
+
+    def build_receipt(
+        status: str,
+        *,
+        active_reasons: list[str] | None = None,
+        recovery_incident: dict[str, Any] | None = None,
+        stop_verification: dict[str, Any] | None = None,
+        stopped_services: list[str] | None = None,
+        sample: dict[str, Any] | None = None,
+        reset_growth_baseline: bool = False,
+    ) -> dict[str, Any]:
+        selected_sample = current if sample is None else sample
+        selected_incident = recovery_incident
+        if stop_verification is None:
+            stop_verification = (
+                selected_incident.get("stop_verification", {})
+                if isinstance(selected_incident, dict)
+                else {}
+            )
+        if stopped_services is None:
+            stopped_services = (
+                list(selected_incident.get("stopped_services", []))
+                if isinstance(selected_incident, dict)
+                else []
+            )
+        payload: dict[str, Any] = {
+            "schema_version": 2,
+            "status": status,
+            "sampled_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "sampled_epoch": timestamp,
+            "reclaimed_log_bytes": reclaimed,
+            "growth_bytes_per_hour": 0 if reset_growth_baseline else growth_per_hour,
+            "high_growth_streak": 0 if reset_growth_baseline else high_growth_streak,
+            "growth_streak": 0 if reset_growth_baseline else growth_streak,
+            "memory_streak": 0 if reset_growth_baseline else memory_streak,
+            "reasons": list(reasons if active_reasons is None else active_reasons),
+            "telemetry_gaps": telemetry_gaps,
+            "stop_floor_bytes": stop_floor,
+            "recovery_projected_restart_bytes": RECOVERY_PROJECTED_RESTART_BYTES,
+            "stopped_services": stopped_services,
+            "stop_verification": stop_verification,
+            **selected_sample,
+        }
+        if selected_incident is not None:
+            payload["recovery_incident"] = selected_incident
+        return payload
+
+    def operator_required(
+        blocker: str,
+        candidate: dict[str, Any] | None = None,
+        *,
+        allow_unpersisted: bool = False,
+    ) -> dict[str, Any]:
+        blocked = dict(candidate or {})
+        blocked["schema_version"] = 2
+        blocked.setdefault(
+            "incident_id",
+            "capacity-operator-"
+            + hashlib.sha256(f"{timestamp}:{blocker}".encode()).hexdigest()[:20],
+        )
+        blocked.setdefault("started_epoch", timestamp)
+        blocked.setdefault("trigger_reasons", list(previous.get("reasons", [])))
+        blocked.setdefault("stop_targets", [])
+        blocked.setdefault("owned_labels", [])
+        blocked.setdefault("stopped_by_guard", [])
+        blocked.setdefault("stopped_services", list(previous.get("stopped_services", [])))
+        blocked.setdefault("stop_verification", previous.get("stop_verification", {}))
+        blocked.setdefault("healthy_samples", 0)
+        blocked.setdefault("last_healthy_epoch", None)
+        blocked.setdefault("attempts_started", 0)
+        blocked.setdefault("max_attempts", MAX_AUTOMATIC_RECOVERY_ATTEMPTS)
+        blocked.setdefault("attempted_labels", [])
+        blocked.setdefault("started_labels", [])
+        blocked.setdefault("rollback", None)
+        blocked.setdefault("stop_action_receipt", None)
+        blocked.setdefault("resume_action_receipt", None)
+        blocked.setdefault("rollback_action_receipt", None)
+        blocked.setdefault("execution_verification", None)
+        blocked.setdefault("restart_baseline", None)
+        blocked.setdefault("restart_samples", [])
+        blocked.setdefault("post_resume_healthy_samples", 0)
+        blocked.setdefault("last_post_resume_epoch", None)
+        blocked.setdefault("verification_started_epoch", None)
+        blocked.setdefault("restart_measurement", None)
+        blocked["status"] = "OPERATOR_REQUIRED"
+        blocked["updated_epoch"] = timestamp
+        blocked["automatic_recovery_authorized"] = False
+        blocked["authorization_blocker"] = blocker
+        result = build_receipt(
+            "OPERATOR_REQUIRED",
+            active_reasons=[],
+            recovery_incident=blocked,
+        )
+        try:
+            _write_state(state_file, result)
+            result["state_persisted"] = True
+        except OSError:
+            if not allow_unpersisted:
+                raise
+            result["state_persisted"] = False
+        return result
+
+    def fresh_recovery_authority(
+        candidate: dict[str, Any],
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        try:
+            fresh_runtime = formal_runtime.validate_runtime_tick(
+                CAPACITY_GUARD_LABEL,
+                queue_root=queue_root.resolve(),
+                state_root=publisher_root.resolve(),
+                actor_root=Path(
+                    os.environ.get("PANTHEON_RUNTIME_ACTOR_ROOT", Path.cwd())
+                ),
+                log_root=log_root.resolve(),
+            )
+        except formal_runtime.RuntimeManifestError as error:
+            return None, f"runtime_identity_unavailable:{type(error).__name__}"
+        fresh_context = _recovery_context(fresh_runtime)
+        fresh_context.setdefault(
+            "restart_projected_bytes", RECOVERY_PROJECTED_RESTART_BYTES
+        )
+        mismatch = _recovery_context_mismatch(candidate, fresh_context)
+        if mismatch is not None:
+            return fresh_context, mismatch
+        disabled_labels, disabled_error = _disabled_service_labels(stop_runner)
+        if disabled_labels is None:
+            return fresh_context, str(disabled_error)
+        disabled_owned = [
+            label
+            for label in candidate.get("owned_labels", [])
+            if label in disabled_labels
+        ]
+        if disabled_owned:
+            candidate["disabled_labels_at_recovery"] = disabled_owned
+            return fresh_context, "owned_service_manually_disabled"
+        return fresh_context, None
+
+    def rollback_and_require_operator(
+        candidate: dict[str, Any],
+        failure: str,
+    ) -> dict[str, Any]:
+        candidate["status"] = "ROLLBACK_IN_PROGRESS"
+        candidate["updated_epoch"] = timestamp
+        candidate["recovery_failure"] = failure
+        candidate["rollback"] = {
+            "status": "ROLLBACK_IN_PROGRESS",
+            "services": {},
+        }
+        _write_state(
+            state_file,
+            build_receipt(
+                "ROLLBACK_IN_PROGRESS",
+                active_reasons=[],
+                recovery_incident=candidate,
+            ),
+        )
+        labels = list(dict.fromkeys(candidate.get("attempted_labels", [])))
+        if not labels:
+            candidate["rollback"] = {
+                "status": "ROLLBACK_COMPLETE",
+                "stopped_labels": [],
+                "launchd_absent": True,
+                "reason": "no_attempted_service",
+            }
+            return operator_required(failure, candidate)
+        try:
+            receipt_path = _recovery_action_receipt_path(
+                state_file,
+                candidate,
+                "rollback",
+            )
+            resume_identity = candidate.get("resume_action_receipt")
+            if not _same_file_identity(resume_identity):
+                raise runtime_activation.RuntimeActivationError("prior resume action receipt identity drift")
+            rollback_receipt = runtime_activation.stop_capacity_services(
+                labels,
+                plist_paths=_incident_plist_paths(candidate, labels),
+                state_root=publisher_root.resolve(strict=True),
+                receipt_path=receipt_path,
+                timeout_seconds=RECOVERY_SHUTDOWN_TIMEOUT_SECONDS,
+                runner=stop_runner,
+                allow_absent=True,
+                resume_action_receipt=resume_identity,
+                **_runtime_action_kwargs(candidate, labels),
+            )
+            candidate["rollback_action_receipt"] = _file_identity(receipt_path)
+            candidate["rollback"] = {
+                "status": "ROLLBACK_COMPLETE",
+                "launchd_absent": True,
+                "stopped_labels": list(rollback_receipt["stopped_labels"]),
+                "services": rollback_receipt["services"],
+                "process_drain": rollback_receipt["process_drain"],
+            }
+            return operator_required(failure, candidate)
+        except (OSError, runtime_activation.RuntimeActivationError) as error:
+            receipt_path = _recovery_action_receipt_path(
+                state_file,
+                candidate,
+                "rollback",
+            )
+            if receipt_path.exists():
+                try:
+                    candidate["rollback_action_receipt"] = _file_identity(receipt_path)
+                except OSError:
+                    candidate["rollback_action_receipt"] = None
+            candidate["rollback"] = {
+                "status": "ROLLBACK_UNKNOWN",
+                "services": {},
+                "reason": f"{type(error).__name__}: {error}",
+            }
+            return operator_required(
+                "partial_recovery_rollback_unknown",
+                candidate,
+            )
+
+    def rollback_after_verification(
+        candidate: dict[str, Any],
+        failure: str,
+    ) -> dict[str, Any]:
+        try:
+            with formal_runtime.runtime_shutdown_lease(
+                publisher_root.resolve(strict=True),
+                timeout_seconds=RECOVERY_SHUTDOWN_TIMEOUT_SECONDS,
+            ):
+                return rollback_and_require_operator(candidate, failure)
+        except formal_runtime.RuntimeWorkBusy:
+            candidate["recovery_failure"] = failure
+            candidate["rollback"] = {
+                "status": "ROLLBACK_UNKNOWN",
+                "services": {},
+                "reason": "runtime_shutdown_lease_unavailable",
+            }
+            return operator_required(
+                "partial_recovery_rollback_unknown",
+                candidate,
+            )
+
+    def update_restart_measurement(
+        candidate: dict[str, Any],
+    ) -> tuple[dict[str, Any], bool]:
+        baseline = candidate.get("restart_baseline")
+        if not isinstance(baseline, dict):
+            raise formal_runtime.RuntimeManifestError("restart baseline is missing")
+        rows = list(candidate.get("restart_samples", []))
+        baseline_admission = baseline.get("admission_available_bytes")
+        baseline_bytes = baseline.get("bytes")
+        baseline_rss = baseline.get("rss_bytes")
+        baseline_swap = baseline.get("swap_used_bytes")
+        row = {
+            "sample_index": len(rows),
+            "sampled_epoch": timestamp,
+            "admission_available_bytes": current.get("admission_available_bytes"),
+            "admission_drop_bytes": (
+                max(0, int(baseline_admission) - int(current["admission_available_bytes"]))
+                if isinstance(baseline_admission, int)
+                and isinstance(current.get("admission_available_bytes"), int)
+                else None
+            ),
+            "project_growth_bytes": (
+                max(0, int(current["bytes"]) - int(baseline_bytes))
+                if isinstance(baseline_bytes, int)
+                and isinstance(current.get("bytes"), int)
+                else None
+            ),
+            "rss_growth_bytes": (
+                max(0, int(current["rss_bytes"]) - int(baseline_rss))
+                if isinstance(baseline_rss, int)
+                and isinstance(current.get("rss_bytes"), int)
+                else None
+            ),
+            "swap_growth_bytes": (
+                max(0, int(current["swap_used_bytes"]) - int(baseline_swap))
+                if isinstance(baseline_swap, int)
+                and isinstance(current.get("swap_used_bytes"), int)
+                else None
+            ),
+        }
+        if not rows or rows[-1].get("sampled_epoch") != timestamp:
+            rows.append(row)
+        candidate["restart_samples"] = rows
+
+        def high_water(field: str) -> int | None:
+            values = [item.get(field) for item in rows]
+            return (
+                max(int(value) for value in values)
+                if values and all(isinstance(value, int) for value in values)
+                else None
+            )
+
+        max_admission_drop = high_water("admission_drop_bytes")
+        max_project_growth = high_water("project_growth_bytes")
+        max_rss_growth = high_water("rss_growth_bytes")
+        max_swap_growth = high_water("swap_growth_bytes")
+        measured_restart_bytes = (
+            max(max_admission_drop, max_project_growth)
+            if isinstance(max_admission_drop, int)
+            and isinstance(max_project_growth, int)
+            else None
+        )
+        measurement = {
+            "pre_admission_available_bytes": baseline_admission,
+            "post_admission_available_bytes": current.get(
+                "admission_available_bytes"
+            ),
+            "admission_drop_bytes": max_admission_drop,
+            "project_growth_bytes": max_project_growth,
+            "measured_restart_bytes": measured_restart_bytes,
+            "projected_restart_bytes": int(
+                candidate.get(
+                    "restart_projected_bytes",
+                    RECOVERY_PROJECTED_RESTART_BYTES,
+                )
+            ),
+            "pre_rss_bytes": baseline_rss,
+            "post_rss_bytes": current.get("rss_bytes"),
+            "rss_growth_bytes": max_rss_growth,
+            "pre_swap_used_bytes": baseline_swap,
+            "post_swap_used_bytes": current.get("swap_used_bytes"),
+            "swap_growth_bytes": max_swap_growth,
+            "stop_floor_bytes": stop_floor,
+            "rss_growth_limit_bytes": RECOVERY_RSS_GROWTH_LIMIT_BYTES,
+            "swap_growth_limit_bytes": RECOVERY_SWAP_GROWTH_LIMIT_BYTES,
+            "sample_count": len(rows),
+            "samples": rows,
+        }
+        candidate["restart_measurement"] = measurement
+        post_safe = (
+            current.get("capacity_available") is True
+            and isinstance(current.get("admission_available_bytes"), int)
+            and current["admission_available_bytes"] >= stop_floor
+            and current.get("bytes", MAX_BYTES + 1) <= MAX_BYTES
+            and current.get("file_count", MAX_FILE_COUNT + 1) <= MAX_FILE_COUNT
+            and current.get("rss_available") is True
+            and current.get("swap_available") is True
+            and isinstance(measured_restart_bytes, int)
+            and measured_restart_bytes
+            <= int(candidate.get("restart_projected_bytes", RECOVERY_PROJECTED_RESTART_BYTES))
+            and isinstance(max_rss_growth, int)
+            and max_rss_growth <= RECOVERY_RSS_GROWTH_LIMIT_BYTES
+            and isinstance(max_swap_growth, int)
+            and max_swap_growth <= RECOVERY_SWAP_GROWTH_LIMIT_BYTES
+        )
+        return measurement, post_safe
+
+    if runtime_error is not None and state_error is None:
+        if incident is not None and incident.get("status") == "RECOVERY_VERIFYING":
+            return rollback_after_verification(incident, runtime_error)
+        raise formal_runtime.RuntimeManifestError(runtime_error)
+    if state_error is not None:
+        candidate = (
+            previous.get("recovery_incident")
+            if isinstance(previous.get("recovery_incident"), dict)
+            else None
+        )
+        evidence = None
+        if state_error.startswith(
+            (
+                "capacity_state_malformed",
+                "capacity_state_not_object",
+                "capacity_state_sampled_epoch_invalid",
+            )
+        ):
+            evidence = _preserve_invalid_state(state_file)
+        if evidence is not None:
+            candidate = dict(candidate or {})
+            candidate["invalid_state_evidence"] = evidence
+        return operator_required(
+            state_error,
+            candidate,
+            allow_unpersisted=True,
+        )
+    if incident_error is not None:
+        candidate = (
+            previous.get("recovery_incident")
+            if isinstance(previous.get("recovery_incident"), dict)
+            else None
+        )
+        return operator_required(incident_error, candidate)
+    deferred_stop = (
+        incident is not None
+        and incident.get("status") == "STOPPING"
+        and incident.get("stop_deferred_for_work") is True
+        and incident.get("stop_action_receipt") is None
+        and not incident.get("stopped_by_guard")
+    )
+    if deferred_stop:
+        interrupted_action_path = _recovery_action_receipt_path(
+            state_file, incident, "stop"
+        )
+        if interrupted_action_path.exists():
+            try:
+                interrupted_action = runtime_activation.load_action_receipt(
+                    interrupted_action_path
+                )
+            except (OSError, runtime_activation.RuntimeActivationError):
+                return operator_required("deferred_stop_action_interrupted", incident)
+            prepared_retry = (
+                interrupted_action.get("status") == "PREPARED"
+                and interrupted_action.get("mutation_started") is False
+                and interrupted_action.get("pre_stop") == {}
+                and interrupted_action.get("process_drain") == {}
+                and interrupted_action.get("services") == {}
+                and interrupted_action.get("stopped_labels") == []
+                and not interrupted_action_path.with_name(
+                    f".{interrupted_action_path.name}.processes.json"
+                ).exists()
+            )
+            if prepared_retry:
+                if (
+                    interrupted_action.get("action") != "capacity-stop"
+                    or interrupted_action.get("incident_id") != incident["incident_id"]
+                    or interrupted_action.get("labels") != incident["stop_targets"]
+                    or interrupted_action.get("manifest_digest") != incident.get("manifest_digest")
+                    or interrupted_action.get("runtime_identity_digest")
+                    != incident.get("runtime_identity_digest")
+                    or interrupted_action.get("generation") != incident.get("generation")
+                    or interrupted_action.get("owned_roots") != incident.get("owned_roots")
+                    or interrupted_action.get("receipt_path") != str(interrupted_action_path)
+                ):
+                    return operator_required("deferred_stop_action_interrupted", incident)
+                incident["prepared_stop_retry_receipt"] = _file_identity(
+                    interrupted_action_path
+                )
+            else:
+                targets = list(incident["stop_targets"])
+                if (
+                    interrupted_action.get("action") != "capacity-stop"
+                    or interrupted_action.get("incident_id") != incident["incident_id"]
+                    or interrupted_action.get("status") != "STOPPED"
+                    or interrupted_action.get("labels") != targets
+                    or interrupted_action.get("stopped_labels") != targets
+                    or interrupted_action.get("manifest_digest")
+                    != incident.get("manifest_digest")
+                    or interrupted_action.get("runtime_identity_digest")
+                    != incident.get("runtime_identity_digest")
+                    or interrupted_action.get("generation") != incident.get("generation")
+                    or interrupted_action.get("owned_roots") != incident.get("owned_roots")
+                    or interrupted_action.get("receipt_path")
+                    != str(interrupted_action_path)
+                    or not isinstance(interrupted_action.get("process_drain"), dict)
+                ):
+                    return operator_required("deferred_stop_action_interrupted", incident)
+                try:
+                    with formal_runtime.runtime_shutdown_lease(
+                        publisher_root.resolve(strict=True),
+                        timeout_seconds=RECOVERY_SHUTDOWN_TIMEOUT_SECONDS,
+                    ):
+                        current_context = _recovery_context(runtime_receipt)
+                        if _recovery_context_mismatch(incident, current_context) is not None:
+                            return operator_required("deferred_stop_authority_drift", incident)
+                        all_absent, observations = _verify_owned_services_absent(
+                            targets, stop_runner
+                        )
+                        if not all_absent:
+                            incident["stop_reconciliation_observations"] = observations
+                            return operator_required(
+                                "deferred_stop_absence_unproven", incident
+                            )
+                        incident["stop_action_receipt"] = _file_identity(
+                            interrupted_action_path
+                        )
+                        incident["stopped_by_guard"] = targets
+                        incident["stopped_services"] = targets
+                        incident["canonical_process_drain"] = interrupted_action[
+                            "process_drain"
+                        ]
+                        incident["stop_verification"] = {
+                            label: {"absent": True} for label in targets
+                        }
+                        incident["exclusive_quiescence"] = {
+                            "status": "RUNTIME_WORK_LEASE_EXCLUSIVE",
+                            "state_root": str(publisher_root.resolve(strict=True)),
+                        }
+                        incident["stop_deferred_for_work"] = False
+                        incident["status"] = "STOPPED"
+                        incident["updated_epoch"] = timestamp
+                        receipt = build_receipt("STOPPED", recovery_incident=incident)
+                        _write_state(state_file, receipt)
+                        return receipt
+                except formal_runtime.RuntimeWorkBusy:
+                    receipt = build_receipt("STOPPING", recovery_incident=incident)
+                    _write_state(state_file, receipt)
+                    return receipt
+    if incident is not None and incident.get("status") in {
+        "OPERATOR_REQUIRED",
+        "STOP_FAILED",
+        "STOPPING",
+        "RECOVERY_IN_PROGRESS",
+        "ROLLBACK_IN_PROGRESS",
+    } and not deferred_stop:
+        return operator_required(
+            str(
+                incident.get("authorization_blocker")
+                or (
+                    "stop_verification_failed"
+                    if incident.get("status") == "STOP_FAILED"
+                    else "interrupted_recovery_transition"
+                )
+            ),
+            incident,
+        )
+
+    if reasons or deferred_stop:
+        if incident is not None and incident.get("status") == "RECOVERY_VERIFYING":
+            with _sampling_lease(publisher_root):
+                current_context = _recovery_context(runtime_receipt)
+                current_context.setdefault(
+                    "restart_projected_bytes",
+                    RECOVERY_PROJECTED_RESTART_BYTES,
+                )
+                context_error = _recovery_context_mismatch(incident, current_context)
+            if context_error is not None:
+                return rollback_after_verification(incident, context_error)
+            incident["capacity_regression_reasons"] = list(reasons)
+            return rollback_after_verification(
+                incident,
+                "capacity_regressed_after_resume",
+            )
+        if incident is not None and not deferred_stop:
+            tracked = list(
+                incident.get("stopped_by_guard")
+                or incident.get("stop_targets")
+                or incident.get("owned_labels", [])
+            )
+            all_absent, observations = _verify_owned_services_absent(
+                tracked,
+                stop_runner,
+            )
+            if not all_absent:
+                incident["capacity_regression_observations"] = observations
+                return operator_required(
+                    "guard_stopped_service_reappeared_during_capacity_regression",
+                    incident,
+                )
+            incident["status"] = "STOPPED"
+            incident["updated_epoch"] = timestamp
+            incident["healthy_samples"] = 0
+            incident["last_healthy_epoch"] = None
+            incident["recovery_wait_reasons"] = []
+            incident["trigger_reasons"] = list(
+                dict.fromkeys([*incident.get("trigger_reasons", []), *reasons])
+            )
+            receipt = build_receipt("STOPPED", recovery_incident=incident)
+            _write_state(state_file, receipt)
+            return receipt
+
+        with ExitStack() as stop_scope:
+            try:
+                stop_scope.enter_context(formal_runtime.runtime_shutdown_lease(
+                    publisher_root.resolve(strict=True),
+                    timeout_seconds=RECOVERY_SHUTDOWN_TIMEOUT_SECONDS,
+                ))
+            except formal_runtime.RuntimeWorkBusy:
+                if incident is None:
+                    recovery_context = _recovery_context(runtime_receipt)
+                    incident = _capture_recovery_incident(
+                        timestamp=timestamp,
+                        reasons=reasons,
+                        recovery_context=recovery_context,
+                        runner=stop_runner,
+                    )
+                if (
+                    os.environ.get("PANTHEON_FORMAL_RUNTIME") == "1"
+                    and state_file != queue_root.resolve() / "capacity-guard-state.json"
+                ):
+                    return operator_required(
+                        "deferred_stop_admission_path_unavailable", incident
+                    )
+                if not incident.get("stop_targets"):
+                    return operator_required(
+                        str(incident.get("authorization_blocker")
+                            or "automatic_stop_authority_unavailable"),
+                        incident,
+                    )
+                incident["stop_deferred_for_work"] = True
+                incident["updated_epoch"] = timestamp
+                receipt = build_receipt("STOPPING", recovery_incident=incident)
+                _write_state(state_file, receipt)
+                return receipt
+            if state_identity is not None and not _same_file_identity(state_identity):
+                return operator_required("capacity_state_changed_before_stop")
+            if state_identity is None and state_file.exists():
+                return operator_required("capacity_state_appeared_before_stop")
+            fresh_runtime = formal_runtime.validate_runtime_tick(
+                CAPACITY_GUARD_LABEL,
+                queue_root=queue_root.resolve(),
+                state_root=publisher_root.resolve(),
+                actor_root=Path(
+                    os.environ.get("PANTHEON_RUNTIME_ACTOR_ROOT", Path.cwd())
+                ),
+                log_root=log_root.resolve(),
+            )
+            recovery_context = _recovery_context(fresh_runtime)
+            fresh_incident = _capture_recovery_incident(
+                timestamp=timestamp,
+                reasons=reasons,
+                recovery_context=recovery_context,
+                runner=stop_runner,
+            )
+            if deferred_stop:
+                if (
+                    _recovery_context_mismatch(incident, recovery_context) is not None
+                    or fresh_incident["automatic_recovery_authorized"] is not True
+                    or fresh_incident["stop_targets"] != incident["stop_targets"]
+                    or fresh_incident["disabled_labels_before_stop"]
+                    != incident["disabled_labels_before_stop"]
+                    or fresh_incident["pre_stop_loaded_labels"]
+                    != incident["pre_stop_loaded_labels"]
+                ):
+                    return operator_required("deferred_stop_authority_drift", incident)
+                incident["pre_stop_services"] = fresh_incident["pre_stop_services"]
+            else:
+                incident = fresh_incident
+            stop_targets = list(incident.get("stop_targets", []))
+            if not stop_targets and incident.get("automatic_recovery_authorized") is not True:
+                return operator_required(
+                    str(
+                        incident.get("authorization_blocker")
+                        or "automatic_stop_authority_unavailable"
+                    ),
+                    incident,
+                )
+            _write_state(
+                state_file,
+                build_receipt(
+                    "STOPPING",
+                    recovery_incident=incident,
+                    stop_verification={},
+                    stopped_services=[],
+                ),
+            )
+            if stop_targets:
+                receipt_path = _recovery_action_receipt_path(
+                    state_file,
+                    incident,
+                    "stop",
+                )
+                try:
+                    stop_action = runtime_activation.stop_capacity_services(
+                        stop_targets,
+                        plist_paths=_incident_plist_paths(incident, stop_targets),
+                        state_root=publisher_root.resolve(strict=True),
+                        receipt_path=receipt_path,
+                        timeout_seconds=RECOVERY_SHUTDOWN_TIMEOUT_SECONDS,
+                        runner=stop_runner,
+                        **_runtime_action_kwargs(incident, stop_targets),
+                    )
+                except (OSError, runtime_activation.RuntimeActivationError) as error:
+                    if receipt_path.exists():
+                        try:
+                            incident["stop_action_receipt"] = _file_identity(receipt_path)
+                            action = runtime_activation.load_action_receipt(receipt_path)
+                            incident["stopped_by_guard"] = list(
+                                action.get("stopped_labels", [])
+                            )
+                            incident["stopped_services"] = list(
+                                action.get("stopped_labels", [])
+                            )
+                        except (OSError, runtime_activation.RuntimeActivationError):
+                            incident["stop_action_receipt"] = None
+                    incident["stop_failure"] = f"{type(error).__name__}: {error}"
+                    return operator_required("capacity_stop_effector_failed", incident)
+                incident["stop_action_receipt"] = _file_identity(receipt_path)
+                stopped_by_guard = list(stop_action["stopped_labels"])
+                stop_verification = {
+                    label: {
+                        "bootout_returncode": value.get("bootout_returncode"),
+                        "verify_returncode": value.get("post_stop", {}).get(
+                            "returncode"
+                        ),
+                        "absent": value.get("post_stop", {}).get("topology")
+                        == "ABSENT",
+                    }
+                    for label, value in stop_action["services"].items()
+                }
+                incident["canonical_process_drain"] = stop_action["process_drain"]
+            else:
+                stopped_by_guard = []
+                stop_verification = {}
+            incident["updated_epoch"] = timestamp
+            incident["stopped_by_guard"] = stopped_by_guard
+            incident["stopped_services"] = stopped_by_guard
+            incident["stop_verification"] = stop_verification
+            incident["exclusive_quiescence"] = {
+                "status": "RUNTIME_WORK_LEASE_EXCLUSIVE",
+                "state_root": str(publisher_root.resolve(strict=True)),
+            }
+            incident["status"] = "STOPPED"
+            incident["stop_deferred_for_work"] = False
+            receipt = build_receipt(
+                "STOPPED",
+                recovery_incident=incident,
+                stop_verification=stop_verification,
+                stopped_services=stopped_by_guard,
+            )
+            _write_state(state_file, receipt)
+            return receipt
+
+    if incident is None:
+        closed_incident = (
+            previous.get("recovery_incident")
+            if isinstance(previous.get("recovery_incident"), dict)
+            and previous["recovery_incident"].get("status") == "RECOVERED"
+            else None
+        )
+        receipt = build_receipt(
+            "PASS",
+            active_reasons=[],
+            recovery_incident=closed_incident,
+        )
+        _write_state(state_file, receipt)
+        return receipt
+
+    with _sampling_lease(publisher_root):
+        current_context = _recovery_context(runtime_receipt)
+        current_context.setdefault(
+            "restart_projected_bytes",
+            RECOVERY_PROJECTED_RESTART_BYTES,
+        )
+        context_error = _recovery_context_mismatch(incident, current_context)
+    if context_error is not None:
+        if incident.get("status") == "RECOVERY_VERIFYING":
+            return rollback_after_verification(incident, context_error)
+        return operator_required(context_error, incident)
+
+    if incident.get("status") == "RECOVERY_VERIFYING":
+        _fresh_context, authority_error = fresh_recovery_authority(incident)
+        if authority_error is not None:
+            return rollback_after_verification(incident, authority_error)
+        resume_identity = incident.get("resume_action_receipt")
+        if not _same_file_identity(resume_identity):
+            return rollback_after_verification(
+                incident, "resume_action_receipt_identity_drift"
+            )
+        try:
+            resume_action = runtime_activation.load_action_receipt(
+                Path(str(resume_identity["path"]))
+            )
+            execution = runtime_activation.verify_capacity_resume_execution(
+                resume_action,
+                runner=stop_runner,
+                timeout_seconds=RECOVERY_SHUTDOWN_TIMEOUT_SECONDS,
+            )
+            _measurement, post_safe = update_restart_measurement(incident)
+        except (
+            OSError,
+            formal_runtime.RuntimeManifestError,
+            runtime_activation.RuntimeActivationError,
+        ) as error:
+            incident["execution_verification"] = {
+                "status": "UNKNOWN",
+                "error": f"{type(error).__name__}: {error}",
+            }
+            return rollback_after_verification(
+                incident,
+                "resume_execution_verification_unknown",
+            )
+        incident["execution_verification"] = execution
+        if not post_safe:
+            return rollback_after_verification(
+                incident,
+                "restart_measurement_outside_reserve",
+            )
+        if execution["status"] in {"FAILED", "UNKNOWN"}:
+            return rollback_after_verification(
+                incident,
+                "resume_execution_" + str(execution["status"]).lower(),
+            )
+        started_epoch = incident.get("verification_started_epoch")
+        if execution["status"] == "PENDING" and isinstance(
+            started_epoch, (int, float)
+        ):
+            active_since = dict(incident.get("active_run_first_seen_epoch") or {})
+            active_last_seen = dict(incident.get("active_run_last_seen_epoch") or {})
+            for label, service in execution["services"].items():
+                if service["status"] != "PENDING":
+                    active_since.pop(label, None)
+                    active_last_seen.pop(label, None)
+                    continue
+                observation = service["observation"]
+                identity = observation.get("identity")
+                active = (
+                    observation.get("topology") == "LOADED"
+                    and isinstance(identity, dict)
+                    and identity.get("states") == ["running"]
+                    and bool(identity.get("pids"))
+                    and isinstance(identity.get("runs"), list)
+                    and len(identity["runs"]) == 1
+                    and type(identity["runs"][0]) is int
+                    # bootstrap 已記錄的同次執行仍可在釋放工作鎖後開始工作。
+                    # 執行期限與後續 terminal 成功所需的 runs + 1 分開判斷。
+                    and identity["runs"][0] >= service["required_success_runs"] - 1
+                )
+                if active:
+                    active_since.setdefault(label, timestamp)
+                    active_last_seen[label] = timestamp
+                    if (
+                        timestamp - float(active_since[label])
+                        > RECOVERY_ACTIVE_RUN_TIMEOUT_SECONDS
+                    ):
+                        incident["active_run_first_seen_epoch"] = active_since
+                        incident["active_run_last_seen_epoch"] = active_last_seen
+                        return rollback_after_verification(
+                            incident, "resume_active_run_timeout"
+                        )
+                elif label in active_last_seen:
+                    # 已觀測到真實執行後，terminal → 下一次 StartInterval 的空窗
+                    # 應從最後一次 active 觀測重新計時，不能沿用整次復機起點。
+                    if (
+                        timestamp - float(active_last_seen[label])
+                        > RECOVERY_EXECUTION_TIMEOUT_SECONDS
+                    ):
+                        incident["active_run_first_seen_epoch"] = active_since
+                        incident["active_run_last_seen_epoch"] = active_last_seen
+                        return rollback_after_verification(
+                            incident, "resume_execution_timeout"
+                        )
+                elif (
+                    timestamp - float(started_epoch)
+                    > RECOVERY_EXECUTION_TIMEOUT_SECONDS
+                ):
+                    incident["active_run_first_seen_epoch"] = active_since
+                    incident["active_run_last_seen_epoch"] = active_last_seen
+                    return rollback_after_verification(
+                        incident, "resume_execution_timeout"
+                    )
+            incident["active_run_first_seen_epoch"] = active_since
+            incident["active_run_last_seen_epoch"] = active_last_seen
+            process_observation = execution.get("process_observation")
+            lineage_pending = (
+                all(service["status"] == "PASS" for service in execution["services"].values())
+                and bool(execution["services"])
+                and isinstance(process_observation, dict)
+                and (
+                    bool(process_observation.get("active"))
+                    or bool(process_observation.get("resample_required"))
+                    or bool(execution.get("lineage_missing_labels"))
+                )
+            )
+            if lineage_pending:
+                first_seen = incident.get("lineage_pending_first_seen_epoch")
+                if first_seen is None:
+                    first_seen = timestamp
+                    incident["lineage_pending_first_seen_epoch"] = first_seen
+                if timestamp - float(first_seen) > RECOVERY_EXECUTION_TIMEOUT_SECONDS:
+                    return rollback_after_verification(
+                        incident, "resume_lineage_timeout"
+                    )
+            else:
+                incident["lineage_pending_first_seen_epoch"] = None
+        elif execution["status"] == "PASS":
+            incident["active_run_first_seen_epoch"] = {}
+            incident["active_run_last_seen_epoch"] = {}
+            incident["lineage_pending_first_seen_epoch"] = None
+        sample_interval = timestamp - previous_sampled_epoch
+        post_samples = int(incident.get("post_resume_healthy_samples", 0))
+        if (
+            execution["status"] == "PASS"
+            and sample_interval >= RECOVERY_SAMPLE_MIN_SECONDS
+        ):
+            post_samples += 1
+            incident["last_post_resume_epoch"] = timestamp
+        incident["post_resume_healthy_samples"] = post_samples
+        incident["updated_epoch"] = timestamp
+        if (
+            execution["status"] != "PASS"
+            or post_samples < RECOVERY_POST_RESUME_HEALTHY_SAMPLES
+        ):
+            incident["status"] = "RECOVERY_VERIFYING"
+            receipt = build_receipt(
+                "RECOVERY_VERIFYING",
+                active_reasons=[],
+                recovery_incident=incident,
+            )
+            _write_state(state_file, receipt)
+            return receipt
+        _final_context, final_authority_error = fresh_recovery_authority(incident)
+        if final_authority_error is not None:
+            return rollback_after_verification(incident, final_authority_error)
+        if not _same_file_identity(resume_identity):
+            return rollback_after_verification(
+                incident, "resume_action_receipt_identity_drift"
+            )
+        incident["status"] = "RECOVERED"
+        incident["recovery_result"] = "AUTOMATIC_RECOVERY_COMPLETE"
+        receipt = build_receipt(
+            "PASS",
+            active_reasons=[],
+            recovery_incident=incident,
+            sample=current,
+            reset_growth_baseline=True,
+        )
+        _write_state(state_file, receipt)
+        return receipt
+
+    if int(incident.get("attempts_started", 0)) >= MAX_AUTOMATIC_RECOVERY_ATTEMPTS:
+        return operator_required("automatic_recovery_attempt_limit_reached", incident)
+
+    projected_restart_bytes = int(
+        incident.get("restart_projected_bytes", RECOVERY_PROJECTED_RESTART_BYTES)
+    )
+    recovery_wait_reasons: list[str] = []
+    if telemetry_gaps:
+        recovery_wait_reasons.append("recovery_telemetry_incomplete")
+    if (
+        not isinstance(admission_available, int)
+        or admission_available - projected_restart_bytes < stop_floor
+    ):
+        recovery_wait_reasons.append("restart_projection_below_reserve")
+    sample_interval = timestamp - previous_sampled_epoch
+    healthy_samples = int(incident.get("healthy_samples", 0))
+    if recovery_wait_reasons:
+        healthy_samples = 0
+    elif sample_interval >= RECOVERY_SAMPLE_MIN_SECONDS:
+        healthy_samples += 1
+    incident["status"] = "RECOVERY_PENDING"
+    incident["updated_epoch"] = timestamp
+    incident["healthy_samples"] = healthy_samples
+    incident["last_healthy_epoch"] = timestamp if not recovery_wait_reasons else None
+    incident["recovery_wait_reasons"] = recovery_wait_reasons
+    pending_receipt = build_receipt(
+        "RECOVERY_PENDING",
+        active_reasons=[],
+        recovery_incident=incident,
+    )
+    _write_state(state_file, pending_receipt)
+    if healthy_samples < RECOVERY_HEALTHY_SAMPLES:
+        return pending_receipt
+
+    owned_labels = list(incident.get("owned_labels", []))
+    if not owned_labels:
+        return operator_required("no_guard_owned_services", incident)
+
+    pending_identity = _file_identity(state_file)
+    with formal_runtime.runtime_shutdown_lease(
+        publisher_root.resolve(strict=True),
+        timeout_seconds=RECOVERY_SHUTDOWN_TIMEOUT_SECONDS,
+    ):
+        if not _same_file_identity(pending_identity):
+            return operator_required("capacity_state_changed_before_recovery", incident)
+        _fresh_context, authority_error = fresh_recovery_authority(incident)
+        if authority_error is not None:
+            return operator_required(authority_error, incident)
+        all_owned_absent, absent_observations = _verify_owned_services_absent(
+            owned_labels,
+            stop_runner,
+        )
+        incident["pre_recovery_absence"] = absent_observations
+        if not all_owned_absent:
+            return operator_required("owned_service_not_absent_before_recovery", incident)
+        for label in owned_labels:
+            if not _same_file_identity(incident["plists"].get(label)):
+                return operator_required("recovery_plist_identity_drift", incident)
+
+        incident["status"] = "RECOVERY_IN_PROGRESS"
+        incident["updated_epoch"] = timestamp
+        incident["attempts_started"] = int(incident.get("attempts_started", 0)) + 1
+        incident["attempted_labels"] = []
+        incident["started_labels"] = []
+        incident["activation_verification"] = {}
+        incident["execution_verification"] = None
+        incident["restart_baseline"] = dict(current)
+        incident["restart_samples"] = []
+        incident["post_resume_healthy_samples"] = 0
+        incident["last_post_resume_epoch"] = None
+        incident["verification_started_epoch"] = timestamp
+        incident["active_run_first_seen_epoch"] = {}
+        incident["active_run_last_seen_epoch"] = {}
+        incident["lineage_pending_first_seen_epoch"] = None
+        _write_state(
+            state_file,
+            build_receipt(
+                "RECOVERY_IN_PROGRESS",
+                active_reasons=[],
+                recovery_incident=incident,
+            ),
+        )
+        receipt_path = _recovery_action_receipt_path(
+            state_file,
+            incident,
+            "resume",
+        )
+        resume_action: dict[str, Any] | None = None
+
+        def merge_resume_action_evidence(action: dict[str, Any]) -> None:
+            attempted = [
+                label
+                for label in action.get("attempted_labels", [])
+                if label in owned_labels
+            ]
+            started = [
+                label
+                for label in action.get("started_labels", [])
+                if label in attempted
+            ]
+            incident["attempted_labels"] = list(
+                dict.fromkeys([*incident.get("attempted_labels", []), *attempted])
+            )
+            incident["started_labels"] = list(
+                dict.fromkeys([*incident.get("started_labels", []), *started])
+            )
+            services = action.get("services")
+            if isinstance(services, dict):
+                incident["activation_verification"] = dict(services)
+
+        try:
+            resume_action = runtime_activation.resume_capacity_services(
+                owned_labels,
+                plist_paths=_incident_plist_paths(incident, owned_labels),
+                state_root=publisher_root.resolve(strict=True),
+                receipt_path=receipt_path,
+                runner=stop_runner,
+                **_runtime_action_kwargs(incident, owned_labels),
+            )
+            merge_resume_action_evidence(resume_action)
+            incident["resume_action_receipt"] = _file_identity(receipt_path)
+        except (OSError, runtime_activation.RuntimeActivationError) as error:
+            if receipt_path.exists():
+                try:
+                    persisted_action = runtime_activation.load_action_receipt(receipt_path)
+                    merge_resume_action_evidence(persisted_action)
+                except (OSError, runtime_activation.RuntimeActivationError):
+                    persisted_action = None
+                try:
+                    incident["resume_action_receipt"] = _file_identity(
+                        receipt_path
+                    )
+                except OSError:
+                    incident["resume_action_receipt"] = None
+            observations: dict[str, Any] = {}
+            possible_mutations = list(incident.get("attempted_labels", []))
+            plist_paths = _incident_plist_paths(incident, owned_labels)
+            for label in owned_labels:
+                observation = runtime_activation.observe_launchctl_service(
+                    label,
+                    plist_paths[label],
+                    runner=stop_runner,
+                )
+                observations[label] = observation
+                if observation.get("topology") != "ABSENT":
+                    possible_mutations.append(label)
+            incident["resume_failure_observations"] = observations
+            incident["attempted_labels"] = list(dict.fromkeys(possible_mutations))
+            incident["resume_failure"] = f"{type(error).__name__}: {error}"
+            if incident["attempted_labels"]:
+                return rollback_and_require_operator(
+                    incident,
+                    "automatic_recovery_failed",
+                )
+            return operator_required("automatic_recovery_failed", incident)
+        assert resume_action is not None
+        if resume_action.get("status") != "STARTED":
+            failure = str(resume_action.get("error") or "automatic_recovery_failed")
+            if incident["attempted_labels"]:
+                return rollback_and_require_operator(incident, failure)
+            return operator_required(failure, incident)
+        _fresh_context, post_authority_error = fresh_recovery_authority(incident)
+        if post_authority_error is not None:
+            return rollback_and_require_operator(incident, post_authority_error)
+        incident["status"] = "RECOVERY_VERIFYING"
+        incident["updated_epoch"] = timestamp
+        receipt = build_receipt(
+            "RECOVERY_VERIFYING",
+            active_reasons=[],
+            recovery_incident=incident,
+        )
+        _write_state(state_file, receipt)
+        return receipt
 
 def _exercise_sample(root: Path) -> dict[str, Any]:
     used_bytes, file_count = _measure_tree(root)

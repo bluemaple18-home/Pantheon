@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from scripts import agy_content_publisher as publisher
+from scripts import pantheon_writer_vnext_runtime_activation_capacity as capacity_runtime
 from scripts.pantheon_content_capability_receipt import (
     build_apf_004_readiness_candidate,
     CAPABILITIES,
@@ -351,7 +352,17 @@ def test_receipt_context_rejects_caller_authority_and_unsafe_paths(
 
 def test_apf_004_readiness_builder_packages_capability_capacity_and_gate(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(
+        capacity_runtime.shutil,
+        "disk_usage",
+        lambda _path: (
+            500 * capacity_runtime.GIB,
+            250 * capacity_runtime.GIB,
+            250 * capacity_runtime.GIB,
+        ),
+    )
     gate = tmp_path / "ai-core/scripts/production_canary_readiness_gate.py"
     gate.parent.mkdir(parents=True)
     gate.write_text(

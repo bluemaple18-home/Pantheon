@@ -35,11 +35,20 @@ PUBLISHER_RESET_TEMP=""
 LANE_TEMP_PLISTS=()
 LANE_TARGET_PLISTS=()
 ACTIVATION_BARRIER=""
+READINESS_PERMIT_ACTIVE=0
 STAGE_DIR="${LAUNCH_AGENTS_DIR}/.pantheon-four-lane-stage"
 MODEL_ROUTE_STORE_DIR="${LAUNCH_AGENTS_DIR}/.pantheon-model-routes"
 
 cleanup() {
   local RETURN_CODE="$?"
+  if [[ "${READINESS_PERMIT_ACTIVE}" == "1" ]]; then
+    if ! revoke_readiness_permit; then
+      echo "shutdown readiness permit 撤銷失敗；permit 仍會因 owner PID 結束而失效。" >&2
+      if [[ "${RETURN_CODE}" == "0" ]]; then
+        RETURN_CODE=1
+      fi
+    fi
+  fi
   if [[ -n "${TEMP_PLIST}" ]]; then
     rm -f "${TEMP_PLIST}"
   fi
@@ -164,6 +173,22 @@ RUNTIME_GENERATION="$(manifest_field generation)"
 RUNTIME_ACTOR_HEAD="$(optional_manifest_field actor_head)"
 RUNTIME_PYTHON_EXECUTABLE="$(optional_manifest_field python_executable)"
 RUNTIME_UV_EXECUTABLE="$(manifest_field uv_executable)"
+if [[ "${ACTION}" != "--preflight" ]]; then
+  if [[ "${PANTHEON_RUNTIME_INSTALLER_SHUTDOWN_LEASE_HELD:-0}" != "1" ]]; then
+    cd "${REPO_ROOT}"
+    exec "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest \
+      shutdown-lease-exec \
+      --state-root "${CONTENT_PUBLISHER_ROOT}" \
+      --timeout "${PANTHEON_RUNTIME_SHUTDOWN_LEASE_TIMEOUT_SECONDS:-30}" \
+      -- /usr/bin/env PANTHEON_RUNTIME_INSTALLER_SHUTDOWN_LEASE_HELD=1 \
+      /bin/bash "${SCRIPT_DIR}/install_agy_gemini_coordinator_launchd.sh" "${ACTION}"
+  fi
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest \
+      shutdown-lease-assert --state-root "${CONTENT_PUBLISHER_ROOT}"
+  ) >/dev/null
+fi
 MODEL_ROUTE_CONFIG_PATH="${REPO_ROOT}/config/agy_gemini_model_routes.v1.json"
 route_identity() {
   (
@@ -230,6 +255,40 @@ if [[ ! "${BARRIER_TIMEOUT_SECONDS}" =~ ^[1-9][0-9]{0,2}$ ]] \
   echo "Pantheon activation barrier timeout 必須介於 1 與 300。" >&2
   exit 1
 fi
+create_readiness_permit() {
+  local PERMIT_ARGS=(
+    readiness-permit-create
+    --state-root "${CONTENT_PUBLISHER_ROOT}"
+    --manifest "${RUNTIME_MANIFEST_FILE}"
+    --expected-digest "${RUNTIME_MANIFEST_DIGEST}"
+    --barrier "${ACTIVATION_BARRIER}"
+    --ready-root "${READY_ROOT}"
+    --timeout "${BARRIER_TIMEOUT_SECONDS}"
+    --owner-pid "$$"
+  )
+  local LABEL
+  for LABEL in "$@"; do
+    PERMIT_ARGS+=(--label "${LABEL}")
+  done
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest \
+      "${PERMIT_ARGS[@]}"
+  ) >/dev/null
+  READINESS_PERMIT_ACTIVE=1
+}
+revoke_readiness_permit() {
+  if [[ "${READINESS_PERMIT_ACTIVE}" != "1" ]]; then
+    return 0
+  fi
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_content_runtime_manifest \
+      readiness-permit-revoke \
+      --state-root "${CONTENT_PUBLISHER_ROOT}"
+  ) >/dev/null
+  READINESS_PERMIT_ACTIVE=0
+}
 for LEGACY_QUEUE_ROOT in "${AGY_GEMINI_QUEUE_ROOT:-}" "${PANTHEON_GEMINI_QUEUE_ROOT:-}"; do
   if [[ -n "${LEGACY_QUEUE_ROOT}" && "${LEGACY_QUEUE_ROOT}" != "${QUEUE_ROOT}" ]]; then
     echo "runtime manifest queue root 與 legacy override 不一致。" >&2
@@ -730,6 +789,7 @@ PY
   }
   RESET_MUTATION_STARTED=0
   ACTIVATION_PHASE="publisher_reset_replace_live_plist"
+  create_readiness_permit "${PUBLISHER_LABEL}"
   trap 'rollback_publisher_activation_only_reset $? "${ACTIVATION_PHASE}"' ERR
   trap 'rollback_publisher_activation_only_reset 130 "${ACTIVATION_PHASE}"' INT
   trap 'rollback_publisher_activation_only_reset 143 "${ACTIVATION_PHASE}"' TERM
@@ -922,7 +982,7 @@ if [[ "${PUBLISHER_ONLY_ACTIVATION}" == "1" ]]; then
     local RETURN_CODE="$1"
     local EXIT_PHASE="$2"
     local ROLLBACK_STATUS="ROLLBACK_COMPLETE"
-    trap - ERR
+    trap - ERR INT TERM
     set +e
     # 停止結果未知時不得再派送 bootout/bootstrap，也不得宣稱已恢復。
     if [[ "${PUBLISHER_ONLY_STOP_UNKNOWN}" == "1" ]]; then
@@ -952,7 +1012,10 @@ if [[ "${PUBLISHER_ONLY_ACTIVATION}" == "1" ]]; then
       "${OTHER_PLIST}"
   done
   ACTIVATION_PHASE="publisher_only_replace_live_plist"
+  create_readiness_permit "${PUBLISHER_LABEL}"
   trap 'rollback_publisher_only_activation $? "${ACTIVATION_PHASE}"' ERR
+  trap 'rollback_publisher_only_activation 130 "${ACTIVATION_PHASE}"' INT
+  trap 'rollback_publisher_only_activation 143 "${ACTIVATION_PHASE}"' TERM
   install -m 600 "${PUBLISHER_STAGE_PLIST}" "${PUBLISHER_TARGET_PLIST}"
   ACTIVATION_PHASE="publisher_only_restart_publisher"
   launchctl bootout "gui/${USER_ID}/${PUBLISHER_LABEL}" >/dev/null 2>&1 || true
@@ -978,7 +1041,7 @@ if [[ "${PUBLISHER_ONLY_ACTIVATION}" == "1" ]]; then
     cmp -s "${STAGE_DIR}/publisher-only-backups/$(basename "${OTHER_PLIST}")" \
       "${OTHER_PLIST}"
   done
-  trap - ERR
+  trap - ERR INT TERM
   rm -rf "${STAGE_DIR}"
   echo "Pantheon Publisher-only bounded activation 已完成。"
   echo "Queue root：${QUEUE_ROOT}"
@@ -1030,253 +1093,15 @@ normalize_control_identity() {
   sed -E '/^[[:space:]]*(state|pid|runs|last exit code|last terminating signal|successful exits|forks|execs|initialized|trampolined|started|proxy started) = /d' "$1"
 }
 normal_activation_boundary() {
-  "${PYTHON_BIN}" - "${STAGE_DIR}" "${BARRIER_TIMEOUT_SECONDS}" "gui/${USER_ID}" "${RUNTIME_MANIFEST_FILE}" "$@" <<'PY'
-import ctypes
-import errno
-import json
-import os
-from pathlib import Path
-import re
-import subprocess
-import sys
-import time
-
-stage, budget, domain, manifest_file, mode, *arguments = sys.argv[1:]
-maintenance_fd = int(os.environ['PANTHEON_MAINTENANCE_LEASE_FD']) if mode == 'reconcile' else None
-manifest = json.loads(Path(manifest_file).read_text())
-owned_roots = [str(Path(manifest[key]).resolve()) for key in ('actor_root', 'queue_root', 'publisher_state_root', 'log_root')]
-path = Path(stage) / 'normal-rollback-drain.json'
-record = json.loads(path.read_text()) if path.exists() else {'processes': {}, 'groups': [], 'seen_labels': []}
-if mode == 'drain' and 'deadline' not in record:
-    record['deadline'] = time.monotonic() + int(budget)
-deadline = time.monotonic() + int(budget) if mode == 'reconcile' else record.get('deadline', time.monotonic() + int(budget))
-
-
-def save():
-    if mode == 'reconcile':
-        return
-    temporary = path.with_suffix('.tmp')
-    with temporary.open('w') as stream:
-        json.dump(record, stream)
-        stream.flush()
-        os.fsync(stream.fileno())
-    os.replace(temporary, path)
-
-
-def remaining():
-    value = deadline - time.monotonic()
-    if value <= 0:
-        raise RuntimeError('normal rollback drain deadline exceeded')
-    return min(value, 5)
-
-
-def command(argv):
-    try:
-        result = subprocess.run(argv, capture_output=True, text=True, timeout=remaining(),
-                                pass_fds=(maintenance_fd,) if maintenance_fd is not None else ())
-    except subprocess.TimeoutExpired as error:
-        raise RuntimeError(f'command outcome UNKNOWN: {argv[:2]}') from error
-    return result
-
-
-class Birth(ctypes.Structure):
-    # Darwin PROC_PIDTBSDINFO；微秒出生身分，不能以 PID 字串代替。
-    _fields_ = [(name, ctypes.c_uint32) for name in (
-        'flags', 'status', 'xstatus', 'pid', 'ppid', 'uid', 'gid', 'ruid', 'rgid', 'svuid', 'svgid', 'reserved')]
-    _fields_ += [('comm', ctypes.c_char * 16), ('name', ctypes.c_char * 32)]
-    _fields_ += [(name, ctypes.c_uint32) for name in ('nfiles', 'pgid', 'jobc', 'tdev', 'tpgid')]
-    _fields_ += [('nice', ctypes.c_int32), ('sec', ctypes.c_uint64), ('usec', ctypes.c_uint64)]
-
-
-def identity(pid, row):
-    value = Birth()
-    lib = ctypes.CDLL('/usr/lib/libproc.dylib', use_errno=True)
-    lib.proc_pidinfo.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_int]
-    ctypes.set_errno(0)
-    count = lib.proc_pidinfo(pid, 3, 0, ctypes.byref(value), ctypes.sizeof(value))
-    error = ctypes.get_errno()
-    previous = record['processes'].get(str(pid))
-    if count != ctypes.sizeof(value):
-        # ps 首見或既有程序在 ps→libproc 間自然退出時，須再以 PID existence
-        # 確認 ESRCH；權限、查詢錯誤或 PID 已重用都保持 UNKNOWN。
-        if error == errno.ESRCH:
-            try:
-                os.kill(pid, 0)
-            except ProcessLookupError:
-                if not previous:
-                    # birth 已無法取得，但保存本輪 ps 的 lineage/PGID，讓下一輪
-                    # 仍可追蹤其後代；若同 PID 再出現，birth=None 會 fail-closed。
-                    record['processes'][str(pid)] = {'birth': None, **row}
-                record['resample_required'] = True
-                return None
-            except OSError as probe_error:
-                raise RuntimeError(
-                    f'process identity UNKNOWN: {pid}: bytes={count}, errno={error}, '
-                    f'confirmation_errno={probe_error.errno}'
-                ) from probe_error
-            raise RuntimeError(
-                f'process identity UNKNOWN: {pid}: bytes={count}, errno={error}, still_present=1'
-            )
-        raise RuntimeError(f'process identity UNKNOWN: {pid}: bytes={count}, errno={error}')
-    birth = [value.sec, value.usec]
-    if value.pid != pid or not value.sec:
-        raise RuntimeError(f'process identity UNKNOWN: {pid}')
-    if previous and previous['birth'] != birth:
-        raise RuntimeError(f'PID reuse: {pid}')
-    if not previous and (value.ppid != row['ppid'] or value.pgid != row['pgid']):
-        raise RuntimeError(f'unobserved process ancestry UNKNOWN: {pid}')
-    return birth
-
-
-def services():
-    result = {}
-    for label in arguments:
-        reply = command(['launchctl', 'print', f'{domain}/{label}'])
-        if reply.returncode in (3, 113):
-            result[label] = None
-            continue
-        if reply.returncode:
-            raise RuntimeError(f'service state UNKNOWN: {label}: {reply.returncode}')
-        pids = re.findall(r'^\tpid = (\d+)$', reply.stdout, re.M)
-        states = re.findall(r'^\tstate = (.+)$', reply.stdout, re.M)
-        runs = re.findall(r'^\truns = (\d+)$', reply.stdout, re.M)
-        if len(pids) > 1 or len(states) != 1 or len(runs) != 1:
-            raise RuntimeError(f'service process evidence UNKNOWN: {label}')
-        if pids:
-            result[label] = int(pids[0])
-        elif states[0] in ('waiting', 'not running', 'exited'):
-            # 快速正常退出不代表異常；下面仍掃 runtime 歸屬的 orphan/children。
-            result[label] = None
-        else:
-            raise RuntimeError(f'service PID UNKNOWN: {label}')
-    return result
-
-
-def observe():
-    first = services()
-    reply = command(['/bin/ps', '-axo', 'pid=,ppid=,pgid=,stat=,command='])
-    if reply.returncode:
-        raise RuntimeError('process snapshot UNKNOWN')
-    rows = {}
-    for line in reply.stdout.splitlines():
-        fields = line.split(None, 4)
-        if len(fields) != 5 or not all(value.isdigit() for value in fields[:3]):
-            raise RuntimeError('process snapshot grammar UNKNOWN')
-        pid, parent, group = map(int, fields[:3])
-        rows[pid] = {'ppid': parent, 'pgid': group, 'zombie': fields[3].startswith('Z'), 'command': fields[4]}
-    if mode == 'reconcile':
-        # 已知 PID 即使漏於 ps 也須做 targeted libproc/kill(0) 證明；不盤點無關 UID。
-        for known_pid, previous in list(record['processes'].items()):
-            if int(known_pid) not in rows:
-                if identity(int(known_pid), previous) is not None:
-                    raise RuntimeError(f'known PID absent from snapshot but still present: {known_pid}')
-    # 排除操作本身的 ancestors/diagnostic children，不擴成全機 orphan 審計。
-    excluded = {os.getpid()}
-    parent = os.getpid()
-    while parent in rows and rows[parent]['ppid'] not in excluded:
-        parent = rows[parent]['ppid']
-        excluded.add(parent)
-    diagnostic = {os.getpid()}
-    while True:
-        added = {pid for pid, row in rows.items() if row['ppid'] in diagnostic} - diagnostic
-        if not added:
-            break
-        diagnostic |= added
-    excluded |= diagnostic
-    cwd = command(['/usr/sbin/lsof', '-a', '-u', str(os.getuid()), '-d', 'cwd', '-Fpn'])
-    if cwd.returncode:
-        raise RuntimeError('runtime cwd observation UNKNOWN')
-    selected = None
-    for line in cwd.stdout.splitlines():
-        if line.startswith('p') and line[1:].isdigit():
-            selected = int(line[1:])
-        elif line == 'fcwd':
-            continue
-        elif line.startswith('n') and selected is not None:
-            if selected in rows:
-                rows[selected]['cwd'] = line[1:]
-        else:
-            raise RuntimeError('cwd observation grammar UNKNOWN')
-    owned = {pid for pid, row in rows.items() if pid not in excluded and any(
-        row.get('cwd') == root or row.get('cwd', '').startswith(root + '/')
-        or root + '/' in row['command'] for root in owned_roots)}
-    second = services()
-    seeds = {pid for pid in [*first.values(), *second.values()] if pid is not None}
-    if any(str(pid) not in record['processes'] for pid in seeds - rows.keys()):
-        raise RuntimeError('unobserved service PID missing from process snapshot')
-    # 已觀察 root 自然退出時保留其 PGID/子孫；須再取穩定快照才可宣稱排空。
-    record['resample_required'] = first != second
-    active = owned | (seeds & rows.keys()) | {int(pid) for pid in record['processes'] if int(pid) in rows}
-    tracked = {int(pid) for pid in record['processes']}
-    groups = set(record['groups'])
-    while True:
-        previous = set(active)
-        groups |= {rows[pid]['pgid'] for pid in active}
-        if any(group <= 1 or group == os.getpgrp() for group in groups):
-            raise RuntimeError('service process group ownership UNKNOWN')
-        active |= {pid for pid, row in rows.items() if pid not in excluded and (
-            row['ppid'] in active or row['ppid'] in tracked or row['pgid'] in groups)}
-        if previous == active:
-            break
-    alive = []
-    for pid in active:
-        row = rows[pid]
-        birth = identity(pid, row)
-        if birth is None:
-            continue
-        previous = record['processes'].get(str(pid))
-        if previous and previous['birth'] != birth:
-            raise RuntimeError(f'PID reuse: {pid}')
-        record['processes'][str(pid)] = {'birth': birth, **row}
-        if not row['zombie']:
-            alive.append(pid)
-    for label, pid in {**first, **second}.items():
-        if pid is not None and str(pid) in record['processes'] and label not in record['seen_labels']:
-            record['seen_labels'].append(label)
-    record.update(groups=sorted(groups), active=sorted(alive), sampled_at=time.time())
-    save()
-    return alive
-
-
-try:
-    if record.get('status') == 'UNKNOWN_OR_FAILED' and mode != 'reconcile':
-        raise RuntimeError('prior normal process evidence is unresolved: ' + record.get('error', 'unknown'))
-    if mode == 'reconcile':
-        from scripts.pantheon_runtime_activation import (
-            maintenance_binding, maintenance_lease, maintenance_control, maintenance_publish_journal)
-        binding, exact_manifest, token = maintenance_binding(Path(os.environ['PANTHEON_MAINTENANCE_BINDING']))
-        maintenance_lease(binding, exact_manifest, maintenance_fd)
-        maintenance_control(binding, exact_manifest, maintenance_fd)
-        if observe() or record['resample_required']:
-            raise RuntimeError('known cohort/residual process not terminal')
-        maintenance_control(binding, exact_manifest, maintenance_fd)
-        maintenance_publish_journal(binding, token, maintenance_fd, exact_manifest)
-    elif mode == 'absent':
-        result = command(['launchctl', 'print', *arguments])
-        if result.returncode not in (3, 113):
-            raise RuntimeError(f'service absence UNKNOWN: {result.returncode}')
-    elif mode == 'control':
-        # 只對直接建立的 launchctl client 設 timeout；不 signal payload。
-        result = command(['launchctl', *arguments])
-        sys.stdout.write(result.stdout)
-        sys.stderr.write(result.stderr)
-        if result.returncode:
-            raise RuntimeError(f'launchctl control failed: {result.returncode}')
-    elif mode == 'observe':
-        observe()
-    elif mode == 'drain':
-        while observe() or record['resample_required']:
-            time.sleep(min(.1, remaining()))
-        record['status'] = 'DRAINED'
-        save()
-    else:
-        raise RuntimeError('unknown normal activation boundary')
-except Exception as error:
-    record.update(status='UNKNOWN_OR_FAILED', error=f'{type(error).__name__}: {error}')
-    save()
-    print(record['error'], file=sys.stderr)
-    raise SystemExit(1)
-PY
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" -m scripts.pantheon_runtime_activation process-boundary \
+      --journal "${STAGE_DIR}/normal-rollback-drain.json" \
+      --timeout "${BARRIER_TIMEOUT_SECONDS}" \
+      --domain "gui/${USER_ID}" \
+      --manifest "${RUNTIME_MANIFEST_FILE}" \
+      "$@"
+  )
 }
 rollback_launchctl() {
   if [[ "${ACTIVATION_ONLY}" == "1" ]]; then
@@ -1398,7 +1223,7 @@ rollback_activation() {
     done
     printf ']'
   }
-  trap - ERR
+  trap - ERR INT TERM
   set +e
   if [[ "${MAINTENANCE:-0}" != "1" ]]; then
   rm -f "${ACTIVATION_BARRIER}" || record_rollback_failure "rollback.barrier.remove"
@@ -1993,11 +1818,14 @@ fi
 
 ACTIVATION_PHASE="replace_live_plists"
 trap 'rollback_activation $? "${ACTIVATION_PHASE}"' ERR
+trap 'rollback_activation 130 "${ACTIVATION_PHASE}"' INT
+trap 'rollback_activation 143 "${ACTIVATION_PHASE}"' TERM
 if [[ "${ACTIVATION_ONLY}" == "1" ]]; then
   rm -f "${ACTIVATION_BARRIER}"
 fi
 rm -rf "${READY_ROOT}"
 mkdir -p "${READY_ROOT}"
+create_readiness_permit "${LABELS[@]}"
 for INDEX in 0 1 2 3 4 5 6; do
   install -m 600 "${STAGED_PLISTS[${INDEX}]}" "${TARGET_PLISTS[${INDEX}]}"
   if [[ "${ACTIVATION_ONLY}" == "1" ]]; then
@@ -2058,7 +1886,7 @@ if [[ "${ACTIVATION_ONLY}" == "1" ]]; then
     launchctl print "gui/${USER_ID}/${LABEL}" >/dev/null
   done
 fi
-trap - ERR
+trap - ERR INT TERM
 rm -rf "${STAGE_DIR}"
 
 if [[ "${ACTIVATION_ONLY}" == "1" ]]; then

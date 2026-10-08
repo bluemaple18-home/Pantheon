@@ -1,0 +1,9 @@
+
+	disabled services = {
+		"com.microsoft.teams2.agent" => enabled
+		"com.apple.ManagedClientAgent.enrollagent" => disabled
+		"com.apple.Siri.agent" => disabled
+		"com.apple.FolderActionsDispatcher" => disabled
+		"com.apple.appleseed.seedusaged.postinstall" => disabled
+		"com.apple.ScriptMenuApp" => disabled
+	}

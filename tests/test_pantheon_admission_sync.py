@@ -9,6 +9,7 @@ from pathlib import Path
 import select
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -222,6 +223,77 @@ def test_nested_lease_release_does_not_release_outer_work(state):
     assert can_exclude(state / "runtime-work.lock")
 
 
+def test_shutdown_lease_is_exclusive_and_rejects_shared_upgrade(state):
+    with runtime.runtime_work_lease(state):
+        with pytest.raises(runtime.RuntimeManifestError, match="cannot upgrade"):
+            with runtime.runtime_shutdown_lease(state, timeout_seconds=0):
+                pytest.fail("shared lease 不得原地升級")
+
+    with runtime.runtime_shutdown_lease(state, timeout_seconds=0):
+        assert not can_exclude(state / "runtime-work.lock")
+        with pytest.raises(runtime.RuntimeManifestError, match="cannot nest"):
+            with runtime.runtime_work_lease(state):
+                pytest.fail("shutdown lease 內不得降級成 shared lease")
+
+    assert can_exclude(state / "runtime-work.lock")
+
+
+def test_capacity_guard_wrapper_releases_shared_lease_before_exec(
+    state,
+    monkeypatch,
+):
+    barrier = state / "activation.token"
+    barrier.touch()
+    manifest = {
+        key: str(state)
+        for key in ("queue_root", "publisher_state_root", "actor_root", "log_root")
+    }
+    manifest.update(manifest_digest="a" * 64, generation="synthetic")
+    monkeypatch.setenv("PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT", str(state))
+    monkeypatch.setattr(runtime, "load_manifest", lambda *a: manifest)
+    monkeypatch.setattr(runtime, "validate_runtime_tick", lambda *a, **k: {})
+    monkeypatch.setattr(runtime, "validate_execution_python_identity", lambda *a: None)
+    monkeypatch.setattr(runtime, "write_readiness_ack", lambda *a: {})
+    monkeypatch.setattr(runtime, "validate_barrier", lambda *a: {})
+
+    class ExecReached(Exception):
+        pass
+
+    def execv(_path, _arguments):
+        assert runtime.runtime_work_pass_fds() == ()
+        assert can_exclude(state / "runtime-work.lock")
+        raise ExecReached
+
+    monkeypatch.setattr(runtime.os, "execv", execv)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "manifest",
+            "barrier-exec",
+            "--barrier",
+            str(barrier),
+            "--manifest",
+            str(state / "manifest.json"),
+            "--expected-digest",
+            "a" * 64,
+            "--service-label",
+            "com.pantheon.content-capacity-guard",
+            "--ready-root",
+            str(state),
+            "--timeout",
+            "1",
+            "--",
+            sys.executable,
+            "-c",
+            "pass",
+        ],
+    )
+
+    with pytest.raises(ExecReached):
+        runtime.main()
+
+
 def test_symlink_lock_fails_before_callback(state, monkeypatch):
     target = state / "unrelated"
     target.write_text("untouched")
@@ -383,7 +455,7 @@ state = Path(sys.argv[1])
 mode = sys.argv[2]
 os.environ['PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT'] = str(state)
 manifest = {k:str(state) for k in ('queue_root','publisher_state_root','actor_root','log_root')}
-manifest.update(manifest_digest='a'*64, generation='synthetic')
+manifest.update(manifest_digest='a'*64, runtime_identity_digest='b'*64, generation='synthetic')
 runtime.load_manifest = lambda *a: manifest
 runtime.validate_runtime_tick = lambda *a, **k: {}
 runtime.validate_execution_python_identity = lambda *a: None
@@ -419,6 +491,47 @@ def test_actual_wrapper_exec_inherits_lease_through_payload_exit(state):
     try:
         assert line(process) == "PAYLOAD_READY"
         assert (state / "ack").exists()
+        assert not can_exclude(state / "runtime-work.lock")
+    finally:
+        finish(process)
+    assert can_exclude(state / "runtime-work.lock")
+
+
+def test_shutdown_readiness_permit_allows_ack_but_holds_payload(state):
+    barrier = state / "token"
+    barrier.touch()
+    label = "com.pantheon.agy-gemini-new"
+    manifest = {
+        "queue_root": str(state),
+        "publisher_state_root": str(state),
+        "actor_root": str(state),
+        "log_root": str(state),
+        "manifest_digest": "a" * 64,
+        "runtime_identity_digest": "b" * 64,
+        "generation": "synthetic",
+    }
+    process = None
+    with runtime.runtime_shutdown_lease(state):
+        runtime.create_shutdown_readiness_permit(
+            state,
+            manifest,
+            barrier=barrier,
+            ready_root=state,
+            labels=[label],
+            timeout_seconds=5,
+            owner_pid=os.getpid(),
+        )
+        process = start_python(WRAPPER, state, "normal")
+        deadline = time.monotonic() + 3
+        while not (state / "ack").exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert (state / "ack").exists()
+        assert process.poll() is None, process.stderr.read()
+        runtime.revoke_shutdown_readiness_permit(state)
+
+    assert process is not None
+    try:
+        assert line(process) == "PAYLOAD_READY"
         assert not can_exclude(state / "runtime-work.lock")
     finally:
         finish(process)
