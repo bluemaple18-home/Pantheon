@@ -3840,6 +3840,8 @@ def _create_repair_directives(
             "readerProblem、concreteSituation、observableAction、nextStep 四個欄位；"
             "四欄分別對應讀者困擾、具體情境、可觀察行動、限制或不適用情況，"
             "各寫一個短而完整的語意片段，不要把完整 meta description 塞進單一欄位；"
+            "四欄去除尾端標點後合計 62 到 67 個 Unicode 字元，標點與固定句由本機附加；"
+            "本機保留完整片段，不會切字；超長時必須重新措辭，不得省略句尾湊字數；"
             f"固定 boundary 句由本機附加：「{boundary_sentence}」；"
             "provider parts 不得自行重複 boundary，也不要只在 prior 內容尾端補短語"
         )
@@ -4075,33 +4077,7 @@ def _hydrate_create_repair_description(value: object) -> str:
     boundary = "本文只提供通用理解，不能替個人下結論。"
     separator = "；"
     suffix = f"。{boundary}"
-    _description_minimum, description_maximum = _range_bounds(
-        publication_presentation_profile("create"),
-        "description_characters",
-    )
-    target_maximum = min(description_maximum, 90)
-    available = target_maximum - len(suffix) - len(separator) * (len(parts) - 1)
-    if sum(len(part) for part in parts) > available:
-        minimum_per_part = 8
-        lengths = [min(len(part), minimum_per_part) for part in parts]
-        remaining = available - sum(lengths)
-        if remaining < 0:
-            raise CandidateValidationError(
-                "description repair budget cannot preserve semantic parts"
-            )
-        while remaining:
-            progressed = False
-            for index, part in enumerate(parts):
-                if remaining == 0:
-                    break
-                if lengths[index] >= len(part):
-                    continue
-                lengths[index] += 1
-                remaining -= 1
-                progressed = True
-            if not progressed:
-                break
-        parts = [part[: lengths[index]] for index, part in enumerate(parts)]
+    # 保留完整語意；超長摘要由既有 length gate 退回有界 Writer 重寫。
     return separator.join(parts) + suffix
 
 

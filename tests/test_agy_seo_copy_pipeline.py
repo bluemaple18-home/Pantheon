@@ -2258,7 +2258,7 @@ def test_description_repair_provider_uses_structured_parts_then_hydrates_to_cano
     }
 
 
-def test_description_repair_hydration_deterministically_trims_overlong_parts() -> None:
+def test_description_repair_preserves_overlong_parts_for_bounded_rewrite() -> None:
     article = make_deterministic_green_create_article("DESCRIPTION-STRUCTURED-TRIM")
     candidate = {
         "schema_version": 1,
@@ -2282,17 +2282,84 @@ def test_description_repair_hydration_deterministically_trims_overlong_parts() -
     )
     description = repaired["articles"][0]["description"]
 
-    assert 70 <= len(description) <= 90
-    assert description.endswith("本文只提供通用理解，不能替個人下結論。")
-    assert all(part[:8] in description for part in parts.values())
-    assert not {
-        "description_length",
-        "description_boundary",
-        "description_context_and_limit",
-    } & {
-        finding["code"]
-        for finding in pipeline.quality_findings(repaired["articles"])
+    assert description == (
+        "；".join(parts.values()) + "。本文只提供通用理解，不能替個人下結論。"
+    )
+    assert "description_length" in {
+        finding["code"] for finding in pipeline.quality_findings(repaired["articles"])
     }
+    assert candidate["articles"][0] == article
+
+
+@pytest.mark.parametrize("rewrite_succeeds", [True, False])
+def test_description_repair_reviews_only_complete_in_budget_parts(
+    tmp_path: Path, rewrite_succeeds: bool,
+) -> None:
+    article = make_deterministic_green_create_article("DESCRIPTION-COMPLETE-E2E")
+    article["description"] = "描述太短，不能替個人下結論。"
+    brief = {
+        "schema_version": 1, "run_id": "description-complete-e2e", "mode": "create",
+        "articles": [{
+            "matrix": {"id": article["id"], "primaryKeyword": article["primaryKeyword"],
+                       "title": article["title"], "intent": "公開搜尋意圖"},
+            "target": {field: article[field] for field in (
+                "id", "section", "product", "slug", "serial", "urlSlug",
+                "primaryKeyword", "published", "updated",
+            )},
+            "policy": pipeline.compact_publication_policy(),
+        }],
+    }
+    pipeline.write_json(tmp_path / "brief.json", brief)
+    long_parts = {
+        "readerProblem": "讀者正面臨情感共鳴極高但日常執行常落空的困擾",
+        "concreteSituation": "當兩人面對日常財務或生活雜務時意見不同",
+        "observableAction": "在意見分歧時記錄彼此的回應方式與後續行動",
+        "nextStep": "把焦點縮小到具體的日常互動再逐項確認界線",
+    }
+    short_parts = make_external_description_repair_parts()
+
+    class RecordingClient:
+        writer_model = "writer-test"
+        reviewer_model = "reviewer-test"
+
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def generate_json(self, role: str, prompt: str, schema: dict) -> dict:
+            self.calls.append(role)
+            if role == "writer":
+                count = self.calls.count("writer")
+                if count == 1:
+                    return {"articles": [make_external_create_article(article)]}
+                properties = schema["properties"]["articles"]["items"]["properties"]
+                assert set(properties) == {"slot", "description"}
+                assert "本機保留完整片段，不會切字" in prompt
+                parts = short_parts if rewrite_succeeds and count == 3 else long_parts
+                return {"articles": [{"slot": "article-01", "description": parts}]}
+            assert rewrite_succeeds and self.calls == ["writer"] * 3 + ["reviewer"]
+            assert "；".join(short_parts.values()) in prompt
+            assert "public deterministic findings:\n[]" in prompt
+            return {"articles": [{"slot": "article-01", "verdict": "APPROVE", "findings": []}]}
+
+    client = RecordingClient()
+    candidate, review = pipeline.run_writer_reviewer(tmp_path, client, max_repairs=2)
+    intermediate = json.loads((tmp_path / "attempts/02/candidate.json").read_text())
+    assert intermediate["articles"][0]["description"] == (
+        "；".join(long_parts.values()) + "。本文只提供通用理解，不能替個人下結論。"
+    )
+    intermediate_findings = json.loads((tmp_path / "attempts/02/deterministic-findings.json").read_text())
+    assert "description_length" in {item["code"] for item in intermediate_findings}
+    assert review["articles"][0]["candidate_sha256"] == pipeline.article_sha256(candidate["articles"][0])
+    assert review["articles"][0]["verdict"] == ("APPROVE" if rewrite_succeeds else "REJECT")
+    assert client.calls == ["writer"] * 3 + (["reviewer"] if rewrite_succeeds else [])
+    assert {field: value for field, value in candidate["articles"][0].items() if field != "description"} == {
+        field: value for field, value in article.items() if field != "description"
+    }
+    evidence = json.loads((tmp_path / "run-evidence.json").read_text())
+    assert evidence["content_repairs_used"] == 2
+    assert evidence["schema_repairs_used"] == 0
+    assert evidence["approval_created"] is False
+    assert not (tmp_path / "approval.json").exists()
 
 
 def test_description_repair_hydration_does_not_pad_insufficient_parts() -> None:
