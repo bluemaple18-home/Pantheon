@@ -211,7 +211,9 @@ def _formal_environment(
     previous = {key: os.environ.get(key) for key in values}
     os.environ.update({key: str(value) for key, value in values.items()})
     try:
-        yield
+        # 驗證入口沿正式 lifetime 持有工作鎖，Git 與 child 不可脫離同一 state root。
+        with runtime_manifest.runtime_work_lease(Path(manifest["publisher_state_root"])):
+            yield
     finally:
         for key, value in previous.items():
             if value is None:

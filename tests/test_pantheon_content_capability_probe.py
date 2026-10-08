@@ -452,6 +452,39 @@ def test_publisher_preflight_propagates_formal_boundary_rejection(
     assert events == [capability]
 
 
+@pytest.mark.parametrize("raise_inside", [False, True])
+def test_formal_adapter_holds_bound_work_lease_and_releases_on_exit(
+    tmp_path: Path, raise_inside: bool,
+) -> None:
+    """正式驗證入口及 child 延續同一工作鎖；異常退出後停機可取得獨占。"""
+    root = tmp_path.resolve()
+    state = root / "state"
+    state.mkdir(mode=0o700)
+    manifest = {
+        "manifest_digest": "a" * 64, "identity": "offline-probe",
+        "runtime_identity_digest": "b" * 64, "runtime_digest": "c" * 64,
+        "config_version": "probe", "generation": "probe-generation",
+        "actor_root": str(root), "queue_root": str(root / "queue"),
+        "publisher_state_root": str(state), "log_root": str(root / "logs"),
+    }
+    before = dict(os.environ)
+    try:
+        with adapter._formal_environment(root / "manifest.json", manifest,
+                                         "com.pantheon.agy-content-publisher", root / "barrier"):
+            transport = runtime_manifest.runtime_work_child_transport()
+            assert len(transport["pass_fds"]) == 1
+            assert transport["env"]["PANTHEON_RUNTIME_PUBLISHER_STATE_ROOT"] == str(state)
+            assert transport["env"]["PANTHEON_RUNTIME_WORK_LEASE_FD"] == str(transport["pass_fds"][0])
+            if raise_inside:
+                raise RuntimeError("驗證中斷")
+    except RuntimeError as error:
+        assert raise_inside and str(error) == "驗證中斷"
+    assert dict(os.environ) == before
+    assert runtime_manifest.runtime_work_pass_fds() == ()
+    with runtime_manifest.runtime_shutdown_lease(state, timeout_seconds=0.1):
+        pass
+
+
 def test_one_formal_probe_emits_machine_correlated_positive_chain(tmp_path: Path) -> None:
     parent_sha, source_digest = _source_identity()
     source_status = subprocess.run(
