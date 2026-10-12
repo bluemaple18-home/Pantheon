@@ -2864,3 +2864,44 @@ def test_finalize_full_receipt_write_before_replace(tmp_path, monkeypatch, phase
     if receipt['state'] == 'POSTCHECK_PASSED':
         assert promotion.rollback_bundle_path(request).exists()
     assert promotion.finalize_promotion(request, expected_plan_digest=plan)['status'] == 'COMMITTED'
+
+
+@pytest.mark.parametrize("case", ["published", "active", "missing-ledger", "outside-queue", "wrong-article"])
+def test_preserve_registered_published_queue_input_without_relocation(tmp_path: Path, case: str) -> None:
+    """發布完成的 queue-owned input 可跨版保留；其他 owner／lifecycle 不放行。"""
+    request, _ = _runtime_fixture(tmp_path)
+    run_id = "registered-single-published"
+    run_dir = (tmp_path if case == "outside-queue" else request.queue_root) / "reviewed-input"
+    run_dir.mkdir()
+    _write_json(run_dir / "brief.json", _preserved_brief(run_id, article_ids=["V2-MBTI-INTJ-LOVE"]))
+    _write_json(request.queue_root / "runs" / "published.json", {
+        "schema_version": 1, "run_id": run_id, "run_dir": str(run_dir),
+        "status": "active" if case == "active" else "complete",
+        "identity_envelope": _identity_envelope(["V2-MBTI-INTJ-LOVE"]),
+    })
+    if case != "missing-ledger":
+        _write_json(request.publisher_state_root / "ledger.json", {
+            "schema_version": 1,
+            "published_runs": [{"run_id": run_id, "article_ids": [
+                "WRONG-ARTICLE" if case == "wrong-article" else "V2-MBTI-INTJ-LOVE"
+            ]}],
+        })
+    request = replace(request, preserved_run_ids=(run_id,))
+    before = _snapshot(request)
+    queue_digest = promotion.tree_digest(request.queue_root)
+    input_digest = promotion.tree_digest(run_dir)
+    if case == "published":
+        plan = promotion.plan_promotion(request)
+        classification = plan["queue_identity_snapshot"]["preservation_classification"][run_id]
+        assert classification["lifecycle"] == "published"
+        assert classification["identity_source"] == "publisher_ledger"
+        assert classification["durable_root"] == str(request.queue_root)
+        result = promotion.apply_promotion(request, expected_plan_digest=plan["plan_digest"])
+        assert result["status"] == "POSTCHECK_PASSED"
+    else:
+        with pytest.raises(promotion.PromotionError):
+            promotion.plan_promotion(request)
+        assert not request.transaction_root.exists()
+        assert _snapshot(request) == before
+    assert promotion.tree_digest(request.queue_root) == queue_digest
+    assert promotion.tree_digest(run_dir) == input_digest

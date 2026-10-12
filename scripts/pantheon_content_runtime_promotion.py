@@ -696,8 +696,15 @@ def _canonical_durable_root_for_run(
     request: PromotionRequest,
     identity: dict[str, Any],
     canonical_run_dir: Path,
+    *,
+    published_queue_input: bool = False,
 ) -> Path:
-    for root in _candidate_durable_roots(request, identity):
+    roots = _candidate_durable_roots(request, identity)
+    # 已發布 immutable input 由 complete registry＋matching Publisher ledger 擁有。
+    # 原正式 register/publish 接受 queue-owned input，不要求位於 gsc-copy。
+    if published_queue_input:
+        roots.append(request.queue_root)
+    for root in roots:
         if not root.exists():
             continue
         if root.is_symlink() or not root.is_dir():
@@ -746,7 +753,11 @@ def _preserved_lifecycle(
         )
         durable_root: Path | None = None
     else:
-        durable_root = _canonical_durable_root_for_run(request, identity, canonical_run_dir)
+        durable_root = _canonical_durable_root_for_run(
+            request, identity, canonical_run_dir,
+            published_queue_input=(status == "complete" and ledger_lifecycle == "published"
+                                   and identity_source == "publisher_ledger"),
+        )
         if ledger_lifecycle is not None:
             lifecycle = ledger_lifecycle
         elif identity["mode"] == "translate_existing":
@@ -866,8 +877,12 @@ def _queue_identity_snapshot(request: PromotionRequest) -> dict[str, Any]:
             brief_mode = brief.get("mode")
             if type(brief_mode) is not str:
                 raise PromotionError("preserved run brief identity mismatch")
-            _canonical_durable_root_for_run(request, {"mode": brief_mode}, canonical_run_dir)
             ledger_evidence = _publisher_ledger_evidence(request, run_id)
+            _canonical_durable_root_for_run(
+                request, {"mode": brief_mode}, canonical_run_dir,
+                published_queue_input=(status == "complete" and ledger_evidence is not None
+                                       and ledger_evidence["lifecycle"] == "published"),
+            )
             if status == "complete" and ledger_evidence is not None:
                 identity = _validated_ledger_history_identity(
                     run_id,
@@ -886,7 +901,12 @@ def _queue_identity_snapshot(request: PromotionRequest) -> dict[str, Any]:
                     state.get("lane"),
                 )
                 identity_source = "current_identity_envelope"
-            _canonical_durable_root_for_run(request, identity, canonical_run_dir)
+            _canonical_durable_root_for_run(
+                request, identity, canonical_run_dir,
+                published_queue_input=(status == "complete" and ledger_evidence is not None
+                                       and ledger_evidence["lifecycle"] == "published"
+                                       and identity_source == "publisher_ledger"),
+            )
         observed.add(run_id)
         preserved_runs.append(
             {
