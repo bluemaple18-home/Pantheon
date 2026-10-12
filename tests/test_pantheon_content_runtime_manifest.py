@@ -1596,3 +1596,82 @@ def test_early_service_acknowledges_but_cannot_run_before_barrier(
     assert completed.returncode == 75
     assert (ready / f"{label}.json").exists()
     assert not marker.exists()
+
+
+@pytest.mark.parametrize("activation_only,permitted", [(True, True), (False, True), (False, False)])
+def test_git_identity_readiness_under_exclusive_preserves_payload_lease(
+    tmp_path: Path, activation_only: bool, permitted: bool,
+) -> None:
+    """真 Git identity 在 installer exclusive 下可就緒；payload 仍需 shared lease。"""
+    actor, head = _git_actor_repo(tmp_path)
+    queue, state, logs = (tmp_path / name for name in ("queue", "state", "logs"))
+    for path in (queue, state, logs):
+        path.mkdir()
+    manifest = runtime.build_manifest(
+        actor_root=actor, queue_root=queue, publisher_state_root=state,
+        log_root=logs, identity="real-git-exclusive-readiness", actor_head=head,
+        python_executable=Path(sys.executable).resolve(strict=True),
+    )
+    manifest_path = tmp_path / "manifest.json"
+    runtime.write_manifest(manifest_path, manifest)
+    _, barrier = _write_formal_activation_barrier(tmp_path, manifest)
+    ready = tmp_path / "actual-ready"
+    ready.mkdir()
+    label = runtime.SERVICE_LABELS[1]
+    marker = queue / "payload-with-valid-lease"
+    env = _formal_barrier_exec_environment(manifest_path, manifest, label, barrier)
+    env["PANTHEON_RUNTIME_ACTOR_HEAD"] = head
+    env.pop("PANTHEON_RUNTIME_WORK_LEASE_FD", None)
+    env.pop("PANTHEON_RUNTIME_SHUTDOWN_LEASE_FD", None)
+    payload = (
+        "import os; from pathlib import Path; "
+        "from scripts import pantheon_content_runtime_manifest as r; "
+        "assert r.runtime_work_child_transport()['pass_fds']; "
+        f"Path({str(marker)!r}).write_text('valid-shared-lease')"
+    )
+    command = [
+        sys.executable, "-m", "scripts.pantheon_content_runtime_manifest", "barrier-exec",
+        "--barrier", str(barrier), "--expected-digest", manifest["manifest_digest"],
+        "--manifest", str(manifest_path), "--service-label", label,
+        "--ready-root", str(ready), "--timeout", "5",
+    ]
+    if activation_only:
+        command.append("--activation-only")
+    command.extend(["--", sys.executable, "-c", payload])
+    process = None
+    try:
+        with runtime.runtime_shutdown_lease(state):
+            if permitted:
+                runtime.create_shutdown_readiness_permit(
+                    state, manifest, barrier=barrier, ready_root=ready,
+                    labels=[label], timeout_seconds=5, owner_pid=os.getpid(),
+                )
+            process = subprocess.Popen(command, env=env, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE, text=True)
+            deadline = time.monotonic() + 3
+            ack = ready / f"{label}.json"
+            while not ack.exists() and process.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.02)
+            if not permitted:
+                stdout, stderr = process.communicate(timeout=2)
+                assert process.returncode == 75, (stdout, stderr)
+                assert not ack.exists()
+            else:
+                assert ack.exists(), f"readiness missing; exit={process.poll()}"
+                assert not marker.exists(), "exclusive 釋放前 payload 已執行"
+                if activation_only:
+                    stdout, stderr = process.communicate(timeout=2)
+                    assert process.returncode == 0, (stdout, stderr)
+                else:
+                    assert process.poll() is None
+                runtime.revoke_shutdown_readiness_permit(state)
+        if permitted and not activation_only:
+            stdout, stderr = process.communicate(timeout=3)
+            assert process.returncode == 0, (stdout, stderr)
+            assert marker.read_text() == "valid-shared-lease"
+        else:
+            assert not marker.exists()
+    finally:
+        if process is not None and process.poll() is None:
+            process.terminate()
+            process.communicate(timeout=3)

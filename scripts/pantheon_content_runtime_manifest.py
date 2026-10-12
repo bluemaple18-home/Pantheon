@@ -454,13 +454,23 @@ def _resolve_executable_reference(value: object, field: str) -> str:
 
 
 def _git_output(repo: Path, *args: str) -> str:
+    # bootstrap 在 installer exclusive 下只核對 identity；禁止 Git optional 寫入。
+    if args not in (("rev-parse", "--show-toplevel"), ("rev-parse", "HEAD"), ("status", "--porcelain")):
+        raise RuntimeManifestError("actor git validation command is not read-only")
+    environment = {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}
     try:
+        # 已有 shared FD 仍驗證並傳遞；唯讀核對不另要求取得 shared lease。
+        transport = (
+            runtime_work_child_transport(environment)
+            if runtime_work_pass_fds()
+            else {"env": environment}
+        )
         completed = subprocess.run(
             ["git", "-C", str(repo), *args],
             check=False,
             capture_output=True,
             text=True,
-            **runtime_work_child_transport(),
+            **transport,
         )
     except OSError as error:
         raise RuntimeManifestError("actor git validation failed") from error
