@@ -163,6 +163,54 @@ def _normalize_exact_run_ids(
     return frozenset(values)
 
 
+def _exact_publish_lane(
+    queue_root: Path, state_root: Path, selected: frozenset[str] | None,
+    max_runs: int, phase: str | None = None,
+) -> str | None:
+    """沿既有 exact 選取解析唯一 lane；普通 batch 不改變。"""
+    if selected is None:
+        return None
+    if len(selected) != 1 or type(max_runs) is not int or max_runs != 1:
+        raise PublishBlocked("exact canary requires one run and max_runs=1")
+    paths = _selected_run_files(queue_root, state_root, phase or "create", selected)
+    if len(paths) != 1:
+        raise PublishBlocked("exact canary run identity is missing or ambiguous")
+    try:
+        state = _read_json(paths[0])
+        run_dir = Path(state["run_dir"])
+        candidate = _read_json(Path((state.get("result") or {}).get("candidate") or run_dir / "candidate.json"))
+        mode = candidate.get("mode")
+        lane = {"create": "create", "rewrite_existing_body": "rewrite", "translate_existing": "translation"}.get(mode)
+        if lane is None or candidate.get("run_id") != state["run_id"]:
+            raise PublishBlocked("exact canary mode or run identity is invalid")
+        brief_path = run_dir / "brief.json"
+        if brief_path.exists():
+            brief = _read_json(brief_path)
+            if brief.get("mode") != mode or brief.get("run_id") != state["run_id"]:
+                raise PublishBlocked("exact canary lane identity is ambiguous")
+        if phase is not None and phase != lane:
+            raise PublishBlocked("exact canary selected a different lane")
+        return lane
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise PublishBlocked("exact canary identity contract is incomplete") from error
+
+
+def _exact_article_identity(ready: list[tuple], phase: str, selected: frozenset[str]) -> bytes:
+    """保留完整候選 bytes 與操作身份；重複文章不去重。"""
+    if len(ready) != 1 or str(ready[0][0]["run_id"]) not in selected:
+        raise PublishBlocked("exact canary requires exactly one ready run")
+    candidate = ready[0][2] if phase == "translation" else ready[0][1]
+    articles = candidate.get("articles")
+    if not isinstance(articles, list) or len(articles) != 1:
+        raise PublishBlocked("exact canary requires exactly one article operation")
+    article = articles[0]
+    article_id = article.get("id") if phase == "create" else article.get("article_id")
+    locale = article.get("locale") if phase == "translation" else None
+    if not article_id or (phase == "translation" and not locale):
+        raise PublishBlocked("exact canary article identity is incomplete")
+    return pipeline.compact_json_bytes([phase, ready[0][0]["run_id"], article_id, locale, candidate])
+
+
 def release_git_plan(version: str) -> dict[str, list[str]]:
     """回傳正式 release 的 tag/push 命令；只建 plan，不執行 mutation。"""
     if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None:
@@ -988,6 +1036,7 @@ class MutationJournal:
         self.selected_run_ids: list[str] = []
         self.selected_inputs: list[tuple] = []
         self.input_revalidations: dict[str, Callable[[], None]] = {}
+        self.article_apply_guard: Callable[[], None] | None = None
         self.mutation_started = False
         self.created_tags: dict[str, str] = {}
         self._locks: ExitStack | None = None
@@ -1114,6 +1163,12 @@ class MutationJournal:
                 self.pre_images.setdefault(relative, None)
                 self.expected_post_images[relative] = post_image
                 self.unattributed_paths.discard(relative)
+
+    def capture_article_apply(self, mutation: Callable[[], Any]) -> Any:
+        """每次實際 article apply 都消耗一次；失敗也不退還本次呼叫額度。"""
+        if self.article_apply_guard is not None:
+            self.article_apply_guard()
+        return self.capture(mutation)
 
     def capture(self, mutation: Callable[[], Any]) -> Any:
         """在單一 publisher helper 邊界內捕捉可歸因的 before/after image。"""
@@ -4697,8 +4752,12 @@ def _freeze_publish_revalidation(
     repo_root: Path, queue_root: Path, state_root: Path,
     ready: list[tuple], base_sha: str, phase: str, git: GitRunner,
     *, journal: MutationJournal | None = None,
+    exact_run_ids: frozenset[str] | None = None,
 ) -> Callable[[], None]:
-    """鎖外凍結輸入；回傳的驗證只在最後 mutation 拿鎖後執行。"""
+    """凍結輸入；exact apply 前與最後 mutation 拿鎖後均核對身份。"""
+    exact_identity = (_exact_article_identity(ready, phase, exact_run_ids)
+                      if exact_run_ids is not None else None)
+    applied_operations = 0
     authority = _TRANSACTION_RUNTIME_AUTHORITY.get()
     actor = authority[0] if authority is not None else repo_root
     actor_head = git(actor, ["rev-parse", "HEAD"], None)
@@ -4779,7 +4838,32 @@ def _freeze_publish_revalidation(
     if journal is not None:
         journal.input_revalidations = input_checks
 
+    def check_exact_inputs() -> None:
+        if exact_run_ids is None:
+            return
+        _exact_publish_lane(queue_root, state_root, exact_run_ids, 1, phase)
+        if _exact_article_identity(ready, phase, exact_run_ids) != exact_identity:
+            raise PublishBlocked("exact canary article operation drifted")
+        _revalidate_selected_run_state(state_root, ready, phase)
+        for check_input in input_checks.values():
+            check_input()
+
+    def before_article_apply() -> None:
+        nonlocal applied_operations
+        check_exact_inputs()
+        if applied_operations != 0:
+            raise PublishBlocked("exact canary article operation already consumed")
+        applied_operations += 1
+
+    if exact_run_ids is not None:
+        if journal is None:
+            raise PublishBlocked("exact canary requires mutation journal")
+        journal.article_apply_guard = before_article_apply
+
     def revalidate() -> None:
+        check_exact_inputs()
+        if exact_run_ids is not None and applied_operations != 1:
+            raise PublishBlocked("exact canary commit requires one article operation")
         _revalidate_selected_run_state(state_root, ready, phase)
         for check_input in input_checks.values():
             check_input()
@@ -5154,6 +5238,7 @@ def publish_ready_runs(
     seed_translations: bool = True,
 ) -> dict[str, Any]:
     selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
+    _exact_publish_lane(queue_root, state_root, selected_run_ids, max_runs, "create")
     state_root.mkdir(parents=True, exist_ok=True)
     journal = _mutation_journal or MutationJournal(repo_root, git)
     with journal.state_scope(state_root) as admitted:
@@ -5172,6 +5257,8 @@ def publish_ready_runs(
             repo_root=repo_root,
             exact_run_ids=selected_run_ids,
         )
+        if selected_run_ids is not None:
+            _exact_article_identity(ready, "create", selected_run_ids)
         if not ready:
             return {
                 "schema_version": SCHEMA_VERSION,
@@ -5195,7 +5282,7 @@ def publish_ready_runs(
 
         journal.selected_inputs = ready
         revalidate = _freeze_publish_revalidation(
-            repo_root, queue_root, state_root, ready, base_sha, "create", git, journal=journal
+            repo_root, queue_root, state_root, ready, base_sha, "create", git, journal=journal, exact_run_ids=selected_run_ids
         )
         journal.prepare()
         journal.begin()
@@ -5207,7 +5294,7 @@ def publish_ready_runs(
             approval = pipeline.build_approval(str(candidate["run_id"]), candidate["articles"], review, decisions, PUBLISHER_ID)
             run_dir = Path(str(state["run_dir"]))
             journal.write_approval(run_dir / "approval.json", approval)
-            applied_paths = journal.capture(
+            applied_paths = journal.capture_article_apply(
                 lambda: pipeline.apply_approved_candidates(
                     repo_root,
                     str(candidate["run_id"]),
@@ -5313,6 +5400,7 @@ def publish_ready_rewrite_runs(
     exact_run_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
+    _exact_publish_lane(queue_root, state_root, selected_run_ids, max_runs, "rewrite")
     state_root.mkdir(parents=True, exist_ok=True)
     journal = _mutation_journal or MutationJournal(repo_root, git)
     with journal.state_scope(state_root) as admitted:
@@ -5336,6 +5424,8 @@ def publish_ready_rewrite_runs(
             exact_run_ids=selected_run_ids,
         )
         ready = _filter_rewrite_runs_with_current_sources(repo_root, state_root, ready, quarantine=not dry_run)
+        if selected_run_ids is not None:
+            _exact_article_identity(ready, "rewrite", selected_run_ids)
         if not ready:
             backlog_summary = summarize_legacy_rewrite_backlog(
                 queue_root,
@@ -5372,14 +5462,14 @@ def publish_ready_rewrite_runs(
 
         journal.selected_inputs = ready
         revalidate = _freeze_publish_revalidation(
-            repo_root, queue_root, state_root, ready, base_sha, "rewrite", git, journal=journal
+            repo_root, queue_root, state_root, ready, base_sha, "rewrite", git, journal=journal, exact_run_ids=selected_run_ids
         )
         journal.prepare()
         journal.begin()
         release_id = _next_rewrite_release_id(repo_root)
         changed = [
             str(path.relative_to(repo_root))
-            for path in journal.capture(lambda: apply_rewrite_release(repo_root, release_id, candidates))
+            for path in journal.capture_article_apply(lambda: apply_rewrite_release(repo_root, release_id, candidates))
         ]
         version = journal.capture(
             lambda: _bump_patch_version(repo_root, namespace_plan)
@@ -5437,7 +5527,8 @@ def publish_ready_rewrite_runs(
         )
         ledger["rewrite_released_runs"].extend(entries)
         _write_json(_ledger_path(state_root), ledger)
-        seeded_translation_runs = _seed_pending_translations(repo_root, queue_root, state_root)
+        seeded_translation_runs = ([] if selected_run_ids is not None else
+                                   _seed_pending_translations(repo_root, queue_root, state_root))
         evidence.update({
             "legacy_cutoff_count": LEGACY_ARTICLE_COUNT_CUTOFF,
             "legacy_rewrite_backlog": backlog_summary,
@@ -5469,6 +5560,7 @@ def publish_ready_translation_runs(
 ) -> dict[str, Any]:
     """發布所有已通過的單語 run；退件留待最後修復且不阻塞通過者。"""
     selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
+    _exact_publish_lane(queue_root, state_root, selected_run_ids, max_runs, "translation")
     state_root.mkdir(parents=True, exist_ok=True)
     journal = _mutation_journal or MutationJournal(repo_root, git)
     with journal.state_scope(state_root) as admitted:
@@ -5482,6 +5574,8 @@ def publish_ready_translation_runs(
             limit=max_runs,
             exact_run_ids=selected_run_ids,
         )
+        if selected_run_ids is not None:
+            _exact_article_identity(ready, "translation", selected_run_ids)
         if not ready:
             ledger = _load_ledger(state_root)
             status = "idle_rejects_only" if ledger["translation_deferred_runs"] else "idle"
@@ -5508,7 +5602,7 @@ def publish_ready_translation_runs(
 
         journal.selected_inputs = ready
         revalidate = _freeze_publish_revalidation(
-            repo_root, queue_root, state_root, ready, base_sha, "translation", git, journal=journal
+            repo_root, queue_root, state_root, ready, base_sha, "translation", git, journal=journal, exact_run_ids=selected_run_ids
         )
         journal.prepare()
         journal.begin()
@@ -5543,9 +5637,9 @@ def publish_ready_translation_runs(
                             public_replacement=approved_stage.get("public_replacement"),
                         )
 
-                    paths = journal.capture(apply_staged_translation)
+                    paths = journal.capture_article_apply(apply_staged_translation)
                     staging_receipt_sha256 = str(approved_stage["receipt_sha256"])
-                elif journal.isolated:
+                elif journal.isolated or selected_run_ids is not None:
                     multilingual.validate_translation_candidate(_brief, candidate)
                     pipeline.validate_review(_review, candidate["articles"])
                     if not _review_is_clean_approve(_review):
@@ -5555,12 +5649,12 @@ def publish_ready_translation_runs(
                         {str(article["article_id"]): "APPROVE" for article in candidate["articles"]}, PUBLISHER_ID,
                     )
                     journal.write_approval(Path(str(state["run_dir"])) / "approval.json", approval)
-                    paths = journal.capture(lambda: multilingual.apply_approved_translations(
+                    paths = journal.capture_article_apply(lambda: multilingual.apply_approved_translations(
                         repo_root, run_id, _brief, candidate, _review, approval,
                     ))
                     staging_receipt_sha256 = None
                 else:
-                    paths = journal.capture(
+                    paths = journal.capture_article_apply(
                         lambda: multilingual.approve_and_apply_translation_run(
                             repo_root,
                             Path(str(state["run_dir"])),
@@ -5569,6 +5663,8 @@ def publish_ready_translation_runs(
                     )
                     staging_receipt_sha256 = None
             except ValueError as error:
+                if selected_run_ids is not None and isinstance(error, PublishBlocked):
+                    raise
                 journal.deferred.append((run_id, f"translation apply failed: {error}"))
                 continue
             changed.extend(str(path.relative_to(repo_root)) for path in paths)
@@ -5700,9 +5796,21 @@ def publish_ready_all(
     exact_run_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """同一輪先處理新文、舊文，再發布已通過的多語版本。"""
-    selector_kwargs = (
-        {"exact_run_ids": exact_run_ids} if exact_run_ids is not None else {}
-    )
+    selected = _normalize_exact_run_ids(exact_run_ids)
+    lane = _exact_publish_lane(queue_root, state_root, selected, max_runs)
+    if lane is not None:
+        publishers = {"create": publish_ready_runs, "rewrite": publish_ready_rewrite_runs,
+                      "translation": publish_ready_translation_runs}
+        result = publishers[lane](
+            repo_root, queue_root, state_root, max_runs=max_runs, dry_run=dry_run,
+            push=push, run_tests=run_tests, release_gate=release_gate, git=git,
+            exact_run_ids=selected,
+        )
+        results = {name: {"status": "idle", "selected": False} for name in publishers}
+        results[lane] = result
+        return {"schema_version": SCHEMA_VERSION,
+                "status": "ok" if result.get("status") in SUCCESS_STATUSES else "failed", **results}
+    selector_kwargs = {}
     create_result = publish_ready_runs(
         repo_root,
         queue_root,
@@ -5907,6 +6015,10 @@ def main() -> int:
         getattr(args, "expected_runtime_digest", None),
         getattr(args, "expected_push_mode", None),
     )
+    if (exact_run_ids is not None or fresh_ja_run_id is not None) and not all(
+        value is not None for value in contract_values
+    ):
+        raise SystemExit("exact canary requires a complete deployment contract")
     if any(value is not None for value in contract_values) and not all(
         value is not None for value in contract_values
     ):
@@ -5961,7 +6073,7 @@ def main() -> int:
             push=args.push,
             expected_push_mode=contract_values[5],
             max_runs=args.max_runs,
-            expected_exact_run_ids=exact_run_ids,
+            expected_exact_run_ids=([fresh_ja_run_id] if fresh_ja_run_id is not None else exact_run_ids),
             manifest_authority=manifest_authority,
             expected_manifest_digest=(
                 str(manifest_authority["manifest_digest"])

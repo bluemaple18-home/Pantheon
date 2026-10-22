@@ -1242,18 +1242,17 @@ def test_publish_ready_runs_exact_selector_does_not_seed_unlisted_translations(
             return "a" * 40
         return ""
 
-    result = publisher.publish_ready_runs(
-        repo_root,
-        queue_root,
-        state_root,
-        git=fake_git,
-        run_tests=False,
-        release_gate=False,
-        exact_run_ids=["target-ja-run"],
-    )
+    with pytest.raises(publisher.PublishBlocked, match="missing or ambiguous"):
+        publisher.publish_ready_runs(
+            repo_root,
+            queue_root,
+            state_root,
+            git=fake_git,
+            run_tests=False,
+            release_gate=False,
+            max_runs=1, exact_run_ids=["target-ja-run"],
+        )
 
-    assert result["status"] == "idle"
-    assert result["seeded_translation_runs"] == []
     assert seed_calls == []
     assert ledger_path.read_bytes() == ledger_before
     assert not unlisted_queue_marker.exists()
@@ -2501,7 +2500,7 @@ def test_approved_stage_publisher_dry_run_has_zero_runtime_mutation(
 
     result = publisher.publish_ready_translation_runs(
         repo_root, queue_root, state_root, dry_run=True, git=fake_git,
-        exact_run_ids=[fixture["kwargs"]["expected_run_id"]]
+        max_runs=1, exact_run_ids=[fixture["kwargs"]["expected_run_id"]]
     )
 
     assert result["status"] == "dry-run"
@@ -2523,7 +2522,7 @@ def test_replacement_publisher_dry_run_recomputes_after_bytes_without_mutation(
 
     result = publisher.publish_ready_translation_runs(
         repo_root, queue_root, state_root, dry_run=True, git=fake_git,
-        exact_run_ids=[fixture["kwargs"]["expected_run_id"]],
+        max_runs=1, exact_run_ids=[fixture["kwargs"]["expected_run_id"]],
     )
 
     assert result["replacement_plans"] == [{
@@ -2564,7 +2563,7 @@ def test_approved_stage_publish_binds_receipt_and_preserves_terminal_audit(
 
     result = publisher.publish_ready_translation_runs(
         repo_root, queue_root, state_root, run_tests=False, release_gate=False,
-        git=fake_git, exact_run_ids=[fixture["kwargs"]["expected_run_id"]]
+        git=fake_git, max_runs=1, exact_run_ids=[fixture["kwargs"]["expected_run_id"]]
     )
 
     ledger = json.loads((state_root / "ledger.json").read_text(encoding="utf-8"))
@@ -2606,7 +2605,7 @@ def test_replacement_publisher_applies_exact_module_and_binds_ledger(
 
     result = publisher.publish_ready_translation_runs(
         repo_root, queue_root, state_root, run_tests=False, release_gate=False,
-        git=fake_git, exact_run_ids=[fixture["kwargs"]["expected_run_id"]],
+        git=fake_git, max_runs=1, exact_run_ids=[fixture["kwargs"]["expected_run_id"]],
     )
 
     entry = json.loads((state_root / "ledger.json").read_text())["translation_published_runs"][-1]
@@ -2848,10 +2847,10 @@ def test_translation_release_namespace_is_planned_before_mutation(
     for path, body in protected.items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(body)
-    before = {path: path.read_bytes() for path in protected}
     run_id = "auto-i18n-ja-1414b75a404721e95e74"
     state = {"run_id": run_id, "run_dir": str(run_dir)}
     candidate = {
+        "mode": "translate_existing",
         "run_id": run_id,
         "articles": [
             {
@@ -2868,6 +2867,9 @@ def test_translation_release_namespace_is_planned_before_mutation(
             (state, {"run_id": run_id}, candidate, {"verdict": "APPROVE"})
         ],
     )
+    _write_json(queue_root / "runs" / (run_id + ".json"), state)
+    _write_json(run_dir / "candidate.json", candidate)
+    before = {path: path.read_bytes() for path in protected}
     mutation_calls: list[str] = []
     monkeypatch.setattr(
         publisher.multilingual,
@@ -2924,7 +2926,7 @@ def test_translation_release_namespace_is_planned_before_mutation(
             run_tests=False,
             release_gate=False,
             git=fake_git,
-            exact_run_ids=(run_id,),
+            max_runs=1, exact_run_ids=(run_id,),
             _mutation_journal=DryRunJournal(),
         )
         for _ in range(2)
@@ -5619,7 +5621,7 @@ def test_replacement_publish_local_commit_before_prepared_fails_closed_without_r
     with pytest.raises(publisher.PublishBlocked, match="local HEAD is ahead"):
         publisher.publish_ready_translation_runs(
             repo_root, queue_root, state_root, git=fake_git,
-            exact_run_ids=["replacement-01"], push=True,
+            max_runs=1, exact_run_ids=["replacement-01"], push=True,
         )
 
     assert remote_calls == []
@@ -7145,7 +7147,7 @@ def test_lock_scope_build_and_commit_revalidation(tmp_path, monkeypatch, phase, 
             _assert_lifecycle_held(lock_path, True)
     monkeypatch.setattr(publisher, "_run_checked", checked)
     # 不啟動 recovery；本測試直接檢驗 lane 在 mutation 前拋出的拒絕。
-    publish = {"create": publisher.publish_ready_runs, "rewrite": publisher.publish_ready_rewrite_runs, "translation": publisher.publish_ready_translation_runs}[phase].__wrapped__
+    publish = {"create": publisher.publish_ready_runs, "rewrite": publisher.publish_ready_rewrite_runs, "translation": publisher.publish_ready_translation_runs}[phase].__wrapped__.__wrapped__
     with publisher._isolated_transaction_worktree(actor, state_root, git) as root:
         if drift is None:
             result = publish(root, queue, state_root, git=git, push=True)
@@ -7416,9 +7418,6 @@ def test_concurrent_transaction_prepare_uses_decorated_new_and_rewrite(tmp_path,
             path.write_bytes(updated_brief)
         return original_hash(path)
 
-    if brief_abort is not None:
-        monkeypatch.setattr(publisher, "_file_sha256", hash_with_peer_revision)
-
     # 僅替換內容 fixture 與建置負載；公開入口、collector、journal、Git 與所有 flock 都走原碼。
     monkeypatch.setattr(publisher.pipeline, "load_publication_reference_corpus", lambda _root: [])
     monkeypatch.setattr(publisher.pipeline, "rewrite_aggregate_findings", lambda *a, **k: ([], []))
@@ -7520,6 +7519,9 @@ def test_concurrent_transaction_prepare_uses_decorated_new_and_rewrite(tmp_path,
             "from pathlib import Path; import sys; Path(sys.argv[1]).write_text(sys.argv[2], encoding='utf-8')",
             (str(tmp_path / f"synthetic-{phase}-{stage}.txt") if stage in {"preflight", "full-suite"} else f"app/web/synthetic-{phase}-{stage}.txt"), stage,
         ], cwd=root, check=True)
+        if brief_abort is not None and stage == "prerender" and phase == "rewrite":
+            # G1 在 apply 前新增重驗；abort fixture 在建置同步點才讓合法 brief 換代。
+            hash_with_peer_revision(watched_brief)
         if brief_abort == "policy" and stage == "prerender" and phase == "rewrite":
             in_suite[phase].set()
             record(phase, "prerender-wait-before-failure")
@@ -7575,7 +7577,7 @@ def test_concurrent_transaction_prepare_uses_decorated_new_and_rewrite(tmp_path,
                 if phase == "new":
                     result = publisher.publish_ready_runs(root, queue, shared_state, git=git, push=True)
                 else:
-                    result = publisher.publish_ready_rewrite_runs(root, queue, shared_state, git=git, push=True, exact_run_ids=["rewrite-prepare"])
+                    result = publisher.publish_ready_rewrite_runs(root, queue, shared_state, git=git, push=True, max_runs=1, exact_run_ids=["rewrite-prepare"])
                 outcomes[phase] = result
                 record(phase, "returned", status=result.get("status"))
         except Exception as error:
@@ -7667,7 +7669,7 @@ def test_concurrent_transaction_prepare_uses_decorated_new_and_rewrite(tmp_path,
 
 @pytest.mark.parametrize("brief_abort", ["ordinary", "policy"])
 def test_abort_brief_snapshot_preserves_payload_digest(tmp_path, monkeypatch, brief_abort):
-    """兩次讀取間的合法 brief 換代，普通／policy abort 都不得污染新版。"""
+    """凍結後在建置同步點合法換代 brief，普通／policy abort 都不得污染新版。"""
     test_concurrent_transaction_prepare_uses_decorated_new_and_rewrite(tmp_path, monkeypatch, brief_abort=brief_abort)
 
 
@@ -7742,7 +7744,7 @@ def test_decorated_isolated_publish_revalidates_selected_shared_state(tmp_path, 
 
     monkeypatch.setattr(publisher, "_run_checked", checked)
     with publisher._isolated_transaction_worktree(actor, state_root, git) as root:
-        result = publisher.publish_ready_runs(root, queue, state_root, git=git, exact_run_ids=["selected-run"], run_tests=True, release_gate=False)
+        result = publisher.publish_ready_runs(root, queue, state_root, git=git, max_runs=1, exact_run_ids=["selected-run"], run_tests=True, release_gate=False)
     ledger = publisher._load_ledger(state_root)
     if change == "unrelated":
         assert result["status"] == "PUBLISHED"
@@ -7806,3 +7808,439 @@ def test_translation_deferred_flush_revalidates_abort_authority(tmp_path, monkey
         else:
             assert publisher._ledger_path(state).read_bytes() == before
         assert journal.deferred == []
+
+
+@pytest.mark.parametrize("count", [2, 5])
+def test_g1_exact_rejects_multiple_articles_before_apply(tmp_path, monkeypatch, count):
+    """原缺口 RED：一個 exact run 的多篇不能進入第一個 apply。"""
+    root = tmp_path / "repo"
+    root.mkdir()
+    _minimal_article_static(root)
+    (root / "pyproject.toml").write_text('[project]\nversion = "0.3.0"\n')
+    (root / "package.json").write_text('{"version":"0.3.0"}\n')
+    (root / "CHANGELOG.md").write_text("# 發布記錄\n")
+    queue, state = tmp_path / "queue", tmp_path / "state"
+    run = tmp_path / "runs" / "g1-multiple"
+    _write_run(queue, run, make_publishable_article())
+    candidate = publisher._read_json(run / "candidate.json")
+    candidate["articles"] = [make_publishable_article(f"G1-{index}") for index in range(count)]
+    _write_json(run / "candidate.json", candidate)
+    selected = publisher._read_json(queue / "runs" / "g1-multiple.json")
+    review = publisher._read_json(run / "review.json")
+    monkeypatch.setattr(publisher, "collect_ready_runs", lambda *a, **k: [(selected, candidate, review)])
+    monkeypatch.setattr(publisher.pipeline, "build_approval", lambda *a: {})
+    applied = []
+    def forbidden_apply(*args, **kwargs):
+        applied.append(True)
+        pytest.fail("G1 超額集合進入 apply")
+    monkeypatch.setattr(publisher.pipeline, "apply_approved_candidates", forbidden_apply)
+    def git(root, args, _input=None):
+        return "a" * 40 if args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]) else ""
+    with pytest.raises(publisher.PublishBlocked):
+        publisher.publish_ready_runs(root, queue, state, exact_run_ids=[run.name], max_runs=1,
+                                     git=git, run_tests=False, release_gate=False)
+    assert applied == []
+    assert not list((root / "app/web/static").glob("article-expansion-*.js"))
+
+
+def _g1_fixture(tmp_path, monkeypatch, phase, *, observe_apply=True):
+    """只封閉外部讀取／建置／Git；三 lane 均保留正式 apply 與檔案產物。"""
+    from tests.test_agy_multilingual_pipeline import translation_brief, translation_candidate
+    from tests.test_agy_source_authority_contract import new_brief
+    root = tmp_path / "repo"
+    root.mkdir()
+    _minimal_article_static(root)
+    (root / "app/web/static/article-locales.js").write_text("export const ARTICLE_LOCALE_REGISTRY = [\n];\n")
+    (root / "pyproject.toml").write_text('[project]\nversion = "0.3.0"\n')
+    (root / "package.json").write_text('{"version":"0.3.0"}\n')
+    (root / "CHANGELOG.md").write_text("# 發布記錄\n")
+    queue, state = tmp_path / "queue", tmp_path / "state"
+    run = tmp_path / "runs" / ("g1-" + phase)
+    source = None
+    if phase == "create":
+        _write_run(queue, run, make_publishable_article())
+    elif phase == "rewrite":
+        article = make_rewrite_article()
+        _write_rewrite_run(queue, run, article)
+        monkeypatch.setattr(publisher.pipeline, "rewrite_aggregate_findings", lambda *a, **k: ([], []))
+        monkeypatch.setattr(publisher, "legacy_article_records", lambda *a: [{"id": "LEGACY-001", "serial": "astrology-0001", "articleCategory": "astrology"}])
+        monkeypatch.setattr(publisher.pipeline, "_existing_rewrite_inventory", lambda *a: {
+            "LEGACY-001": {"record": {**article["identity"], "articleCategory": "astrology", "urlSlug": "legacy-001"},
+                           "currentBody": [{"heading": "舊內容", "paragraphs": [_long("舊文原始內容。")]}]}})
+    else:
+        brief, candidate = translation_brief("ja"), translation_candidate("ja")
+        source = new_brief()["articles"][0]["source"]
+        brief["run_id"] = candidate["run_id"] = run.name
+        brief["articles"][0]["source"] = source
+        digest = publisher.multilingual.source_sha256(source)
+        brief["articles"][0]["source_sha256"] = candidate["articles"][0]["source_sha256"] = digest
+        article = candidate["articles"][0]
+        review = {"schema_version": 1, "run_id": run.name, "articles": [{"article_id": article["article_id"],
+                  "candidate_sha256": article_sha256(article), "verdict": "APPROVE", "hard_failure": False, "findings": []}]}
+        _write_json(run / "brief.json", brief)
+        _write_json(run / "candidate.json", candidate)
+        _write_json(run / "review.json", review)
+        _write_json(queue / "runs" / (run.name + ".json"), {"schema_version": 1, "run_id": run.name,
+                    "run_dir": str(run), "status": "complete", "result": {"candidate": str(run / "candidate.json")}})
+        monkeypatch.setattr(publisher.multilingual, "load_source_article", lambda *a: source)
+        monkeypatch.setattr(publisher.multilingual, "translation_findings", lambda *a: [])
+        monkeypatch.setattr(publisher, "legacy_article_ids", lambda *a: set())
+    monkeypatch.setattr(publisher.pipeline, "_registry_inventory", lambda *a: [])
+    monkeypatch.setattr(publisher.pipeline, "load_publication_reference_corpus", lambda *a: [])
+    monkeypatch.setattr(publisher, "_run_prerender", lambda *a, **k: None)
+    monkeypatch.setattr(publisher, "_run_feed", lambda *a, **k: None)
+    monkeypatch.setattr(publisher, "_run_checked", lambda *a, **k: pytest.fail("G1 不可啟子程序"))
+    monkeypatch.setattr(publisher, "_public_article_count", lambda *a: 1)
+    seeds, calls, applies = [], [], []
+    monkeypatch.setattr(publisher, "_seed_pending_translations", lambda *a: seeds.append(True) or [])
+    def git(root, args, _input=None):
+        calls.append(args)
+        return "a" * 40 if args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]) else ""
+    for lane, owner, name in [("create", publisher.pipeline, "apply_approved_candidates"),
+                              ("rewrite", publisher, "apply_rewrite_release"),
+                              ("translation", publisher.multilingual, "apply_approved_translations")]:
+        if not observe_apply:
+            continue
+        original = getattr(owner, name)
+        def spy(*args, _lane=lane, _original=original, **kwargs):
+            candidates = args[2] if _lane == "rewrite" else [args[3] if _lane == "translation" else {"articles": args[2]}]
+            for candidate in candidates:
+                for article in candidate["articles"]:
+                    applies.append((_lane, article.get("id") or article.get("article_id"), article.get("locale")))
+            if _lane == "translation":
+                kwargs["source_loader"] = lambda *a: source
+            return _original(*args, **kwargs)
+        monkeypatch.setattr(owner, name, spy)
+    return root, queue, state, run, git, calls, applies, seeds
+
+
+def _g1_publish(fixture, phase, *, aggregate=False, exact=True, **kwargs):
+    root, queue, state, run, git, *_ = fixture
+    fn = publisher.publish_ready_all if aggregate else {
+        "create": publisher.publish_ready_runs, "rewrite": publisher.publish_ready_rewrite_runs,
+        "translation": publisher.publish_ready_translation_runs}[phase]
+    return fn(root, queue, state, git=git, max_runs=kwargs.pop("max_runs", 1),
+              exact_run_ids=[run.name] if exact else None, run_tests=False, release_gate=False, **kwargs)
+
+
+def _g1_assert_artifact(fixture, phase):
+    root, _, state, run, _, calls, applies, _ = fixture
+    candidate = publisher._read_json(run / "candidate.json")
+    article = candidate["articles"][0]
+    identifier = article.get("id") or article["article_id"]
+    assert applies == [(phase, identifier, article.get("locale"))]
+    static = root / "app/web/static"
+    pattern = {"create": "article-expansion-*.js", "rewrite": "article-rewrite-*.js", "translation": "article-locale-*.js"}[phase]
+    outputs = list(static.glob(pattern))
+    assert len(outputs) == 1
+    body = outputs[0].read_text()
+    assert article["bodySections"][0]["paragraphs"][0] in body
+    assert (article["source_article_id"] if phase == "translation" else identifier) in body
+    registry = static / ("article-locales.js" if phase == "translation" else "article-registry.js")
+    assert outputs[0].name in registry.read_text()
+    if phase == "translation":
+        assert '"locale": "ja"' in body
+    assert sum(command[0] == "commit" for command in calls) == 1
+    assert not any(command[0] == "push" for command in calls)
+    _write_json(run.parent / "g1-artifact-receipt.json", {
+        "operations": applies,
+        "candidate_sha256": hashlib.sha256((run / "candidate.json").read_bytes()).hexdigest(),
+        "output_sha256": {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in [*outputs, registry]},
+        "ledger_sha256": hashlib.sha256((state / "ledger.json").read_bytes()).hexdigest(),
+        "git_commands": calls,
+    })
+
+
+@pytest.mark.parametrize("phase", ["create", "rewrite", "translation"])
+@pytest.mark.parametrize("aggregate", [False, True])
+def test_g1_single_real_apply_and_artifacts(tmp_path, monkeypatch, phase, aggregate):
+    fixture = _g1_fixture(tmp_path, monkeypatch, phase)
+    result = _g1_publish(fixture, phase, aggregate=aggregate)
+    assert result["status"] in {"ok", "PUBLISHED", "PUBLISHED_REWRITE", "PUBLISHED_TRANSLATION"}
+    _g1_assert_artifact(fixture, phase)
+    assert fixture[-1] == []
+
+
+@pytest.mark.parametrize("phase", ["create", "rewrite", "translation"])
+@pytest.mark.parametrize("shape", ["two", "five", "duplicate", "two-runs"])
+def test_g1_excess_ready_set_zero_apply(tmp_path, monkeypatch, phase, shape):
+    fixture = _g1_fixture(tmp_path, monkeypatch, phase)
+    root, queue, state, run, _, calls, applies, seeds = fixture
+    state_data = publisher._read_json(queue / "runs" / (run.name + ".json"))
+    candidate = publisher._read_json(run / "candidate.json")
+    review = publisher._read_json(run / "review.json")
+    if shape != "two-runs":
+        candidate["articles"] *= 5 if shape == "five" else 2
+        if shape != "duplicate":
+            candidate = json.loads(json.dumps(candidate))
+            key = "id" if phase == "create" else "article_id"
+            for index, article in enumerate(candidate["articles"]):
+                article[key] += str(index)
+        _write_json(run / "candidate.json", candidate)
+    ready = [(state_data, candidate, review)]
+    if phase == "rewrite":
+        ready = [(state_data, candidate, review, publisher._read_json(run / "brief.json"))]
+    elif phase == "translation":
+        ready = [(state_data, publisher._read_json(run / "brief.json"), candidate, review)]
+    if shape == "two-runs":
+        ready.append(({**state_data, "run_id": "second-run"}, *ready[0][1:]))
+    collector = {"create": "collect_ready_runs", "rewrite": "collect_ready_rewrite_runs", "translation": "collect_ready_translation_runs"}[phase]
+    monkeypatch.setattr(publisher, collector, lambda *a, **k: ready)
+    if phase == "rewrite":
+        monkeypatch.setattr(publisher, "_filter_rewrite_runs_with_current_sources", lambda *a, **k: ready)
+    before = _tree_bytes(root / "app")
+    with pytest.raises(publisher.PublishBlocked, match="exact canary"):
+        _g1_publish(fixture, phase)
+    assert applies == seeds == []
+    assert _tree_bytes(root / "app") == before
+    assert not any(c[0] in {"commit", "push"} for c in calls)
+
+
+@pytest.mark.parametrize("shape", ["two-ids", "three-lanes", "duplicate-id", "mode-conflict", "missing", "zero", "negative", "empty"])
+def test_g1_aggregate_invalid_contract_zero_lane_calls(tmp_path, monkeypatch, shape):
+    fixture = _g1_fixture(tmp_path, monkeypatch, "create")
+    root, queue, state, run, git, calls, applies, seeds = fixture
+    selected, maximum = [run.name], 1
+    if shape in {"two-ids", "three-lanes"}:
+        selected += ["other"] if shape == "two-ids" else ["rewrite", "translation"]
+    elif shape == "duplicate-id":
+        payload = publisher._read_json(queue / "runs" / (run.name + ".json"))
+        _write_json(queue / "runs/duplicate.json", payload)
+    elif shape == "mode-conflict":
+        _write_json(run / "brief.json", {"run_id": run.name, "mode": "translate_existing"})
+    elif shape == "missing":
+        selected = ["missing"]
+    elif shape == "empty":
+        selected = []
+    else:
+        maximum = 0 if shape == "zero" else -1
+    for name in ("publish_ready_runs", "publish_ready_rewrite_runs", "publish_ready_translation_runs"):
+        monkeypatch.setattr(publisher, name, lambda *a, **k: pytest.fail("無效 aggregate 不可呼叫 lane"))
+    with pytest.raises((publisher.PublishBlocked, ValueError)):
+        publisher.publish_ready_all(root, queue, state, exact_run_ids=selected, max_runs=maximum, git=git)
+    assert applies == seeds == []
+
+
+@pytest.mark.parametrize("phase", ["create", "rewrite", "translation"])
+@pytest.mark.parametrize("point", ["prepare", "commit"])
+@pytest.mark.parametrize("drift", ["bytes", "articles"])
+def test_g1_synchronized_drift_blocks_apply_or_commit(tmp_path, monkeypatch, phase, point, drift):
+    """Event 握手保證另一程序在指定同步點完成改寫；無 sleep／時間競賽。"""
+    import multiprocessing
+    fixture = _g1_fixture(tmp_path, monkeypatch, phase)
+    root, queue, state, run, _, calls, applies, _ = fixture
+    frozen_candidate = publisher._read_json(run / "candidate.json")
+    frozen_article = frozen_candidate["articles"][0]
+    context = multiprocessing.get_context("fork")
+    released, changed = context.Event(), context.Event()
+    def mutate():
+        released.wait()
+        try:
+            path = run / "candidate.json"
+            if drift == "bytes":
+                path.write_bytes(path.read_bytes() + b"\n")
+            else:
+                payload = publisher._read_json(path)
+                payload["articles"] *= 2
+                _write_json(path, payload)
+        finally:
+            changed.set()
+    worker = context.Process(target=mutate)
+    worker.start()
+    def barrier():
+        released.set()
+        changed.wait()
+        worker.join()
+        assert worker.exitcode == 0
+    if point == "prepare":
+        original = publisher.MutationJournal.prepare
+        def prepare(journal):
+            # 與 production 的 prepare 相同釋鎖路徑，來源修改完成後才回到 apply。
+            journal.isolated = True
+            original(journal)
+            barrier()
+        monkeypatch.setattr(publisher.MutationJournal, "prepare", prepare)
+    else:
+        monkeypatch.setattr(publisher, "_run_feed", lambda *a: barrier())
+    # 保留 runtime lease 與 journal；unwrap recovery 僅讓拒絕的原始原因可觀察。
+    public = {"create": publisher.publish_ready_runs, "rewrite": publisher.publish_ready_rewrite_runs,
+              "translation": publisher.publish_ready_translation_runs}[phase]
+    lane = public.__wrapped__.__wrapped__
+    try:
+        with pytest.raises(publisher.PublishBlocked, match="drift"):
+            lane(root, queue, state, exact_run_ids=[run.name], max_runs=1, git=fixture[4], run_tests=False, release_gate=False)
+    finally:
+        released.set()
+        worker.join()
+        assert worker.exitcode == 0
+    assert len(applies) == (0 if point == "prepare" else 1)
+    assert not any(c[0] in {"commit", "push"} for c in calls)
+    if point == "commit":
+        pattern = {"create": "article-expansion-*.js", "rewrite": "article-rewrite-*.js", "translation": "article-locale-*.js"}[phase]
+        outputs = list((root / "app/web/static").glob(pattern))
+        assert len(outputs) == 1
+        body = outputs[0].read_text()
+        identifier = frozen_article.get("id") or frozen_article["article_id"]
+        assert applies == [(phase, identifier, frozen_article.get("locale"))]
+        assert frozen_article["bodySections"][0]["paragraphs"][0] in body
+        public_id = frozen_article["source_article_id"] if phase == "translation" else identifier
+        assert public_id in body
+        _write_json(run.parent / "g1-drift-receipt.json", {
+            "frozen_candidate_sha256": hashlib.sha256(publisher.pipeline.compact_json_bytes(frozen_candidate)).hexdigest(),
+            "drifted_candidate_sha256": hashlib.sha256((run / "candidate.json").read_bytes()).hexdigest(),
+            "actual_operations": applies, "commit_or_push": [],
+            "output_sha256": hashlib.sha256(outputs[0].read_bytes()).hexdigest(),
+        })
+
+
+def test_g1_same_article_second_apply_is_not_deduplicated(tmp_path, monkeypatch):
+    fixture = _g1_fixture(tmp_path, monkeypatch, "create")
+    original = publisher.MutationJournal.capture_article_apply
+    def duplicate(journal, mutation):
+        result = original(journal, mutation)
+        original(journal, mutation)
+        return result
+    monkeypatch.setattr(publisher.MutationJournal, "capture_article_apply", duplicate)
+    result = _g1_publish(fixture, "create")
+    assert result["status"] == "failed_recovered"
+    assert len(fixture[6]) == 1
+    assert not any(c[0] in {"commit", "push"} for c in fixture[5])
+
+
+@pytest.mark.parametrize("count", [1, 2])
+def test_g1_exact_fresh_ja_real_apply_or_reject(tmp_path, monkeypatch, count):
+    fixture = _g1_fixture(tmp_path, monkeypatch, "translation")
+    root, queue, state, run, git, *_ = fixture
+    candidate = publisher._read_json(run / "candidate.json")
+    if count == 2:
+        candidate["articles"] *= 2
+        _write_json(run / "candidate.json", candidate)
+    # 既有 fresh-JA 函式無 git 注入參數；只綁原公開 lane 的 Git seam。
+    original = publisher.publish_ready_translation_runs
+    monkeypatch.setattr(publisher, "publish_ready_translation_runs", lambda *a, **k: original(*a, **k, git=git))
+    if count == 1:
+        result = publisher.publish_exact_fresh_ja_translation_run(root, queue, state, run.name, run_tests=False, release_gate=False)
+        assert result["status"] == "PUBLISHED_TRANSLATION"
+        _g1_assert_artifact(fixture, "translation")
+    else:
+        with pytest.raises(publisher.PublishBlocked):
+            publisher.publish_exact_fresh_ja_translation_run(root, queue, state, run.name, run_tests=False, release_gate=False)
+        assert fixture[6] == []
+
+
+def test_g1_nonexact_batch_keeps_multiple_real_applies(tmp_path, monkeypatch):
+    fixture = _g1_fixture(tmp_path, monkeypatch, "create")
+    root, queue, state, run, *_ = fixture
+    article = make_publishable_article("AUTO-002")
+    # 使用不同 run／id／slug，保留正常批次的兩次正式 apply。
+    _write_run(queue, run.parent / "g1-second", article)
+    result = _g1_publish(fixture, "create", exact=False, max_runs=2)
+    assert result["status"] == "PUBLISHED"
+    assert len(fixture[6]) == 2
+    assert len(list((root / "app/web/static").glob("article-expansion-*.js"))) == 2
+
+
+@pytest.mark.parametrize("intent", ["--exact-run-id", "--exact-fresh-ja-run-id"])
+@pytest.mark.parametrize("partial", [False, True])
+def test_g1_main_exact_requires_complete_existing_contract(tmp_path, monkeypatch, intent, partial):
+    argv = ["publisher", "--repo-root", str(tmp_path), "--queue-root", str(tmp_path / "queue"), intent, "g1-run", "--max-runs", "1"]
+    if partial:
+        argv += ["--expected-repo-root", str(tmp_path)]
+    monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.setattr(publisher, "_validate_formal_runtime", lambda *a: {})
+    monkeypatch.setattr(publisher, "_trim_configured_launchd_logs", lambda: None)
+    monkeypatch.setattr(publisher, "_isolated_transaction_worktree", lambda *a, **k: pytest.fail("缺契約不可進交易"))
+    with pytest.raises(SystemExit, match="complete deployment contract"):
+        publisher.main()
+
+
+@pytest.mark.parametrize("selection", ["create", "rewrite", "translation", "all", "ambiguous"])
+def test_g1_three_qualified_lanes_dispatch_one_or_reject(tmp_path, monkeypatch, selection):
+    chosen = selection if selection in {"create", "rewrite", "translation"} else "create"
+    phases = [p for p in ("create", "rewrite", "translation") if p != chosen] + [chosen]
+    fixtures = {}
+    for phase in phases:
+        folder = tmp_path / phase
+        folder.mkdir()
+        fixtures[phase] = _g1_fixture(folder, monkeypatch, phase, observe_apply=phase == chosen)
+    fixture = fixtures[chosen]
+    root, queue, state, run, git, calls, applies, seeds = fixture
+    for phase, item in fixtures.items():
+        if phase != chosen:
+            source_state = item[1] / "runs" / (item[3].name + ".json")
+            _write_json(queue / "runs" / source_state.name, publisher._read_json(source_state))
+    # 三個實體 queue run 均經原 collector 證明可選；不以三個字串代替合格資料。
+    ready = {
+        "create": publisher.collect_ready_runs(queue, state, repo_root=root, exact_run_ids=[fixtures["create"][3].name]),
+        "rewrite": publisher.collect_ready_rewrite_runs(queue, state, repo_root=root, exact_run_ids=[fixtures["rewrite"][3].name], allowed_article_ids={"LEGACY-001"}),
+        "translation": publisher.collect_ready_translation_runs(root, queue, state, exact_run_ids=[fixtures["translation"][3].name]),
+    }
+    assert {phase: len(items) for phase, items in ready.items()} == {"create": 1, "rewrite": 1, "translation": 1}
+    if selection == "ambiguous":
+        other = fixtures["translation"][3]
+        for filename in ("candidate.json", "review.json", "brief.json"):
+            payload = publisher._read_json(other / filename)
+            payload["run_id"] = run.name
+            _write_json(other / filename, payload)
+        path = queue / "runs" / (other.name + ".json")
+        payload = publisher._read_json(path)
+        payload["run_id"] = run.name
+        _write_json(path, payload)
+    if selection in {"all", "ambiguous"}:
+        selected = [f[3].name for f in fixtures.values()] if selection == "all" else [run.name]
+        with pytest.raises(publisher.PublishBlocked):
+            publisher.publish_ready_all(root, queue, state, exact_run_ids=selected, max_runs=1, git=git)
+        assert applies == seeds == []
+        assert not any(c[0] in {"commit", "push"} for c in calls)
+    else:
+        lane_calls = []
+        for phase, name in [("create", "publish_ready_runs"), ("rewrite", "publish_ready_rewrite_runs"), ("translation", "publish_ready_translation_runs")]:
+            original = getattr(publisher, name)
+            def lane(*a, _phase=phase, _original=original, **k):
+                lane_calls.append(_phase)
+                return _original(*a, **k)
+            monkeypatch.setattr(publisher, name, lane)
+        result = _g1_publish(fixture, chosen, aggregate=True)
+        assert result["status"] == "ok"
+        assert lane_calls == [chosen]
+        _g1_assert_artifact(fixture, chosen)
+        assert seeds == []
+
+
+@pytest.mark.parametrize("phase", ["create", "rewrite", "translation"])
+@pytest.mark.parametrize("maximum", [0, -1, 2])
+def test_g1_direct_lane_invalid_limit_zero_apply(tmp_path, monkeypatch, phase, maximum):
+    fixture = _g1_fixture(tmp_path, monkeypatch, phase)
+    with pytest.raises(publisher.PublishBlocked, match="max_runs"):
+        _g1_publish(fixture, phase, max_runs=maximum)
+    assert fixture[6] == []
+
+
+def test_g1_memory_candidate_drift_is_rejected_before_apply(tmp_path, monkeypatch):
+    fixture = _g1_fixture(tmp_path, monkeypatch, "create")
+    original = publisher.MutationJournal.prepare
+    def prepare(journal):
+        original(journal)
+        journal.selected_inputs[0][1]["articles"][0]["title"] = "記憶體候選遭修改"
+    monkeypatch.setattr(publisher.MutationJournal, "prepare", prepare)
+    result = _g1_publish(fixture, "create")
+    assert result["status"] == "failed_recovered"
+    assert fixture[6] == []
+
+
+@pytest.mark.parametrize("phase,key", [("create", "quarantined_runs"), ("translation", "translation_deferred_runs")])
+def test_g1_collector_rejection_records_existing_side_effects_without_apply(tmp_path, monkeypatch, phase, key):
+    fixture = _g1_fixture(tmp_path, monkeypatch, phase)
+    root, queue, state, run, _, calls, applies, seeds = fixture
+    review = publisher._read_json(run / "review.json")
+    review["articles"][0].update(verdict="REJECT", hard_failure=True, findings=[{"code": "AI_TEMPLATE_STYLE", "message": "測試退件"}])
+    _write_json(run / "review.json", review)
+    before = _tree_bytes(root / "app")
+    with pytest.raises(publisher.PublishBlocked, match="one ready run"):
+        _g1_publish(fixture, phase)
+    ledger = publisher._load_ledger(state)
+    assert ledger[key][0]["run_id"] == run.name
+    assert applies == seeds == []
+    assert _tree_bytes(root / "app") == before
+    assert not any(c[0] in {"commit", "push"} for c in calls)
+    _write_json(run.parent / "g1-rejected-receipt.json", {"operations": [], "collector_side_effect": ledger[key]})
