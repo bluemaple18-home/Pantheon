@@ -345,6 +345,79 @@ def _create_step(
     }
 
 
+def _long(text: str) -> str:
+    value = text
+    while len(value) < 96:
+        value += "再核對一項具體資料，避免把通用描述當成個人結論。"
+    return value[:108]
+
+def _offline_ready_article(article_id: str = "AUTO-001") -> dict[str, object]:
+    keyword = "測試關鍵字"
+    scene_seeds = [
+        "在工作會議收到臨時訊息時，先記錄期限、核對責任並確認仍缺少的資料。",
+        "下班看到帳單與課程通知時，先列出支出、比較選項並安排可調整的順序。",
+        "收到伴侶回覆時，先等待情緒緩和、詢問彼此期待，再談清楚分工。",
+        "若現實資料不足，這個工具就不適用；先暫停推測並回到可查證的事實。",
+    ]
+    paragraphs = [
+        _long(
+            f"{keyword}在 {article_id} 測試案例中，"
+            f"{scene_seeds[index % len(scene_seeds)]}"
+        )
+        for index in range(15)
+    ]
+    article = {
+        "id": article_id,
+        "section": "mbti",
+        "product": "personality",
+        "slug": article_id.lower(),
+        "serial": "personality-9999",
+        "urlSlug": f"{article_id.lower()}-9999",
+        "primaryKeyword": keyword,
+        "secondaryKeywords": ["具體場景", "通用觀察"],
+        "title": "測試關鍵字是什麼？用生活場景理解限制與選擇",
+        "description": "測試關鍵字適合整理具體情境、可觀察行動與使用限制；本文只提供通用理解，不替個人下結論，也不承諾任何結果，仍需回到現況判斷與實際資料再做選擇。",
+        "answer": "測試關鍵字提供通用觀察，不能替個人下結論。",
+        "tags": ["AEO", "GEO", "Pantheon", "SEO", "公開文章", "繁體中文", "通用知識", "人格", "自我理解"],
+        "published": "2026-07-23",
+        "updated": "2026-07-23",
+        "faq": [
+            {"question": "測試關鍵字能直接判定結果嗎？", "answer": "不能，仍要回到實際情境與行動。"},
+            {"question": "應該先看什麼？", "answer": "先分開記錄事實、推測與期待。"},
+            {"question": "什麼時候不適用？", "answer": "需要專業判斷時不應只靠這篇文章。"},
+        ],
+        "bodySections": [
+            {"heading": f"測試關鍵字的觀察角度 {section + 1}", "paragraphs": paragraphs[section * 3 : section * 3 + 3]}
+            for section in range(5)
+        ],
+    }
+    article["publicationPolicy"] = pipeline._hydrate_create_publication_policy({"target": article})
+    return article
+
+
+def prepare_ready_fixture(queue_root: Path, sandbox_root: Path, run_id: str) -> None:
+    """只將合成 create lane 補成身份一致、單篇且經現役規則驗證的 ready fixture。"""
+    namespace = hashlib.sha256(run_id.encode()).hexdigest()[:24]
+    state_path = queue_root / "runs" / f"{namespace}.json"
+    state = json.loads(state_path.read_text())
+    run_dir = publisher._require_sandbox_descendant(sandbox_root, Path(state["run_dir"]), "fixture run root")
+    if state["run_id"] != run_id:
+        raise AdapterBlocked("ready fixture state identity mismatch")
+    article = _offline_ready_article("PROBE-READY-001")
+    candidate = {"schema_version": 1, "run_id": run_id, "mode": "create", "articles": [article]}
+    review = {"schema_version": 1, "run_id": run_id, "articles": [{
+        "article_id": article["id"], "candidate_sha256": pipeline.article_sha256(article),
+        "verdict": "APPROVE", "hard_failure": False, "findings": [],
+    }]}
+    pipeline.validate_candidate(candidate)
+    pipeline.validate_review(review, candidate["articles"])
+    for name, payload in (("candidate.json", candidate), ("review.json", review)):
+        (run_dir / name).write_text(json.dumps(payload, ensure_ascii=False) + "\n")
+    state.update(status="complete", result={"status": "complete", "run_id": run_id,
+                                           "candidate": str(run_dir / "candidate.json")})
+    state_path.write_text(json.dumps(state, ensure_ascii=False) + "\n")
+
+
 def _run_step(
     source: dict[str, Any],
     manifest_path: Path,
@@ -387,8 +460,11 @@ def _run_step(
         if result.get("status") != "processed":
             raise AdapterBlocked(f"{lane} production runner did not process: {result}")
         results[lane] = {**result, "request_sha256": request["request_sha256"]}
+    prepare_ready_fixture(Path(manifest["queue_root"]), sandbox_root, str(run_ids["new"]))
     return {
         "run_ids": run_ids,
+        "publish_run_ids": [run_ids["new"]],
+        "publish_max_runs": 1,
         "lane_results": results,
         "production_entrypoints": [
             "scripts.agy_gemini_outbox:create_external_request",
@@ -425,14 +501,54 @@ def _publisher_step(
             log_root=Path(manifest["log_root"]),
         )
         result = publisher.formal_capability_preflight(
-            capability,
-            run_ids=run_ids.values(),
+            "select" if capability == "publish" else capability,
+            run_ids=(source["publish_run_ids"] if capability == "publish" else run_ids.values()),
             correlation_id=str(source["correlation_id"]),
             trusted_sandbox_root=sandbox_root,
             queue_root=queue_root,
             state_root=state_root,
             runtime_receipt=runtime_receipt,
         )
+        if capability == "publish":
+            selected = source["publish_run_ids"]
+            actor_root = Path(manifest["actor_root"])
+            actor_sha = publisher.run_git(actor_root, ["rev-parse", "HEAD"], None)
+            if actor_sha != manifest["actor_head"]:
+                raise AdapterBlocked("publisher actor runtime identity mismatch")
+            git_trace: list[list[str]] = []
+            with publisher.TrustedSandboxDirectoryAuthority(sandbox_root) as authority:
+                lock_relative = (state_root / "publisher.lock").relative_to(sandbox_root)
+                lock_before = authority.exists(lock_relative)
+
+                def dry_run_git(repo: Path, args: list[str], input_text: str | None = None) -> str:
+                    authority.assert_current()
+                    git_trace.append(list(args))
+                    return publisher._formal_capability_dry_run_git(
+                        actor_root, sandbox_root, actor_sha, repo, args, input_text,
+                        sandbox_authority=authority,
+                    )
+
+                published = publisher.publish_ready_runs(
+                    actor_root, queue_root, state_root,
+                    max_runs=source["publish_max_runs"], exact_run_ids=selected,
+                    dry_run=True, push=False, run_tests=False, release_gate=False,
+                    git=dry_run_git, seed_translations=False,
+                )
+                authority.assert_current()
+                sandbox_mutation = lock_before != authority.exists(lock_relative)
+            if (selected != [run_ids.get("new")]
+                    or published.get("status") != "dry-run"
+                    or published.get("ready_runs") != selected
+                    or published.get("base_sha") != actor_sha):
+                raise AdapterBlocked("publisher requires one exact ready dry-run; idle is not evidence")
+            result = {
+                **result, "capability": "publish", "boundary_status": "dry-run",
+                "publisher_result": published, "max_runs": source["publish_max_runs"],
+                "sandbox_mutation": result["sandbox_mutation"] or sandbox_mutation,
+                "called_entrypoints": [*result["called_entrypoints"],
+                                       "scripts.agy_content_publisher:publish_ready_runs"],
+                "git_trace": [*result["git_trace"], *git_trace],
+            }
     entrypoints = [
         str(result["entrypoint"]),
         *(str(value) for value in result.get("called_entrypoints", [])),

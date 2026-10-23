@@ -528,6 +528,11 @@ def test_one_formal_probe_emits_machine_correlated_positive_chain(tmp_path: Path
                 )
             )
             publisher_result = adapter_artifact["publisher_result"]
+            if artifact["capability"] == "publish":
+                selected = adapter_artifact["run_ids"]["new"]
+                assert publisher_result["publisher_result"]["status"] == "dry-run"
+                assert publisher_result["publisher_result"]["ready_runs"] == [selected]
+                assert publisher_result["max_runs"] == 1
             assert publisher_result["production_mutation"] is False
             assert isinstance(publisher_result["sandbox_mutation"], bool)
             assert (
@@ -721,3 +726,58 @@ def test_offline_probe_rejects_invalid_transport_or_run_identity(
     root = tmp_path / "invalid-probe/runtime"
     assert not (root / "offline-transport/pool-state.json").exists()
     assert not list(root.glob("queue/lanes/*/v4/ledger/*.jsonl"))
+
+
+@pytest.mark.parametrize("case", ["four-runs", "wrong-identity", "not-ready", "max-runs"])
+def test_single_ready_publish_rejects_invalid_selection(tmp_path: Path, case: str) -> None:
+    """經真實 adapter 與 Publisher guard 拒絕四種單篇契約反例。"""
+    receipt = probe.run_probe(evidence_root=tmp_path / "probe", execution_id=case,
+                              correlation_id=case, source_root=SOURCE_ROOT)
+    assert receipt["status"] == "PASS"
+    source = json.loads((tmp_path / "probe/03-select-adapter.json").read_text())
+    root = Path(source["sandbox_root"])
+    if case == "four-runs":
+        source["publish_run_ids"] = list(source["run_ids"].values())
+    elif case == "max-runs":
+        source["publish_max_runs"] = 3
+    elif case == "wrong-identity":
+        path = root / "runs/new/candidate.json"
+        candidate = json.loads(path.read_text())
+        candidate["run_id"] = "different-run"
+        path.write_text(json.dumps(candidate))
+    else:
+        for path in (root / "queue/runs").glob("*.json"):
+            state = json.loads(path.read_text())
+            if state["run_id"] == source["run_ids"]["new"]:
+                state["status"] = "active"
+                path.write_text(json.dumps(state))
+    with pytest.raises(publisher.PublishBlocked, match="exact canary"):
+        adapter._production_transition("publish", source)
+
+
+def test_probe_rejects_idle_publish_even_when_adapter_claims_pass(tmp_path: Path) -> None:
+    """真實入口完成後破壞回傳證據，驗證 probe 不信任空心 PASS。"""
+    wrapper = tmp_path / "idle-evidence.py"
+    wrapper.write_text(
+        "import json, sys\n"
+        "from pathlib import Path\n"
+        "sys.path.insert(0, str(Path.cwd()))\n"
+        "from scripts import pantheon_content_capability_adapter as adapter\n"
+        "args = adapter.parse_args()\n"
+        "code = adapter.main()\n"
+        "if code == 0 and args.capability == 'publish':\n"
+        "    payload = json.loads(args.output.read_text())\n"
+        "    payload['publisher_result']['publisher_result'] = {'status': 'idle', 'published': 0}\n"
+        "    payload.pop('output_digest')\n"
+        "    payload['output_digest'] = adapter._digest(payload)\n"
+        "    args.output.write_text(json.dumps(payload))\n"
+        "raise SystemExit(code)\n"
+    )
+    receipt = probe.run_probe(
+        evidence_root=tmp_path / "probe", execution_id="idle-evidence",
+        correlation_id="idle-evidence", source_root=SOURCE_ROOT,
+        adapter_command=[sys.executable, str(wrapper)],
+    )
+    assert receipt["status"] == "BLOCKED"
+    assert receipt["steps"][-1]["capability"] == "publish"
+    assert "idle is not evidence" in receipt["steps"][-1]["error"]

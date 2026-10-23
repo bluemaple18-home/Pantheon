@@ -223,6 +223,16 @@ def run_probe(
             == manifest["runtime_identity_digest"]
             else "BLOCKED"
         )
+        if capability == "publish" and outcome == "PASS":
+            published = adapter_payload.get("publisher_result", {}).get("publisher_result", {})
+            target = adapter_payload.get("run_ids", {}).get("new")
+            if (not target or published.get("status") != "dry-run"
+                    or published.get("ready_runs") != [target]
+                    or adapter_payload.get("publish_max_runs") != 1):
+                outcome = "BLOCKED"
+                adapter_payload["error"] = "publish requires one exact ready dry-run; idle is not evidence"
+        (evidence_root / f"{ordinal:02d}-{capability}.stdout.log").write_text(invoked.stdout)
+        (evidence_root / f"{ordinal:02d}-{capability}.stderr.log").write_text(invoked.stderr)
         event: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
             "execution_id": execution_id,
