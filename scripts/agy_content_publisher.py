@@ -3865,6 +3865,7 @@ def collect_ready_translation_runs(
     ledger = _load_ledger(state_root)
     published = {str(item.get("run_id")) for item in ledger["translation_published_runs"]}
     deferred = {str(item.get("run_id")) for item in ledger["translation_deferred_runs"]}
+    quarantined = {str(item.get("run_id")) for item in ledger["quarantined_runs"]}
     ready: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     for state_path in _selected_run_files(
         queue_root, state_root, "translation", selected_run_ids
@@ -3881,7 +3882,7 @@ def collect_ready_translation_runs(
             brief = multilingual.read_translation_brief_payload(brief_path)
         except (OSError, json.JSONDecodeError, ValueError):
             continue
-        if brief.get("mode") != "translate_existing" or run_id in published:
+        if brief.get("mode") != "translate_existing" or run_id in published or run_id in quarantined:
             continue
         stage_present = (run_dir / "editorial-staging" / "current.json").exists()
         if run_id in deferred and not stage_present:
@@ -4155,7 +4156,7 @@ def collect_ready_rewrite_runs(
     selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     ledger = _load_ledger(state_root)
     released = {str(item.get("run_id")) for item in ledger["rewrite_released_runs"]}
-    quarantined = _rewrite_quarantined_run_ids(ledger)
+    quarantined = {str(item.get("run_id")) for item in ledger["quarantined_runs"]}
     ready: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     seen_article_ids: set[str] = set()
     seen_body_hashes: dict[str, str] = {}

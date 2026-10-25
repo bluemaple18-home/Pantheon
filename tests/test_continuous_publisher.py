@@ -221,6 +221,62 @@ def test_continuous_skips_empty_lane_without_empty_tick(
     assert _tick(fixture)["lane"] == "rewrite"
 
 
+def test_continuous_all_quarantined_lanes_skip_without_transaction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, queue, state_root = (tmp_path / name for name in ("repo", "queue", "state"))
+    for path in (repo, queue / "runs", state_root):
+        path.mkdir(parents=True)
+    ids = {lane: f"quarantined-{lane}" for lane in ("rewrite", "i18n-new", "i18n-rewrite")}
+    publisher._atomic_write_json(publisher._ledger_path(state_root), {
+        **publisher._load_ledger(state_root),
+        "quarantined_runs": [
+            {"run_id": run_id, "reason": "publisher only supports create mode"}
+            for run_id in ids.values()
+        ],
+    })
+    paths = {}
+    for lane, run_id in ids.items():
+        run_dir = queue / lane / run_id
+        run_dir.mkdir(parents=True)
+        (run_dir / "brief.json").write_text("{}")
+        path = queue / "runs" / f"{run_id}.json"
+        path.write_text(json.dumps({"run_id": run_id, "lane": lane, "run_dir": str(run_dir)}))
+        paths[lane] = path
+
+    monkeypatch.setattr(publisher, "collect_ready_runs", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(publisher, "legacy_article_records", lambda *_args: [{"id": "SOURCE-01"}])
+    monkeypatch.setattr(publisher.pipeline, "load_publication_reference_corpus", lambda *_args: [])
+    monkeypatch.setattr(publisher, "_selected_run_files", lambda _queue, _state, phase, _ids: (
+        [paths["rewrite"]] if phase == "rewrite" else [paths["i18n-new"], paths["i18n-rewrite"]]
+    ))
+    monkeypatch.setattr(publisher, "_load_completed_run", lambda _path: (
+        {"run_id": ids["rewrite"], "run_dir": str(queue / "rewrite" / ids["rewrite"])},
+        {"run_id": ids["rewrite"], "mode": "rewrite_existing_body", "articles": [
+            {"article_id": "SOURCE-01", "bodySections": []},
+        ]},
+        {"run_id": ids["rewrite"], "verdict": "APPROVE"},
+    ))
+    monkeypatch.setattr(publisher, "_retry_eligible", lambda *_args: True)
+    monkeypatch.setattr(publisher, "_review_is_clean_approve", lambda *_args: True)
+    monkeypatch.setattr(publisher, "_load_rewrite_brief", lambda *_args: {})
+    monkeypatch.setattr(publisher, "_rewrite_findings_for_run", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(publisher.pipeline, "body_sha256", lambda *_args: "body-hash")
+    monkeypatch.setattr(publisher, "_filter_rewrite_runs_with_current_sources", lambda _repo, _state, ready, **_kwargs: ready)
+    monkeypatch.setattr(publisher.multilingual, "read_translation_brief_payload", lambda *_args: {"mode": "translate_existing"})
+    monkeypatch.setattr(publisher, "_assert_no_unresolved_push", lambda *_args: None)
+    monkeypatch.setattr(publisher, "_repo_lock_path", lambda *_args: repo / "publisher.lock")
+    monkeypatch.setattr(publisher, "publish_ready_all", lambda *_args, **_kwargs: (
+        _ for _ in ()
+    ).throw(AssertionError("隔離稿不得進入交易")))
+
+    result = publisher.publish_continuous_tick.__wrapped__(
+        repo, queue, state_root, max_runs=1, dry_run=True,
+    )
+    assert result["status"] == "idle"
+    assert not (repo / "publications").exists()
+
+
 @pytest.mark.parametrize("status", ["busy", "failed_recovered"])
 def test_continuous_does_not_try_next_run_after_non_success(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: str,

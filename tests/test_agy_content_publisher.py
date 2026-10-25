@@ -2490,6 +2490,48 @@ def test_collect_ready_translation_runs_does_not_bypass_ledger_lifecycle(
     assert publisher.collect_ready_translation_runs(repo_root, queue_root, state_root) == []
 
 
+@pytest.mark.parametrize("quarantined", [True, False])
+@pytest.mark.parametrize("lane", ["i18n-new", "i18n-rewrite"])
+def test_collect_ready_translation_runs_respects_quarantine(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    quarantined: bool,
+    lane: str,
+) -> None:
+    run_id = "translation-quarantine-fixture"
+    state_root = tmp_path / "state"
+    run_dir = tmp_path / "translation"
+    state_path = tmp_path / "run.json"
+    state = {"run_id": run_id, "run_dir": str(run_dir), "lane": lane, "status": "complete"}
+    brief = {"mode": "translate_existing", "articles": [{"source_article_id": "SOURCE-01", "source_sha256": "same"}]}
+    candidate = {"run_id": run_id, "articles": [{"article_id": "SOURCE-01:en", "source_article_id": "SOURCE-01", "locale": "en"}]}
+    review = {"run_id": run_id}
+    _write_json(state_root / "ledger.json", {
+        "schema_version": 1,
+        "quarantined_runs": ([{"run_id": run_id, "reason": "reviewer rejection"}] if quarantined else []),
+    })
+    _write_json(state_path, state)
+    _write_json(run_dir / "brief.json", brief)
+    _write_json(run_dir / "candidate.json", candidate)
+    _write_json(run_dir / "review.json", review)
+    monkeypatch.setattr(publisher, "_selected_run_files", lambda *_args: [state_path])
+    monkeypatch.setattr(publisher, "_retry_eligible", lambda *_args: True)
+    monkeypatch.setattr(publisher.multilingual, "read_translation_brief_payload", lambda *_args: brief)
+    monkeypatch.setattr(publisher.multilingual, "validate_translation_candidate", lambda *_args: None)
+    monkeypatch.setattr(publisher.pipeline, "validate_review", lambda *_args: None)
+    monkeypatch.setattr(publisher, "_review_is_clean_approve", lambda *_args: True)
+    monkeypatch.setattr(publisher.multilingual, "translation_findings", lambda *_args: [])
+    monkeypatch.setattr(publisher.multilingual, "validate_source_contract", lambda *_args: None)
+    monkeypatch.setattr(publisher.multilingual, "load_source_article", lambda *_args: {})
+    monkeypatch.setattr(publisher.multilingual, "source_sha256", lambda *_args: "same")
+
+    ready = publisher.collect_ready_translation_runs(tmp_path, tmp_path, state_root, lane=lane)
+    assert len(ready) == (0 if quarantined else 1)
+    if quarantined:
+        with pytest.raises(publisher.PublishBlocked, match="no longer eligible"):
+            publisher._revalidate_selected_run_state(state_root, [(state, brief, candidate, review)], "translation")
+
+
 def test_approved_stage_publisher_dry_run_has_zero_runtime_mutation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3022,7 +3064,7 @@ def test_release_namespace_drift_blocks_before_commit(
     )
 
 
-def test_collect_ready_rewrite_runs_ignores_create_quarantine_and_reject(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_collect_ready_rewrite_runs_respects_quarantine_and_reject(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     queue_root = tmp_path / "queue"
     state_root = tmp_path / "state"
     approved = make_rewrite_article("LEGACY-APPROVED", "legacy-approved")
@@ -3041,7 +3083,7 @@ def test_collect_ready_rewrite_runs_ignores_create_quarantine_and_reject(tmp_pat
 
     ready = publisher.collect_ready_rewrite_runs(queue_root, state_root, limit=10)
 
-    assert [state["run_id"] for state, _, _, _ in ready] == ["rewrite-approved"]
+    assert ready == []
 
 
 def test_schema_conformant_rewrite_passes_offline_generation_to_publisher_eligibility(
@@ -3186,7 +3228,7 @@ def test_publish_ready_rewrite_runs_quarantines_identity_drift(
         {
             "schema_version": 1,
             "published_runs": [],
-            "quarantined_runs": [{"run_id": "rewrite-drift", "reason": "publisher only supports create mode"}],
+            "quarantined_runs": [],
             "rewrite_released_runs": [],
         },
     )
