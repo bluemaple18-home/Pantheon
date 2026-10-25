@@ -102,6 +102,10 @@ LOG_NAMES = tuple(
 Runner = Callable[[list[str]], subprocess.CompletedProcess[str]]
 SwapFallback = Callable[[], tuple[int | None, str | None]]
 CapacitySensor = Callable[[Path], dict[str, Any]]
+OperatorAlertSender = Callable[[str], dict[str, Any]]
+OPERATOR_ALERT_TARGET = "channel:1507327728829857822"
+OPERATOR_ALERT_MAX_ATTEMPTS = 3
+OPERATOR_ALERT_RETRY_SECONDS = 60
 
 
 def _verify_private_lock(fd: int, path: Path, *, field: str) -> None:
@@ -2370,9 +2374,10 @@ def check_once(
     *,
     now: float | None = None,
     stop_runner: Runner = _run,
+    alert_sender: OperatorAlertSender | None = None,
 ) -> dict[str, Any]:
     with _state_writer_lock(state_file):
-        return _check_once_state_locked(
+        result = _check_once_state_locked(
             queue_root,
             publisher_root,
             log_root,
@@ -2380,6 +2385,189 @@ def check_once(
             now=now,
             stop_runner=stop_runner,
         )
+    if (
+        alert_sender is not None
+        and result.get("status") == "OPERATOR_REQUIRED"
+        and result.get("state_persisted") is True
+    ):
+        result["operator_alert"] = deliver_operator_required_alert(
+            state_file, alert_sender
+        )
+    return result
+
+
+def _operator_alert_message(state: dict[str, Any], state_file: Path) -> str:
+    incident = state["recovery_incident"]
+    verification = incident.get("stop_verification")
+    stop_not_absent = (
+        isinstance(verification, dict)
+        and any(
+            isinstance(value, dict) and value.get("absent") is False
+            for value in verification.values()
+        )
+    )
+    raw_reasons = list(dict.fromkeys(
+        str(item) for item in (
+            list(incident.get("trigger_reasons") or [])
+            + list(state.get("reasons") or [])
+            + [incident.get("authorization_blocker") or "unknown"]
+            + (["stop_verification_failed"] if stop_not_absent else [])
+        )
+    ))
+    categories: list[str] = []
+    mapping = {
+        "capacity_telemetry_unknown": "遙測未知",
+        "recovery_telemetry_incomplete": "遙測未知",
+        "admission_available_below_stop_floor": "容量底線",
+        "projected_admission_below_reserve": "容量底線",
+        "restart_projection_below_reserve": "容量底線",
+        "project_files_over_budget": "檔案預算",
+        "capacity_stop_effector_failed": "停止失敗",
+        "stop_verification_failed": "停止失敗",
+        "daily_publish_limit_reached": "發布日上限",
+        "pages_hook_secret_unavailable": "網站部署",
+        "pages_hook_attempts_exhausted": "網站部署",
+        "pages_hook_outcome_unknown": "網站部署",
+        "pages_state_invalid": "網站部署",
+        "pages_public_verification_timeout": "公開正文驗證",
+        "publication_readback_mismatch": "其他／未分類",
+    }
+    for reason in raw_reasons:
+        category = mapping.get(reason, "其他／未分類")
+        if category not in categories:
+            categories.append(category)
+    started = incident.get("started_epoch")
+    started_at = (
+        datetime.fromtimestamp(started).astimezone().isoformat(timespec="seconds")
+        if type(started) in (int, float) and math.isfinite(started) and started >= 0
+        else "未知"
+    )
+    return (
+        "🚨 Pantheon 停送，需 Matt／Owner 處理\n"
+        f"incident id：{incident.get('incident_id') or '缺失'}\n"
+        f"原因類別：{'、'.join(categories)}\n"
+        f"原始原因：{', '.join(raw_reasons)}\n"
+        f"起始停送時間：{started_at}\n"
+        f"目前狀態：{state['status']}\n"
+        f"state 路徑：{state_file}\n"
+        "處置：檢查 incident 與服務狀態；不得依此訊息自動解除停送。"
+    )
+
+
+def _send_operator_alert_via_openclaw(message: str) -> dict[str, Any]:
+    node = os.environ.get("PANTHEON_ALERT_NODE_BIN")
+    openclaw = os.environ.get("PANTHEON_ALERT_OPENCLAW_BIN")
+    if not node or not openclaw:
+        return {"status": "FAILED", "error": "alert_sender_not_configured"}
+    try:
+        process = subprocess.run(
+            [node, openclaw, "message", "send", "--channel", "discord",
+             "--target", OPERATOR_ALERT_TARGET, "--message", message, "--json"],
+            capture_output=True, text=True, timeout=20, check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return {"status": "UNKNOWN", "error": "send_timeout_outcome_unconfirmed"}
+    except OSError as error:
+        return {"status": "FAILED", "error": type(error).__name__}
+    if process.returncode != 0:
+        return {
+            "status": "FAILED", "error": "openclaw_nonzero",
+            "returncode": process.returncode,
+            "platform_output": (process.stderr or process.stdout)[-1000:],
+        }
+    try:
+        payload = json.loads(process.stdout)
+        receipt = payload["payload"]["result"]["receipt"]
+        message_id = receipt["primaryPlatformMessageId"]
+        if (
+            payload.get("channel") != "discord"
+            or payload.get("dryRun") is not False
+            or payload["payload"].get("to") != OPERATOR_ALERT_TARGET
+            or not isinstance(message_id, str)
+            or not message_id
+        ):
+            raise ValueError("platform receipt identity mismatch")
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return {"status": "UNKNOWN", "error": "platform_receipt_unverified"}
+    return {
+        "status": "PLATFORM_ACCEPTED", "platform_message_id": message_id,
+        "channel": "discord", "target": OPERATOR_ALERT_TARGET,
+    }
+
+
+def deliver_operator_required_alert(
+    state_file: Path,
+    sender: OperatorAlertSender,
+    *,
+    now: float | None = None,
+) -> dict[str, Any]:
+    """在 Guard tick 解鎖後派送；既有 state 保存有界重試與不確定結果。"""
+    timestamp = time.time() if now is None else now
+    with _state_writer_lock(state_file):
+        state, error = _read_state(state_file)
+        if error or not _state_file_is_private(state_file):
+            return {"status": "UNKNOWN", "error": error or "state_identity_untrusted"}
+        incident = state.get("recovery_incident")
+        if state.get("status") != "OPERATOR_REQUIRED" or not isinstance(incident, dict):
+            return {"status": "SKIPPED", "error": "no_operator_incident"}
+        incident_id = incident.get("incident_id")
+        if not isinstance(incident_id, str) or not incident_id:
+            return {"status": "UNKNOWN", "error": "incident_id_missing"}
+        alert = incident.get("operator_alert") or {}
+        if alert.get("incident_id") not in (None, incident_id):
+            return {"status": "UNKNOWN", "error": "alert_incident_identity_mismatch"}
+        if alert.get("status") in {"PLATFORM_ACCEPTED", "EXHAUSTED", "UNKNOWN"}:
+            return dict(alert)
+        if alert.get("status") == "SENDING":
+            if timestamp - alert.get("attempted_epoch", timestamp) < 30:
+                return dict(alert)
+            alert = {**alert, "status": "UNKNOWN", "error": "send_outcome_unconfirmed"}
+            incident["operator_alert"] = alert
+            _write_state(state_file, state)
+            return dict(alert)
+        attempts = alert.get("attempts", 0)
+        if type(attempts) is not int or attempts < 0 or attempts >= OPERATOR_ALERT_MAX_ATTEMPTS:
+            return {"status": "UNKNOWN", "error": "alert_attempts_invalid"}
+        if (
+            alert.get("status") == "FAILED"
+            and timestamp - alert.get("attempted_epoch", 0) < OPERATOR_ALERT_RETRY_SECONDS
+        ):
+            return dict(alert)
+        alert = {
+            "incident_id": incident_id, "status": "SENDING", "attempts": attempts + 1,
+            "attempted_epoch": timestamp, "channel": "discord",
+            "target": OPERATOR_ALERT_TARGET,
+        }
+        incident["operator_alert"] = alert
+        message = _operator_alert_message(state, state_file)
+        _write_state(state_file, state)
+    try:
+        outcome = sender(message)
+        if not isinstance(outcome, dict):
+            outcome = {"status": "UNKNOWN", "error": "sender_result_invalid"}
+    except Exception as error:
+        outcome = {"status": "UNKNOWN", "error": type(error).__name__}
+    status = outcome.get("status")
+    if status not in {"FAILED", "PLATFORM_ACCEPTED", "UNKNOWN"}:
+        outcome = {"status": "UNKNOWN", "error": "sender_status_invalid"}
+        status = "UNKNOWN"
+    if status == "PLATFORM_ACCEPTED" and not outcome.get("platform_message_id"):
+        outcome = {"status": "UNKNOWN", "error": "platform_message_id_missing"}
+        status = "UNKNOWN"
+    with _state_writer_lock(state_file):
+        state, error = _read_state(state_file)
+        incident = state.get("recovery_incident")
+        if error or not isinstance(incident, dict) or incident.get("incident_id") != incident_id:
+            return {"status": "UNKNOWN", "error": "state_changed_after_send"}
+        current = incident.get("operator_alert") or {}
+        if current.get("status") != "SENDING" or current.get("attempts") != attempts + 1:
+            return {"status": "UNKNOWN", "error": "alert_reservation_changed"}
+        final = {**alert, **outcome}
+        if status == "FAILED" and attempts + 1 >= OPERATOR_ALERT_MAX_ATTEMPTS:
+            final["status"] = "EXHAUSTED"
+        incident["operator_alert"] = final
+        _write_state(state_file, state)
+        return dict(final)
 
 
 def _check_once_state_locked(
@@ -3699,6 +3887,7 @@ def main() -> int:
             args.publisher_root,
             args.log_root,
             args.state_file,
+            alert_sender=_send_operator_alert_via_openclaw,
         )
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0 if result["status"] == "PASS" else 1

@@ -2342,6 +2342,7 @@ def test_collect_ready_translation_runs_orders_fresh_runs_by_registered_at(
                 "run_id": run_id,
                 "run_dir": str(run_dir),
                 "registered_at": registered_at,
+                "lane": "i18n-new" if locale == "en" else "i18n-rewrite",
                 "status": "complete",
                 "result": {"candidate": str(run_dir / "candidate.json")},
             },
@@ -2364,6 +2365,10 @@ def test_collect_ready_translation_runs_orders_fresh_runs_by_registered_at(
     )
 
     assert [state["run_id"] for state, _, _, _ in ready] == ["translate-older"]
+    rewrite_ready = publisher.collect_ready_translation_runs(
+        tmp_path, queue_root, tmp_path / "state", limit=1, lane="i18n-rewrite"
+    )
+    assert [state["run_id"] for state, _, _, _ in rewrite_ready] == ["translate-newer"]
 
 
 def _sealed_publisher_fixture(

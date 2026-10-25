@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import functools
 import hashlib
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 import fcntl
 import json
 import os
@@ -25,6 +26,8 @@ from typing import Any, Callable
 from scripts import agy_multilingual_pipeline as multilingual
 from scripts import agy_seo_copy_pipeline as pipeline
 from scripts import pantheon_content_runtime_manifest as formal_runtime
+from scripts import pantheon_content_capacity_guard as capacity_guard
+from scripts import pantheon_pages_deploy as pages_deploy
 from scripts.pantheon_runtime_fs_authority import (
     FilesystemAuthorityError,
     OperationTraceRecorder,
@@ -36,6 +39,9 @@ from scripts.pantheon_runtime_fs_authority import (
 SCHEMA_VERSION = 1
 RUNTIME_MANIFEST_SCHEMA_VERSION = 1
 DEFAULT_MAX_RUNS = 3
+CONTINUOUS_LANES = ("new", "i18n-new", "rewrite", "i18n-rewrite")
+CONTINUOUS_DAILY_MAX_ARTICLES = 300
+CONTINUOUS_TIMEZONE = ZoneInfo("Asia/Taipei")
 PUBLISHER_ID = "agy-content-publisher"
 LEGACY_ARTICLE_COUNT_CUTOFF = 353
 LEGACY_CUTOFF_REASON = "articles present before automated Gemini publisher v0.3.1 / harness-new-*"
@@ -43,6 +49,7 @@ GitRunner = Callable[[Path, list[str], str | None], str]
 TRANSACTION_RUNTIME_PATHS = (
     "app/core/article_publication_policy_v2.json",
     "scripts/agy_content_publisher.py",
+    "scripts/pantheon_pages_deploy.py",
     "scripts/agy_seo_copy_pipeline.py",
     "scripts/agy_multilingual_pipeline.py",
     "scripts/prerender_article_shells.py",
@@ -3331,6 +3338,7 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
             *args: Any,
             **kwargs: Any,
         ) -> dict[str, Any]:
+            continuous_day = kwargs.pop("continuous_day", None)
             _validate_formal_runtime(repo_root, queue_root, state_root)
             git = kwargs.get("git", run_git)
             state_root.mkdir(parents=True, exist_ok=True)
@@ -3345,6 +3353,13 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                     if phase == "translation" and control.get("status") == "PUSH_PREPARED" and selected == frozenset({str(control.get("run_id"))}):
                         return _resume_prepared_translation(repo_root, queue_root, state_root, git, control, _mutation_journal=journal)
                     _assert_no_unresolved_push(state_root)
+                if continuous_day is not None:
+                    count, _ = _continuous_daily_usage(queue_root, state_root, continuous_day)
+                    if count >= CONTINUOUS_DAILY_MAX_ARTICLES:
+                        return {
+                            "schema_version": SCHEMA_VERSION,
+                            "status": "daily_limit", "daily_articles": count,
+                        }
                 base_sha = _assert_clean_origin_head(repo_root, git)
                 kwargs["_transaction_base_sha"] = base_sha
                 kwargs["_mutation_journal"] = journal
@@ -3525,6 +3540,74 @@ def _load_ledger(state_root: Path) -> dict[str, Any]:
     ledger.setdefault("translation_published_runs", [])
     ledger.setdefault("translation_deferred_runs", [])
     return ledger
+
+
+def _continuous_daily_usage(
+    queue_root: Path, state_root: Path, day: str,
+) -> tuple[int, str | None]:
+    """由既有已發布 ledger 與原候選重建篇數、最後成功線別。"""
+    if date.fromisoformat(day).isoformat() != day:
+        raise PublishBlocked("continuous publisher day is invalid")
+    ledger = _load_ledger(state_root)
+    records: list[tuple[datetime, tuple[int, ...], str, str]] = []
+    for bucket in ("published_runs", "rewrite_released_runs", "translation_published_runs"):
+        for entry in ledger[bucket]:
+            if not isinstance(entry, dict):
+                raise PublishBlocked("continuous publisher ledger entry is invalid")
+            try:
+                stamped = datetime.fromisoformat(entry["published_at"])
+                version = tuple(int(part) for part in entry["version"].split("."))
+                run_id = entry["run_id"]
+            except (KeyError, TypeError, ValueError) as error:
+                raise PublishBlocked("continuous publisher ledger identity is incomplete") from error
+            if stamped.tzinfo is None or not entry.get("commit_sha") or not run_id:
+                raise PublishBlocked("continuous publisher ledger push identity is incomplete")
+            records.append((stamped.astimezone(CONTINUOUS_TIMEZONE), version, run_id, bucket))
+    if not records:
+        return 0, None
+    recent = max(records, key=lambda item: (item[0], item[1]))
+    today = [item for item in records if item[0].date().isoformat() == day]
+    needed = {recent[2], *(item[2] for item in today)}
+    paths: dict[str, Path] = {}
+    for path in _run_files(queue_root):
+        try:
+            state = _read_json(path)
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        run_id = state.get("run_id")
+        if run_id in needed:
+            if run_id in paths:
+                raise PublishBlocked("continuous publisher run identity is duplicated")
+            paths[run_id] = path
+    if set(paths) != needed:
+        raise PublishBlocked("continuous publisher published run source is missing")
+
+    def source(run_id: str, bucket: str) -> tuple[str, int]:
+        state = _read_json(paths[run_id])
+        lane = state.get("lane")
+        expected = {
+            "published_runs": {"new"},
+            "rewrite_released_runs": {"rewrite"},
+            "translation_published_runs": {"i18n-new", "i18n-rewrite"},
+        }[bucket]
+        if lane not in expected:
+            raise PublishBlocked("continuous publisher ledger lane differs from queue")
+        run_dir = Path(str(state.get("run_dir") or ""))
+        result = state.get("result") if isinstance(state.get("result"), dict) else {}
+        candidate_path = Path(str(result.get("candidate") or run_dir / "candidate.json"))
+        if not candidate_path.resolve().is_relative_to(queue_root.resolve()):
+            raise PublishBlocked("continuous publisher candidate is outside queue")
+        candidate = _read_json(candidate_path)
+        articles = candidate.get("articles")
+        if candidate.get("run_id") != run_id or not isinstance(articles, list) or not articles:
+            raise PublishBlocked("continuous publisher candidate article identity is incomplete")
+        if lane.startswith("i18n-") and len(articles) != 1:
+            raise PublishBlocked("continuous publisher translation is not single article")
+        return lane, len(articles)
+
+    last_lane, _ = source(recent[2], recent[3])
+    count = sum(source(run_id, bucket)[1] for _, _, run_id, bucket in today)
+    return count, last_lane
 
 
 def _ledger_article_ids(entry: object, label: str) -> list[str]:
@@ -3773,8 +3856,11 @@ def collect_ready_translation_runs(
     *,
     limit: int = DEFAULT_MAX_RUNS,
     exact_run_ids: Iterable[str] | None = None,
+    lane: str | None = None,
 ) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]]:
     """只收乾淨通過的單語 run；其餘保留並移入待修清單。"""
+    if lane is not None and lane not in {"i18n-new", "i18n-rewrite"}:
+        raise PublishBlocked("translation lane selector is invalid")
     selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     ledger = _load_ledger(state_root)
     published = {str(item.get("run_id")) for item in ledger["translation_published_runs"]}
@@ -3785,6 +3871,8 @@ def collect_ready_translation_runs(
     ):
         try:
             state = _read_json(state_path)
+            if lane is not None and state.get("lane") != lane:
+                continue
             run_id = str(state.get("run_id") or "")
             run_dir = Path(str(state.get("run_dir") or ""))
             brief_path = run_dir / "brief.json"
@@ -5794,6 +5882,7 @@ def publish_ready_all(
     release_gate: bool = True,
     git: GitRunner = run_git,
     exact_run_ids: Iterable[str] | None = None,
+    continuous_day: str | None = None,
 ) -> dict[str, Any]:
     """同一輪先處理新文、舊文，再發布已通過的多語版本。"""
     selected = _normalize_exact_run_ids(exact_run_ids)
@@ -5805,6 +5894,7 @@ def publish_ready_all(
             repo_root, queue_root, state_root, max_runs=max_runs, dry_run=dry_run,
             push=push, run_tests=run_tests, release_gate=release_gate, git=git,
             exact_run_ids=selected,
+            **({"continuous_day": continuous_day} if continuous_day is not None else {}),
         )
         results = {name: {"status": "idle", "selected": False} for name in publishers}
         results[lane] = result
@@ -5859,6 +5949,259 @@ def publish_ready_all(
     }
 
 
+def _continuous_blocker(
+    state_root: Path, reason: str, day: str,
+    sender: capacity_guard.OperatorAlertSender | None,
+) -> dict[str, Any]:
+    state_file = state_root / "continuous-publisher-stop.json"
+    incident_id = f"continuous-publisher-{day}-{reason}"
+    with capacity_guard._state_writer_lock(state_file):
+        previous, error = capacity_guard._read_state(state_file)
+        if error:
+            raise PublishBlocked("continuous publisher stop state is unreadable")
+        if previous.get("status") == "OPERATOR_REQUIRED":
+            incident = previous.get("recovery_incident") or {}
+            if incident.get("incident_id") != incident_id:
+                return {"schema_version": SCHEMA_VERSION, "status": "OPERATOR_REQUIRED",
+                        "reason": incident.get("authorization_blocker", "previous_stop")}
+        else:
+            timestamp = time.time()
+            previous = {
+                "schema_version": 2, "status": "OPERATOR_REQUIRED", "reasons": [reason],
+                "recovery_incident": {
+                    "incident_id": incident_id, "schema_version": 2,
+                    "status": "OPERATOR_REQUIRED", "started_epoch": timestamp,
+                    "trigger_reasons": [reason], "authorization_blocker": reason,
+                },
+            }
+            capacity_guard._write_state(state_file, previous)
+    result = {"schema_version": SCHEMA_VERSION, "status": "OPERATOR_REQUIRED",
+              "reason": reason, "state_file": str(state_file)}
+    if sender is not None:
+        result["operator_alert"] = capacity_guard.deliver_operator_required_alert(
+            state_file, sender
+        )
+    return result
+
+
+def _select_continuous_run(
+    repo_root: Path, queue_root: Path, state_root: Path,
+    start: int, git: GitRunner, *, record_attempt: bool = True,
+) -> tuple[str, str, str] | None | str:
+    """鎖內先記線別嘗試，讓例外與交易失敗也能在下個 tick 讓位。"""
+    journal = MutationJournal(repo_root, git)
+    with journal.state_scope(state_root) as admitted:
+        if not admitted:
+            return "busy"
+        cursor_file = state_root / "continuous-publisher-attempt.json"
+        if cursor_file.is_symlink():
+            raise PublishBlocked("continuous publisher attempt state is untrusted")
+        if cursor_file.exists():
+            try:
+                cursor = _read_json(cursor_file)
+                if (not isinstance(cursor, dict)
+                        or set(cursor) != {"last_attempted_lane", "attempted_at"}
+                        or cursor["last_attempted_lane"] not in CONTINUOUS_LANES
+                        or datetime.fromisoformat(cursor["attempted_at"]).tzinfo is None):
+                    raise ValueError("invalid attempt state")
+            except (OSError, ValueError, TypeError) as error:
+                raise PublishBlocked("continuous publisher attempt state is invalid") from error
+            start = (CONTINUOUS_LANES.index(cursor["last_attempted_lane"]) + 1) % len(CONTINUOUS_LANES)
+        for offset in range(len(CONTINUOUS_LANES)):
+            lane = CONTINUOUS_LANES[(start + offset) % len(CONTINUOUS_LANES)]
+            if record_attempt:
+                # 線別查詢也可能拋錯；先落盤，不宣稱已套用或取得重試授權。
+                _atomic_write_json(cursor_file, {
+                    "last_attempted_lane": lane,
+                    "attempted_at": datetime.now(CONTINUOUS_TIMEZONE).isoformat(),
+                })
+            if lane == "new":
+                ready = collect_ready_runs(
+                    queue_root, state_root, limit=1, repo_root=repo_root,
+                )
+                phase = "create"
+            elif lane == "rewrite":
+                legacy_records = legacy_article_records(repo_root)
+                ready = collect_ready_rewrite_runs(
+                    queue_root, state_root, limit=1, repo_root=repo_root,
+                    allowed_article_ids={str(item["id"]) for item in legacy_records},
+                )
+                ready = _filter_rewrite_runs_with_current_sources(
+                    repo_root, state_root, ready, quarantine=True,
+                )
+                phase = "rewrite"
+            else:
+                ready = collect_ready_translation_runs(
+                    repo_root, queue_root, state_root, limit=1, lane=lane,
+                )
+                phase = "translation"
+            if ready:
+                run_id = str(ready[0][0]["run_id"])
+                _exact_article_identity(ready, phase, frozenset({run_id}))
+                return lane, phase, run_id
+    return None
+
+
+def _pages_snapshot(repo_root: Path, entry: dict, git: GitRunner) -> dict:
+    """綁目前遠端 main 與主入口既有交易 checkout 的最新已推送正文。"""
+    remote = git(repo_root, ["ls-remote", "origin", "refs/heads/main"], None).split()
+    if (len(remote) != 2 or re.fullmatch(r"[0-9a-f]{40}", remote[0]) is None
+            or remote[0] != git(repo_root, ["rev-parse", "HEAD"], None)):
+        raise PublishBlocked("pages remote snapshot changed")
+    git(repo_root, ["merge-base", "--is-ancestor", entry["commit_sha"], remote[0]], None)
+    if entry.get("locale"):
+        records = [r for r in multilingual._locale_inventory(repo_root)
+                   if r.get("articleId") == entry["article_id"] and r.get("locale") == entry["locale"]]
+        if len(records) != 1 or entry["locale"] not in {"en", "ja", "ko"}:
+            raise PublishBlocked("pages translated article identity differs")
+        record = records[0]
+        path = f'/{entry["locale"]}{record["sourcePath"]}'
+        sections = record["bodySections"]
+    else:
+        article_ids = entry["article_ids"]
+        if len(article_ids) != 1:
+            raise PublishBlocked("pages latest publication is not one article")
+        record = pipeline._existing_rewrite_inventory(repo_root)[article_ids[0]]
+        path, sections = record["canonicalPath"], record["currentBody"]
+    paragraphs = [paragraph for section in sections for paragraph in section["paragraphs"]]
+    return {"observed_remote_commit": remote[0], "url": pages_deploy.PUBLIC_ORIGIN + path,
+            "body_sha256": pages_deploy.body_digest(paragraphs), "paragraph_count": len(paragraphs)}
+
+
+def _pages_deploy_tick(repo_root: Path, state_root: Path, git: GitRunner, *,
+                       post: Callable[[], dict] | None = None,
+                       verify: Callable[[dict], dict] | None = None) -> dict:
+    journal = MutationJournal(repo_root, git)
+    with journal.state_scope(state_root) as admitted:
+        if not admitted:
+            return {"status": "busy"}
+        ledger = _load_ledger(state_root)
+        entries = [entry for key in ("published_runs", "rewrite_released_runs", "translation_published_runs")
+                   for entry in ledger[key]]
+        latest = max(entries, key=lambda entry: (
+            datetime.fromisoformat(entry["published_at"]),
+            tuple(int(part) for part in entry["version"].split(".")),
+        )) if entries else None
+        identity = (f'{latest["commit_sha"]}:{latest["run_id"]}:{latest.get("locale", "zh-Hant")}'
+                    if latest else None)
+        return pages_deploy.tick(
+            state_root / "pages-deployment.json", identity,
+            lambda: _pages_snapshot(repo_root, latest, git), _atomic_write_json,
+            post=post or pages_deploy.post_from_keychain,
+            verify=verify or pages_deploy.verify_public_body,
+        )
+
+
+@formal_runtime.with_runtime_work_lease
+def publish_continuous_tick(
+    repo_root: Path,
+    queue_root: Path,
+    state_root: Path,
+    *,
+    max_runs: int = 1,
+    dry_run: bool = False,
+    push: bool = False,
+    run_tests: bool = True,
+    release_gate: bool = True,
+    git: GitRunner = run_git,
+    alert_sender: capacity_guard.OperatorAlertSender | None = None,
+    pages_enabled: bool = False,
+    pages_post: Callable[[], dict] | None = None,
+    pages_verify: Callable[[dict], dict] | None = None,
+) -> dict[str, Any]:
+    """四線輪流，每次只交一個既有 G1 exact 交易。"""
+    if max_runs != 1 or (not dry_run and not push):
+        raise PublishBlocked("continuous tick requires max_runs=1 and push")
+    stop_file = state_root / "continuous-publisher-stop.json"
+    previous_stop, stop_error = capacity_guard._read_state(stop_file)
+    if stop_error:
+        raise PublishBlocked("continuous publisher stop state is unreadable")
+    if stop_file.exists() and not capacity_guard._state_file_is_private(stop_file):
+        raise PublishBlocked("continuous publisher stop state identity is untrusted")
+    if previous_stop.get("status") == "OPERATOR_REQUIRED":
+        result = {"schema_version": SCHEMA_VERSION, "status": "OPERATOR_REQUIRED",
+                  "reason": "previous_stop", "state_file": str(stop_file)}
+        if alert_sender is not None:
+            result["operator_alert"] = capacity_guard.deliver_operator_required_alert(
+                stop_file, alert_sender
+            )
+        return result
+    _assert_no_unresolved_push(state_root)
+    deployment = {"status": "not_enabled"}
+    if pages_enabled and not dry_run:
+        deployment = _pages_deploy_tick(
+            repo_root, state_root, git, post=pages_post, verify=pages_verify,
+        )
+        if deployment["status"] == "busy":
+            return {"schema_version": SCHEMA_VERSION, "status": "busy"}
+        if deployment["status"] == "OPERATOR_REQUIRED":
+            return _continuous_blocker(
+                state_root, deployment["reason"],
+                datetime.now(CONTINUOUS_TIMEZONE).date().isoformat(), alert_sender,
+            )
+    day = datetime.now(CONTINUOUS_TIMEZONE).date().isoformat()
+    before, last_lane = _continuous_daily_usage(queue_root, state_root, day)
+    if before >= CONTINUOUS_DAILY_MAX_ARTICLES:
+        return _continuous_blocker(
+            state_root, "daily_publish_limit_reached", day, alert_sender
+        )
+    start = (
+        (CONTINUOUS_LANES.index(last_lane) + 1) % len(CONTINUOUS_LANES)
+        if last_lane is not None else 0
+    )
+    selected = _select_continuous_run(
+        repo_root, queue_root, state_root, start, git, record_attempt=not dry_run,
+    )
+    if selected == "busy":
+        return {"schema_version": SCHEMA_VERSION, "status": "busy"}
+    if selected is not None:
+        lane, phase, run_id = selected
+        aggregate = publish_ready_all(
+            repo_root, queue_root, state_root, max_runs=1, dry_run=dry_run,
+            push=push, run_tests=run_tests, release_gate=release_gate, git=git,
+            exact_run_ids=[run_id], continuous_day=day if not dry_run else None,
+        )
+        lane_result = aggregate[phase]
+        status = lane_result.get("status")
+        if status == "daily_limit":
+            return _continuous_blocker(
+                state_root, "daily_publish_limit_reached", day, alert_sender
+            )
+        if status not in {"PUBLISHED", "PUBLISHED_REWRITE", "PUBLISHED_TRANSLATION"}:
+            return {"schema_version": SCHEMA_VERSION, "status": status,
+                    "lane": lane, "run_id": run_id, "result": lane_result}
+        if dry_run:
+            return {"schema_version": SCHEMA_VERSION, "status": "dry-run",
+                    "lane": lane, "run_id": run_id, "result": lane_result}
+        end_day = datetime.now(CONTINUOUS_TIMEZONE).date().isoformat()
+        after, observed_lane = _continuous_daily_usage(queue_root, state_root, end_day)
+        bucket = {
+            "create": "published_runs", "rewrite": "rewrite_released_runs",
+            "translation": "translation_published_runs",
+        }[phase]
+        matching = [entry for entry in _load_ledger(state_root)[bucket]
+                    if entry.get("run_id") == run_id
+                    and entry.get("commit_sha") == lane_result.get("commit_sha")]
+        recorded_day = (
+            datetime.fromisoformat(matching[0]["published_at"])
+            .astimezone(CONTINUOUS_TIMEZONE).date().isoformat()
+            if len(matching) == 1 else None
+        )
+        count_valid = after == before + 1 if end_day == day else 1 <= after <= CONTINUOUS_DAILY_MAX_ARTICLES
+        if (not count_valid or recorded_day != end_day
+                or observed_lane != lane or len(matching) != 1
+                or lane_result.get("pushed") is not True
+                or lane_result.get("run_ids") != [run_id]):
+            return _continuous_blocker(
+                state_root, "publication_readback_mismatch", day, alert_sender
+            )
+        return {"schema_version": SCHEMA_VERSION, "status": status,
+                "lane": lane, "run_id": run_id, "daily_articles": after,
+                "result": lane_result, "deployment": deployment}
+    return {"schema_version": SCHEMA_VERSION, "status": "idle",
+            "daily_articles": before, "deployment": deployment}
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
@@ -5872,6 +6215,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--rewrite-release", action="store_true")
     parser.add_argument("--include-rewrites", action="store_true")
+    parser.add_argument("--continuous-tick", action="store_true")
+    parser.add_argument("--pages-deploy", action="store_true")
     parser.add_argument("--new-only", action="store_true")
     parser.add_argument("--legacy-report", action="store_true")
     parser.add_argument("--reconcile-unresolved-push", action="store_true",
@@ -5948,6 +6293,18 @@ def main() -> int:
         raise SystemExit("exact fresh JA prepare returns the deterministic run id; publish it in a later command")
     if fresh_ja_run_id is not None and exact_run_ids is not None:
         raise SystemExit("--exact-fresh-ja-run-id cannot be combined with --exact-run-id")
+    continuous_tick = bool(getattr(args, "continuous_tick", False))
+    if getattr(args, "pages_deploy", False) and not continuous_tick:
+        raise SystemExit("pages deployment requires continuous tick")
+    if continuous_tick and (
+        not args.include_rewrites or args.max_runs != 1
+        or exact_run_ids is not None or fresh_ja_run_id is not None
+        or fresh_ja_prepare or args.rewrite_release or args.new_only
+        or args.legacy_report or args.reconcile_unresolved_push
+    ):
+        raise SystemExit("continuous tick requires include-rewrites, max-runs 1, and no other selector")
+    if continuous_tick and not args.dry_run and not args.push:
+        raise SystemExit("continuous tick requires push")
     selector_kwargs = (
         {"exact_run_ids": exact_run_ids} if exact_run_ids is not None else {}
     )
@@ -5992,7 +6349,11 @@ def main() -> int:
         or args.legacy_report
     ):
         raise SystemExit("review quarantine recovery cannot be combined with release modes")
-    if fresh_ja_run_id is not None:
+    if continuous_tick:
+        publisher_fn = publish_continuous_tick
+        selector_kwargs["alert_sender"] = capacity_guard._send_operator_alert_via_openclaw
+        selector_kwargs["pages_enabled"] = bool(getattr(args, "pages_deploy", False))
+    elif fresh_ja_run_id is not None:
         publisher_fn = None
     elif args.include_rewrites:
         publisher_fn = publish_ready_all
@@ -6019,6 +6380,8 @@ def main() -> int:
         value is not None for value in contract_values
     ):
         raise SystemExit("exact canary requires a complete deployment contract")
+    if continuous_tick and not all(value is not None for value in contract_values):
+        raise SystemExit("continuous tick requires a complete deployment contract")
     if any(value is not None for value in contract_values) and not all(
         value is not None for value in contract_values
     ):

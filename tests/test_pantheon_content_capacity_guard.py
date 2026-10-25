@@ -21,6 +21,161 @@ from scripts import pantheon_content_runtime_manifest as runtime_manifest
 _CANONICAL_PROCESS_BOUNDARY = guard.runtime_activation.run_process_boundary
 
 
+def _operator_alert_state(path: Path, *, reasons: list[str] | None = None) -> None:
+    guard._write_state(path, {
+        "schema_version": 2, "status": "OPERATOR_REQUIRED", "reasons": [],
+        "recovery_incident": {
+            "incident_id": "incident-1", "status": "OPERATOR_REQUIRED",
+            "started_epoch": 1_700_000_000,
+            "trigger_reasons": reasons or ["capacity_telemetry_unknown"],
+            "authorization_blocker": "automatic_recovery_attempt_limit_reached",
+        },
+    })
+
+
+def test_operator_alert_categories_keep_raw_and_composite_reasons(tmp_path: Path) -> None:
+    path = tmp_path / "state.json"
+    _operator_alert_state(path, reasons=[
+        "capacity_telemetry_unknown", "admission_available_below_stop_floor",
+        "project_files_over_budget", "capacity_stop_effector_failed", "future_reason",
+    ])
+    state = json.loads(path.read_text())
+    message = guard._operator_alert_message(state, path)
+    for category in ("遙測未知", "容量底線", "檔案預算", "停止失敗", "其他／未分類"):
+        assert category in message
+    for reason in state["recovery_incident"]["trigger_reasons"]:
+        assert reason in message
+    assert "incident-1" in message and str(path) in message
+
+
+def test_operator_alert_acceptance_is_durable_and_suppresses_duplicate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "state.json"
+    _operator_alert_state(path)
+    monkeypatch.delenv("DISPLAY", raising=False)
+    calls: list[str] = []
+
+    def sender(message: str) -> dict:
+        calls.append(message)
+        return {"status": "PLATFORM_ACCEPTED", "platform_message_id": "discord-123"}
+
+    first = guard.deliver_operator_required_alert(path, sender, now=1000)
+    second = guard.deliver_operator_required_alert(path, sender, now=1061)
+    assert first["status"] == second["status"] == "PLATFORM_ACCEPTED"
+    assert first["platform_message_id"] == "discord-123"
+    assert len(calls) == 1
+    assert json.loads(path.read_text())["recovery_incident"]["operator_alert"] == first
+
+
+def test_operator_alert_bounded_retry_and_exhaustion(tmp_path: Path) -> None:
+    path = tmp_path / "state.json"
+    _operator_alert_state(path)
+    calls: list[str] = []
+
+    def sender(message: str) -> dict:
+        calls.append(message)
+        return {"status": "FAILED", "error": "network_unavailable", "returncode": 1}
+
+    statuses = [
+        guard.deliver_operator_required_alert(path, sender, now=1000)["status"],
+        guard.deliver_operator_required_alert(path, sender, now=1030)["status"],
+        guard.deliver_operator_required_alert(path, sender, now=1060)["status"],
+        guard.deliver_operator_required_alert(path, sender, now=1120)["status"],
+        guard.deliver_operator_required_alert(path, sender, now=1180)["status"],
+    ]
+    assert statuses == ["FAILED", "FAILED", "FAILED", "EXHAUSTED", "EXHAUSTED"]
+    assert len(calls) == 3
+    assert json.loads(path.read_text())["recovery_incident"]["operator_alert"]["error"] == "network_unavailable"
+
+
+def test_operator_alert_interrupted_send_is_unknown_and_not_resent(tmp_path: Path) -> None:
+    path = tmp_path / "state.json"
+    _operator_alert_state(path)
+    state = json.loads(path.read_text())
+    state["recovery_incident"]["operator_alert"] = {
+        "incident_id": "incident-1", "status": "SENDING", "attempts": 1,
+        "attempted_epoch": 1000, "channel": "discord",
+        "target": guard.OPERATOR_ALERT_TARGET,
+    }
+    guard._write_state(path, state)
+    result = guard.deliver_operator_required_alert(
+        path, lambda _: pytest.fail("ambiguous send must not replay"), now=1060,
+    )
+    assert result["status"] == "UNKNOWN"
+    assert guard.deliver_operator_required_alert(
+        path, lambda _: pytest.fail("unknown send must not replay"), now=1120,
+    )["status"] == "UNKNOWN"
+
+
+def test_openclaw_sender_requires_platform_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PANTHEON_ALERT_NODE_BIN", "/mock/node")
+    monkeypatch.setenv("PANTHEON_ALERT_OPENCLAW_BIN", "/mock/openclaw.mjs")
+    seen: list[list[str]] = []
+
+    def run(command: list[str], **kwargs):
+        seen.append(command)
+        return subprocess.CompletedProcess(command, 0, json.dumps({
+            "channel": "discord", "dryRun": False,
+            "payload": {"to": guard.OPERATOR_ALERT_TARGET, "result": {
+                "receipt": {"primaryPlatformMessageId": "123"},
+            }},
+        }), "")
+
+    monkeypatch.setattr(guard.subprocess, "run", run)
+    outcome = guard._send_operator_alert_via_openclaw("test")
+    assert outcome["status"] == "PLATFORM_ACCEPTED"
+    assert outcome["platform_message_id"] == "123"
+    assert seen[0][2:8] == ["message", "send", "--channel", "discord", "--target", guard.OPERATOR_ALERT_TARGET]
+
+
+def test_openclaw_sender_timeout_keeps_unknown_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PANTHEON_ALERT_NODE_BIN", "/mock/node")
+    monkeypatch.setenv("PANTHEON_ALERT_OPENCLAW_BIN", "/mock/openclaw.mjs")
+
+    def timeout(command: list[str], **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(guard.subprocess, "run", timeout)
+    outcome = guard._send_operator_alert_via_openclaw("test")
+    assert outcome == {"status": "UNKNOWN", "error": "send_timeout_outcome_unconfirmed"}
+
+
+def test_guard_check_sends_only_after_durable_operator_state_and_unlock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "state.json"
+
+    def check(*_args, **_kwargs):
+        _operator_alert_state(path)
+        return {**json.loads(path.read_text()), "state_persisted": True}
+
+    monkeypatch.setattr(guard, "_check_once_state_locked", check)
+    result = guard.check_once(tmp_path, tmp_path, tmp_path, path,
+                              alert_sender=lambda _: {
+                                  "status": "PLATFORM_ACCEPTED",
+                                  "platform_message_id": "discord-guard",
+                              })
+    assert result["operator_alert"]["platform_message_id"] == "discord-guard"
+    assert json.loads(path.read_text())["recovery_incident"]["operator_alert"]["status"] == "PLATFORM_ACCEPTED"
+
+
+def test_guard_does_not_send_when_operator_state_failed_to_persist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(guard, "_check_once_state_locked",
+                        lambda *_args, **_kwargs: {
+                            "status": "OPERATOR_REQUIRED", "state_persisted": False,
+                        })
+    result = guard.check_once(tmp_path, tmp_path, tmp_path, tmp_path / "state.json",
+                              alert_sender=lambda _: pytest.fail("unpersisted alert must not send"))
+    assert "operator_alert" not in result
+
+
 ANONYMIZED_INERT_LAUNCHCTL_FIXTURE = """<target> = {
 \tactive count = 0
 \tstate = not running
