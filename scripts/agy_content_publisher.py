@@ -6093,6 +6093,28 @@ def _pages_deploy_tick(repo_root: Path, state_root: Path, git: GitRunner, *,
         )
 
 
+def _continuous_preexisting_stop(
+    state_root: Path,
+    alert_sender: capacity_guard.OperatorAlertSender | None,
+) -> dict[str, Any] | None:
+    """讓 CLI 與 tick 共用停送判斷；既有停送先於交易建立。"""
+    stop_file = state_root / "continuous-publisher-stop.json"
+    previous_stop, stop_error = capacity_guard._read_state(stop_file)
+    if stop_error:
+        raise PublishBlocked("continuous publisher stop state is unreadable")
+    if stop_file.exists() and not capacity_guard._state_file_is_private(stop_file):
+        raise PublishBlocked("continuous publisher stop state identity is untrusted")
+    if previous_stop.get("status") == "OPERATOR_REQUIRED":
+        result = {"schema_version": SCHEMA_VERSION, "status": "OPERATOR_REQUIRED",
+                  "reason": "previous_stop", "state_file": str(stop_file)}
+        if alert_sender is not None:
+            result["operator_alert"] = capacity_guard.deliver_operator_required_alert(
+                stop_file, alert_sender
+            )
+        return result
+    return None
+
+
 @formal_runtime.with_runtime_work_lease
 def publish_continuous_tick(
     repo_root: Path,
@@ -6113,20 +6135,9 @@ def publish_continuous_tick(
     """四線輪流，每次只交一個既有 G1 exact 交易。"""
     if max_runs != 1 or (not dry_run and not push):
         raise PublishBlocked("continuous tick requires max_runs=1 and push")
-    stop_file = state_root / "continuous-publisher-stop.json"
-    previous_stop, stop_error = capacity_guard._read_state(stop_file)
-    if stop_error:
-        raise PublishBlocked("continuous publisher stop state is unreadable")
-    if stop_file.exists() and not capacity_guard._state_file_is_private(stop_file):
-        raise PublishBlocked("continuous publisher stop state identity is untrusted")
-    if previous_stop.get("status") == "OPERATOR_REQUIRED":
-        result = {"schema_version": SCHEMA_VERSION, "status": "OPERATOR_REQUIRED",
-                  "reason": "previous_stop", "state_file": str(stop_file)}
-        if alert_sender is not None:
-            result["operator_alert"] = capacity_guard.deliver_operator_required_alert(
-                stop_file, alert_sender
-            )
-        return result
+    stopped = _continuous_preexisting_stop(state_root, alert_sender)
+    if stopped is not None:
+        return stopped
     _assert_no_unresolved_push(state_root)
     deployment = {"status": "not_enabled"}
     if pages_enabled and not dry_run:
@@ -6544,6 +6555,11 @@ def main() -> int:
         return 0
     if not args.dry_run:
         _validate_formal_runtime(repo_root, queue_root, state_root)
+    if continuous_tick:
+        stopped = _continuous_preexisting_stop(state_root, selector_kwargs.get("alert_sender"))
+        if stopped is not None:
+            print(json.dumps(stopped, ensure_ascii=False))
+            return 1
     with _isolated_transaction_worktree(repo_root, state_root) as transaction_root:
         if fresh_ja_run_id is not None:
             result = publish_exact_fresh_ja_translation_run(
