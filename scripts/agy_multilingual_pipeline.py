@@ -1087,6 +1087,7 @@ def prepare_translation_run(
     output_root: Path,
     *,
     source_loader: SourceLoader = load_source_article,
+    atomic_brief: bool = False,
 ) -> Path:
     if len(locales) != len(set(locales)) or not locales:
         raise ValueError("translation locales must be non-empty and unique")
@@ -1115,7 +1116,7 @@ def prepare_translation_run(
         if read_translation_brief_payload(path) != brief:
             raise ValueError("unregistered translation brief source drift")
         return path
-    pipeline.write_json(path, brief)
+    (_atomic_write_json if atomic_brief else pipeline.write_json)(path, brief)
     return path
 
 
@@ -1136,6 +1137,7 @@ def enqueue_article_translations(
     locales: list[str] | None = None,
     lane: str,
     source_loader: SourceLoader = load_source_article,
+    atomic_brief: bool = False,
 ) -> list[dict[str, str]]:
     """為已發布新文或成功改寫舊文建立英、日、韓三個互不阻塞的翻譯 run。"""
     if not source_run_id.strip() or not article_id.strip():
@@ -1184,6 +1186,7 @@ def enqueue_article_translations(
                 [locale],
                 queue_root / "translation-runs",
                 source_loader=source_loader,
+                **({"atomic_brief": True} if atomic_brief else {}),
             )
             now = datetime.now().astimezone().isoformat(timespec="seconds")
             _atomic_write_json(

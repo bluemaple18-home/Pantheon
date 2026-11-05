@@ -295,16 +295,17 @@ def _normal_scheduled_service_labels(
         if runtime_receipt.get("config_version") != manifest["config_version"]:
             return frozenset()
         home = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(strict=True)
+        active_labels = formal_runtime.activation_service_labels(manifest)
         plist_paths = [
             home / "Library" / "LaunchAgents" / f"{label}.plist"
-            for label in formal_runtime.SERVICE_LABELS
+            for label in active_labels
         ]
         formal_runtime.aggregate_plist_preflight(
             manifest,
             plist_paths,
             expected_activation_mode="normal",
         )
-        for label, path in zip(formal_runtime.SERVICE_LABELS, plist_paths):
+        for label, path in zip(active_labels, plist_paths):
             with path.open("rb") as stream:
                 payload = plistlib.load(stream)
             interval = payload.get("StartInterval")
@@ -323,7 +324,7 @@ def _normal_scheduled_service_labels(
         formal_runtime.RuntimeManifestError,
     ):
         return frozenset()
-    return frozenset(SERVICE_LABELS)
+    return frozenset(label for label in active_labels if label in SERVICE_LABELS)
 
 
 def _launchctl_top_level_identity(
@@ -1132,12 +1133,16 @@ def _recovery_context(runtime_receipt: dict[str, Any]) -> dict[str, Any]:
         "authorized": False,
         "blocker": "formal_normal_recovery_context_unavailable",
     }
-    if _normal_scheduled_service_labels(runtime_receipt) != frozenset(SERVICE_LABELS):
+    scheduled = _normal_scheduled_service_labels(runtime_receipt)
+    if not scheduled:
         return unavailable
     try:
         manifest_path = Path(os.environ["PANTHEON_RUNTIME_MANIFEST"])
         expected_digest = os.environ["PANTHEON_RUNTIME_MANIFEST_DIGEST"]
         manifest = formal_runtime.load_manifest(manifest_path, expected_digest)
+        active_labels = formal_runtime.activation_service_labels(manifest)
+        if scheduled != frozenset(label for label in active_labels if label in SERVICE_LABELS):
+            return unavailable
         manifest_file = _file_identity(manifest_path)
         expected_guard = formal_runtime.receipt_for_label(manifest, CAPACITY_GUARD_LABEL)
         if any(runtime_receipt.get(field) != value for field, value in expected_guard.items()):
@@ -1148,7 +1153,7 @@ def _recovery_context(runtime_receipt: dict[str, Any]) -> dict[str, Any]:
         ).resolve(strict=True)
         launch_agents = home / "Library" / "LaunchAgents"
         plist_paths = [
-            launch_agents / f"{label}.plist" for label in formal_runtime.SERVICE_LABELS
+            launch_agents / f"{label}.plist" for label in active_labels
         ]
         formal_runtime.aggregate_plist_preflight(
             manifest,
@@ -1161,7 +1166,7 @@ def _recovery_context(runtime_receipt: dict[str, Any]) -> dict[str, Any]:
         )
         formal_runtime.validate_barrier(barrier, manifest)
         barrier_identity = _file_identity(barrier)
-        for label, path in zip(formal_runtime.SERVICE_LABELS, plist_paths):
+        for label, path in zip(active_labels, plist_paths):
             with path.open("rb") as stream:
                 payload = plistlib.load(stream)
             arguments = payload.get("ProgramArguments")
@@ -1184,7 +1189,7 @@ def _recovery_context(runtime_receipt: dict[str, Any]) -> dict[str, Any]:
                 return unavailable
         business_plists = {
             label: _file_identity(launch_agents / f"{label}.plist")
-            for label in SERVICE_LABELS
+            for label in scheduled
         }
         if (
             not _same_file_identity(manifest_file)
@@ -1258,7 +1263,7 @@ def _capture_recovery_incident(
             disabled_known = True
     if context_authorized and isinstance(plists, dict):
         domain = f"gui/{os.getuid()}"
-        for label in SERVICE_LABELS:
+        for label in plists:
             plist = plists.get(label)
             expected_path = (
                 Path(str(plist.get("path"))) if isinstance(plist, dict) else None
@@ -1377,6 +1382,25 @@ def _capture_recovery_incident(
         "lineage_pending_first_seen_epoch": None,
         "restart_measurement": None,
     }
+
+
+def _incident_service_labels(candidate: dict[str, Any]) -> frozenset[str]:
+    """scope 存在時，incident 不得自報七服務以擴大 stop/resume 權威。"""
+    plists = candidate.get("plists")
+    record = candidate.get("manifest_file")
+    try:
+        if _valid_file_identity_record(record) and _same_file_identity(record):
+            payload = json.loads(Path(record["path"]).read_text(encoding="utf-8"))
+            if "activation_scope" in payload:
+                manifest = formal_runtime.load_manifest(
+                    Path(record["path"]), str(candidate.get("manifest_digest", "")),
+                )
+                return frozenset(label for label in formal_runtime.activation_service_labels(manifest) if label in SERVICE_LABELS)
+        if isinstance(plists, dict) and set(plists) == set(SERVICE_LABELS):
+            return frozenset(SERVICE_LABELS)
+    except (OSError, KeyError, ValueError, formal_runtime.RuntimeManifestError):
+        pass
+    return frozenset()
 
 
 def _load_open_recovery_incident(
@@ -1499,6 +1523,7 @@ def _load_open_recovery_incident(
         barrier = candidate.get("barrier")
         manifest_file = candidate.get("manifest_file")
         owned_roots = candidate.get("owned_roots")
+        allowed_labels = _incident_service_labels(candidate)
         if (
             formal_runtime.SHA256_PATTERN.fullmatch(
                 str(candidate.get("manifest_digest", ""))
@@ -1527,10 +1552,13 @@ def _load_open_recovery_incident(
             or candidate.get("restart_projected_bytes")
             != RECOVERY_PROJECTED_RESTART_BYTES
             or not isinstance(plists, dict)
-            or set(plists) != set(SERVICE_LABELS)
+            or not allowed_labels
+            or set(plists) != set(allowed_labels)
         ):
             return None, "capacity_recovery_incident_invalid"
-        for label in SERVICE_LABELS:
+        if any(not set(candidate[field]).issubset(allowed_labels) for field in ("stop_targets", "owned_labels", "stopped_by_guard", "attempted_labels", "started_labels")):
+            return None, "capacity_recovery_incident_invalid"
+        for label in allowed_labels:
             if not _valid_file_identity_record(plists.get(label)):
                 return None, "capacity_recovery_incident_invalid"
     for field in (

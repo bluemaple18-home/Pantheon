@@ -8181,10 +8181,521 @@ def test_g1_nonexact_batch_keeps_multiple_real_applies(tmp_path, monkeypatch):
     article = make_publishable_article("AUTO-002")
     # 使用不同 run／id／slug，保留正常批次的兩次正式 apply。
     _write_run(queue, run.parent / "g1-second", article)
-    result = _g1_publish(fixture, "create", exact=False, max_runs=2)
+    monkeypatch.setattr(publisher, "_run_checked", lambda *_a, **_k: None)
+    result = _g1_publish(fixture, "create", exact=False, max_runs=2, push=True)
     assert result["status"] == "PUBLISHED"
     assert len(fixture[6]) == 2
     assert len(list((root / "app/web/static").glob("article-expansion-*.js"))) == 2
+
+
+def _p1_batch_fixture(tmp_path, monkeypatch, count):
+    fixture = _g1_fixture(tmp_path, monkeypatch, "create")
+    root, queue, state, run, original_git, *_ = fixture
+    for index in range(1, count):
+        article_id = f"AUTO-{index + 1:03d}"
+        article = make_publishable_article(article_id)
+        for section in article["bodySections"]:
+            section["paragraphs"] = [
+                paragraph.replace("再核對一項具體資料", f"為{article_id}再核對一項具體資料")
+                for paragraph in section["paragraphs"]
+            ]
+        _write_run(queue, run.parent / f"g1-batch-{index:02d}", article)
+    assert len(publisher.collect_ready_runs(queue, state, limit=count, repo_root=root)) == count
+    def git(repo, args, _input=None):
+        if args[:2] == ["ls-files", "-co"]:
+            return "\0".join(str(path.relative_to(repo)) for path in repo.rglob("*") if path.is_file()) + "\0"
+        return original_git(repo, args, _input)
+    return (*fixture[:4], git, *fixture[5:])
+
+
+@pytest.mark.parametrize("count", [2, 10])
+def test_p1_batch_one_snapshot_release_and_ledger(tmp_path, monkeypatch, count):
+    fixture = _p1_batch_fixture(tmp_path, monkeypatch, count)
+    root, queue, state, _, git, calls, applies, _ = fixture
+    gates = []
+    snapshot_steps = []
+    original_fixture_sync = publisher._sync_web_test_release_fixture
+    def fixture_sync(*args, **kwargs):
+        snapshot_steps.append("fixture")
+        return original_fixture_sync(*args, **kwargs)
+    monkeypatch.setattr(publisher, "_sync_web_test_release_fixture", fixture_sync)
+    monkeypatch.setattr(publisher, "_run_prerender",
+                        lambda *_a, **_k: snapshot_steps.append("prerender"))
+    monkeypatch.setattr(publisher, "_run_feed",
+                        lambda *_a, **_k: snapshot_steps.append("feed"))
+    monkeypatch.setattr(publisher, "_run_checked", lambda _root, command, **_k: gates.append(command))
+    result = publisher.publish_ready_runs(root, queue, state, git=git, max_runs=count,
+                                          push=True, run_tests=True, release_gate=False,
+                                          seed_translations=False)
+    assert result["status"] == "PUBLISHED"
+    assert len(result["run_ids"]) == count == len(applies)
+    assert snapshot_steps == ["fixture", "prerender", "feed"]
+    assert gates == [publisher.PREFLIGHT_TEST_COMMAND, publisher.TEST_COMMAND,
+                     [*publisher.PROJECT_PYTHON_COMMAND, "scripts/verify_host_canonical.py"]]
+    assert len(list((root / "app/web/static").glob("article-expansion-*.js"))) == count
+    ledger = publisher._load_ledger(state)["published_runs"]
+    assert len(ledger) == count
+    assert {entry["run_id"] for entry in ledger} == set(result["run_ids"])
+    assert {entry["commit_sha"] for entry in ledger} == {result["commit_sha"]}
+    assert {entry["version"] for entry in ledger} == {result["version"]}
+    assert [command[0] for command in calls].count("commit") == 1
+    assert [command[:2] for command in calls].count(["tag", "-a"]) == 1
+    assert publisher.release_git_plan(result["version"])["push"] == [
+        "push", "--atomic", "origin", "HEAD:main", f"v{result['version']}"]
+    assert sum(command[0] == "push" for command in calls) == 1
+
+
+def test_p1_batch_late_canonical_timeout_rolls_back_and_retries(tmp_path, monkeypatch):
+    fixture = _p1_batch_fixture(tmp_path, monkeypatch, 2)
+    root, queue, state, _, git, calls, applies, _ = fixture
+    before = _tree_bytes(root / "app")
+    gates = []
+
+    def timed_out(_root, command, **_kwargs):
+        gates.append(command)
+        if command[-1] == "scripts/verify_host_canonical.py":
+            raise TimeoutError("synthetic late canonical read timeout")
+
+    monkeypatch.setattr(publisher, "_run_checked", timed_out)
+    result = publisher.publish_ready_runs(root, queue, state, git=git, max_runs=2,
+                                          push=True, run_tests=True, release_gate=False,
+                                          seed_translations=False)
+    assert result["status"] == "failed_recovered"
+    assert gates == [publisher.PREFLIGHT_TEST_COMMAND, publisher.TEST_COMMAND,
+                     [*publisher.PROJECT_PYTHON_COMMAND, "scripts/verify_host_canonical.py"]]
+    assert len(applies) == 2
+    assert publisher._load_ledger(state)["published_runs"] == []
+    assert _tree_bytes(root / "app") == before
+    assert not any(command[0] in {"commit", "tag", "push"} for command in calls)
+    failure = publisher._read_json(Path(result["evidence"]))
+    assert failure["repo_recovered"] is True
+    assert set(failure["run_ids"]) == {"g1-create", "g1-batch-01"}
+    assert publisher.collect_ready_runs(queue, state, limit=2, repo_root=root) == []
+    for run_id in failure["run_ids"]:
+        retry_path = publisher._retry_path(state, "create", run_id)
+        retry_record = publisher._read_json(retry_path)
+        assert retry_record["eligibility"] == "deferred"
+        assert retry_record["candidate_preserved"] is True
+        retry_record["next_eligible_at"] = "2000-01-01T00:00:00+08:00"
+        _write_json(retry_path, retry_record)
+    monkeypatch.setattr(publisher, "_run_checked", lambda *_a, **_k: None)
+    retry = publisher.publish_ready_runs(root, queue, state, git=git, max_runs=2,
+                                         push=True, run_tests=True, release_gate=False,
+                                         seed_translations=False)
+    assert retry["status"] == "PUBLISHED"
+    assert len(publisher._load_ledger(state)["published_runs"]) == 2
+
+
+@pytest.mark.parametrize("fault", ["second_apply", "policy", "prerender", "feed", "quick", "full", "canonical", "commit", "tag"])
+def test_p1_batch_fault_has_no_partial_ledger_or_repo(tmp_path, monkeypatch, fault):
+    fixture = _p1_batch_fixture(tmp_path, monkeypatch, 2)
+    root, queue, state, _, base_git, calls, applies, _ = fixture
+    before = _tree_bytes(root / "app")
+    original_apply = publisher.pipeline.apply_approved_candidates
+
+    def apply(*args, **kwargs):
+        if len(applies) == 1 and fault in {"second_apply", "policy"}:
+            if fault == "policy":
+                raise publisher.PolicyRejected([{"article_id": args[2][0]["id"],
+                                                 "code": "test_required_policy", "severity": "required"}])
+            raise RuntimeError("synthetic second apply failure")
+        return original_apply(*args, **kwargs)
+
+    monkeypatch.setattr(publisher.pipeline, "apply_approved_candidates", apply)
+    for name in ("prerender", "feed"):
+        if fault == name:
+            monkeypatch.setattr(publisher, f"_run_{name}",
+                                lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("synthetic build failure")))
+
+    def checked(_root, command, **_kwargs):
+        if (fault == "quick" and command == publisher.PREFLIGHT_TEST_COMMAND
+            or fault == "full" and command == publisher.TEST_COMMAND
+            or fault == "canonical" and command[-1] == "scripts/verify_host_canonical.py"):
+            raise TimeoutError(f"synthetic {fault} failure")
+
+    monkeypatch.setattr(publisher, "_run_checked", checked)
+
+    def git(repo, args, _input=None):
+        if (fault == "commit" and args[0] == "commit"
+            or fault == "tag" and args[:2] == ["tag", "-a"]):
+            calls.append(args)
+            raise RuntimeError(f"synthetic {fault} failure")
+        return base_git(repo, args, _input)
+
+    result = publisher.publish_ready_runs(root, queue, state, git=git, max_runs=2,
+                                          push=True, run_tests=True,
+                                          release_gate=False, seed_translations=False)
+    assert result["status"] == ("policy_rejected" if fault == "policy" else "failed_recovered")
+    assert publisher._load_ledger(state)["published_runs"] == []
+    assert _tree_bytes(root / "app") == before
+    assert not any(command[0] == "push" for command in calls)
+    if fault in {"second_apply", "policy", "prerender", "feed", "quick", "full", "canonical"}:
+        assert not any(command[0] in {"commit", "tag"} for command in calls)
+    assert publisher._read_json(Path(result["evidence"]))["repo_recovered"] is True
+
+
+@pytest.mark.parametrize("count", [2, 10])
+def test_p1_batch_local_serial_comparison(tmp_path, monkeypatch, count):
+    measurements = {}
+    for mode in ("serial", "batch"):
+        location = tmp_path / mode
+        location.mkdir()
+        fixture = _p1_batch_fixture(location, monkeypatch, count)
+        root, queue, state, _, git, _, _, _ = fixture
+        gates = []
+        monkeypatch.setattr(publisher, "_run_checked",
+                            lambda _root, command, **_k: gates.append(command))
+        start = time.monotonic()
+        for _ in range(count if mode == "serial" else 1):
+            result = publisher.publish_ready_runs(root, queue, state, git=git,
+                                                  max_runs=1 if mode == "serial" else count,
+                                                  push=True, run_tests=True, release_gate=False,
+                                                  seed_translations=False)
+            assert result["status"] == "PUBLISHED"
+        elapsed = time.monotonic() - start
+        assert len(publisher._load_ledger(state)["published_runs"]) == count
+        quick = gates.count(publisher.PREFLIGHT_TEST_COMMAND)
+        full = gates.count(publisher.TEST_COMMAND)
+        assert (quick, full) == ((count, count) if mode == "serial" else (1, 1))
+        measurements[mode] = {"seconds": round(elapsed, 3), "quick": quick, "full": full}
+    print(f"P1 local N={count} same fixtures/env; gate commands stubbed: {measurements}")
+
+
+@pytest.mark.parametrize("fault", ["ledger", "seed", "evidence"])
+def test_p1_batch_postpush_handoff_requires_reconciliation(tmp_path, monkeypatch, fault):
+    fixture = _p1_batch_fixture(tmp_path, monkeypatch, 2)
+    root, queue, state, _, git, calls, applies, _ = fixture
+    monkeypatch.setattr(publisher, "_run_checked", lambda *_a, **_k: None)
+    if fault == "seed":
+        seed_calls = []
+        def seed(*_args):
+            seed_calls.append(_args)
+            if len(seed_calls) == 2:
+                assert _args[-1] is True
+                raise OSError("synthetic translation seed failure")
+            return []
+        monkeypatch.setattr(publisher, "_seed_pending_translations", seed)
+    original_write = publisher._atomic_write_json
+    def write(path, payload):
+        if (fault == "ledger" and path == publisher._ledger_path(state)
+            or fault == "evidence" and path.name == "publish-evidence.json"):
+            raise OSError(f"synthetic {fault} write failure")
+        original_write(path, payload)
+    monkeypatch.setattr(publisher, "_atomic_write_json", write)
+    with pytest.raises(publisher.PushOutcomeUnknown):
+        publisher.publish_ready_runs(root, queue, state, git=git, max_runs=2,
+                                     push=True, run_tests=True, release_gate=False)
+    control = publisher._read_json(publisher._unresolved_push_path(state))
+    assert control["run_ids"] == ["g1-batch-01", "g1-create"]
+    assert len(applies) == 2
+    assert sum(command[0] == "push" for command in calls) == 1
+    assert len(publisher._load_ledger(state)["published_runs"]) == (0 if fault == "ledger" else 2)
+    assert not list((state / "retry").rglob("*.json"))
+    with pytest.raises(publisher.PublishBlocked, match="unresolved push"):
+        publisher.publish_ready_runs(root, queue, state, git=git, max_runs=2,
+                                     push=True, run_tests=True, release_gate=False)
+    assert sum(command[0] == "push" for command in calls) == 1
+
+
+@pytest.mark.parametrize("target", ["ledger", "evidence"])
+def test_p1_batch_atomic_handoff_write_failure_keeps_json_readable(tmp_path, monkeypatch, target):
+    fixture = _p1_batch_fixture(tmp_path, monkeypatch, 2)
+    root, queue, state, _, git, calls, _, _ = fixture
+    monkeypatch.setattr(publisher, "_run_checked", lambda *_a, **_k: None)
+    destination = (publisher._ledger_path(state) if target == "ledger"
+                   else state / "evidence" / "publish-0.3.1" / "publish-evidence.json")
+    original_replace = publisher.os.replace
+    def replace(source, dest):
+        if Path(dest) == destination:
+            raise OSError(f"synthetic interrupted {target} replace")
+        return original_replace(source, dest)
+    monkeypatch.setattr(publisher.os, "replace", replace)
+    with pytest.raises(publisher.PushOutcomeUnknown):
+        publisher.publish_ready_runs(root, queue, state, git=git, max_runs=2,
+                                     push=True, run_tests=True, release_gate=False,
+                                     seed_translations=False)
+    assert publisher._unresolved_push_path(state).is_file()
+    assert len(publisher._load_ledger(state)["published_runs"]) == (0 if target == "ledger" else 2)
+    if target == "evidence":
+        assert not destination.exists()
+    else:
+        assert publisher._load_ledger(state)["published_runs"] == []
+    assert sum(command[0] == "push" for command in calls) == 1
+
+
+def test_p1_single_run_keeps_existing_handoff_writer(tmp_path, monkeypatch):
+    fixture = _g1_fixture(tmp_path, monkeypatch, "create")
+    root, queue, state, _, git, _, _, _ = fixture
+    original_atomic = publisher._atomic_write_json
+    def atomic(path, payload):
+        if path == publisher._ledger_path(state) or path.name == "publish-evidence.json":
+            pytest.fail("單篇不得改走批次帳證寫法")
+        original_atomic(path, payload)
+    monkeypatch.setattr(publisher, "_atomic_write_json", atomic)
+    result = publisher.publish_ready_runs(root, queue, state, git=git, max_runs=1,
+                                          run_tests=False, release_gate=False,
+                                          seed_translations=False)
+    assert result["status"] == "PUBLISHED"
+
+
+@pytest.mark.parametrize("target", ["ledger", "evidence"])
+def test_p1_batch_direct_truncated_write_cannot_corrupt_handoff(tmp_path, monkeypatch, target):
+    fixture = _p1_batch_fixture(tmp_path, monkeypatch, 2)
+    root, queue, state, _, git, _, _, _ = fixture
+    monkeypatch.setattr(publisher, "_run_checked", lambda *_a, **_k: None)
+    original_write_bytes = Path.write_bytes
+    attempted = []
+    def write_bytes(path, data):
+        if (target == "ledger" and path == publisher._ledger_path(state)
+            or target == "evidence" and path.name == "publish-evidence.json"):
+            attempted.append(path)
+            original_write_bytes(path, b"{")
+            raise OSError("synthetic truncated direct write")
+        return original_write_bytes(path, data)
+    monkeypatch.setattr(Path, "write_bytes", write_bytes)
+    result = publisher.publish_ready_runs(root, queue, state, git=git, max_runs=2,
+                                          push=True, run_tests=True, release_gate=False,
+                                          seed_translations=False)
+    assert result["status"] == "PUBLISHED"
+    assert attempted == []
+    assert len(publisher._load_ledger(state)["published_runs"]) == 2
+    assert publisher._read_json(state / "evidence" / f"publish-{result['version']}" / "publish-evidence.json") == result
+
+
+def test_p1_batch_translation_seed_progress_uses_atomic_ledger(tmp_path, monkeypatch):
+    state = tmp_path / "state"
+    ledger = publisher._load_ledger(state)
+    ledger["published_runs"] = [
+        {"run_id": f"batch-{index}", "article_ids": [f"AUTO-{index:03d}"],
+         "translation_seed_status": "pending"}
+        for index in (1, 2)
+    ]
+    _write_json(publisher._ledger_path(state), ledger)
+    monkeypatch.setattr(publisher.multilingual, "enqueue_article_translations",
+                        lambda _repo, _queue, *, source_run_id, article_id, lane, atomic_brief=False:
+                        [{"run_id": f"i18n-{source_run_id}"}])
+    original_write_bytes = Path.write_bytes
+    def write_bytes(path, data):
+        if path == publisher._ledger_path(state):
+            pytest.fail("批次翻譯進度不得直接截寫 ledger")
+        return original_write_bytes(path, data)
+    monkeypatch.setattr(Path, "write_bytes", write_bytes)
+    seeded = publisher._seed_pending_translations(tmp_path, tmp_path / "queue", state, True)
+    assert seeded == ["i18n-batch-1", "i18n-batch-2"]
+    assert [item["translation_seed_status"] for item in publisher._load_ledger(state)["published_runs"]] == ["seeded", "seeded"]
+
+
+def test_p1_batch_preselection_seed_cannot_truncate_ledger(tmp_path, monkeypatch):
+    real_seed = publisher._seed_pending_translations
+    fixture = _p1_batch_fixture(tmp_path, monkeypatch, 2)
+    root, queue, state, _, git, _, _, _ = fixture
+    ledger = publisher._load_ledger(state)
+    ledger["published_runs"].append({"run_id": "older-source", "article_ids": ["OLDER-001"],
+                                     "translation_seed_status": "pending"})
+    _write_json(publisher._ledger_path(state), ledger)
+    monkeypatch.setattr(publisher, "_seed_pending_translations", real_seed)
+    monkeypatch.setattr(publisher.multilingual, "enqueue_article_translations",
+                        lambda *_a, **_k: [])
+    monkeypatch.setattr(publisher, "_run_checked", lambda *_a, **_k: None)
+    original_write_bytes = Path.write_bytes
+    def truncate(path, data):
+        if path == publisher._ledger_path(state):
+            original_write_bytes(path, b"{")
+            raise OSError("synthetic preselection seed truncation")
+        return original_write_bytes(path, data)
+    monkeypatch.setattr(Path, "write_bytes", truncate)
+    result = publisher.publish_ready_runs(root, queue, state, git=git, max_runs=2,
+                                          push=True, run_tests=False, release_gate=False)
+    assert result["status"] == "PUBLISHED"
+    assert len(publisher._load_ledger(state)["published_runs"]) == 3
+
+
+def test_p1_batch_no_push_fails_closed_before_directory_fsync_ghost(tmp_path, monkeypatch):
+    fixture = _p1_batch_fixture(tmp_path, monkeypatch, 2)
+    root, queue, state, _, git, calls, applies, _ = fixture
+    original_open, original_fsync = publisher.os.open, publisher.os.fsync
+    directory_fds = set()
+    faulted = []
+    def open_directory(path, flags, *args, **kwargs):
+        fd = original_open(path, flags, *args, **kwargs)
+        if Path(path) == state:
+            directory_fds.add(fd)
+        return fd
+    def fsync(fd):
+        if fd in directory_fds and not faulted:
+            faulted.append(True)
+            raise OSError("synthetic directory fsync after ledger replace")
+        return original_fsync(fd)
+    monkeypatch.setattr(publisher.os, "open", open_directory)
+    monkeypatch.setattr(publisher.os, "fsync", fsync)
+    with pytest.raises(publisher.PublishBlocked, match="batch.*push"):
+        publisher.publish_ready_runs(root, queue, state, git=git, max_runs=2,
+                                     push=False, run_tests=False, release_gate=False,
+                                     seed_translations=False)
+    assert faulted == []
+    assert applies == []
+    assert publisher._load_ledger(state)["published_runs"] == []
+    assert not any(command[0] in {"commit", "tag", "push"} for command in calls)
+
+
+@pytest.mark.parametrize(
+    ("directory_fsync_failures", "crash_before_cleanup"),
+    [(1, False), (2, False), (1, True)],
+)
+def test_p1_batch_pre_push_control_fsync_failure_recovers_real_git(
+    tmp_path, monkeypatch, directory_fsync_failures, crash_before_cleanup
+):
+    repo, queue, state, _ = _init_recovery_repo(tmp_path)
+    version = "0.3.59"
+    for relative, content in (
+        ("tests/test_web.py", "# 測試基線\n"),
+        ("pyproject.toml", f'[project]\nversion = "{version}"\n'),
+        ("package.json", json.dumps({"version": version}) + "\n"),
+        ("CHANGELOG.md", "# 更新紀錄\n"),
+    ):
+        target = repo / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "publisher baseline"], cwd=repo, check=True)
+    subprocess.run(["git", "branch", "-M", "main"], cwd=repo, check=True)
+    remote = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=repo, check=True)
+    subprocess.run(["git", "push", "-q", "-u", "origin", "main"], cwd=repo, check=True)
+    base = publisher.run_git(repo, ["rev-parse", "HEAD"])
+    plan = publisher.ReleaseNamespacePlan(version, version, f"v{version}", (), (), ())
+    monkeypatch.setattr(publisher, "_validate_formal_runtime", lambda *_args: None)
+    monkeypatch.setattr(publisher, "_run_checked", lambda *_args, **_kwargs: None)
+    original_write = publisher._atomic_write_json
+    original_fsync = publisher.os.fsync
+    original_open = publisher.os.open
+    original_close = publisher.os.close
+    injected = []
+    push_calls = []
+    state_fds = set()
+    armed = []
+
+    def open_directory(path, flags, *args, **kwargs):
+        fd = original_open(path, flags, *args, **kwargs)
+        if Path(path) == state:
+            state_fds.add(fd)
+        return fd
+
+    def close_directory(fd):
+        state_fds.discard(fd)
+        return original_close(fd)
+
+    def fsync(fd):
+        if armed and fd in state_fds and len(injected) < directory_fsync_failures:
+            injected.append(True)
+            raise OSError("injected control directory fsync after replace")
+        return original_fsync(fd)
+
+    def write_with_directory_fault(path, payload):
+        if Path(path) != publisher._unresolved_push_path(state):
+            return original_write(path, payload)
+        armed.append(True)
+        return original_write(path, payload)
+
+    def real_git(root, args, input_text=None):
+        if args[:2] == ["push", "--atomic"]:
+            push_calls.append(args)
+        return publisher.run_git(root, args, input_text)
+
+    monkeypatch.setattr(publisher, "_atomic_write_json", write_with_directory_fault)
+    monkeypatch.setattr(publisher.os, "open", open_directory)
+    monkeypatch.setattr(publisher.os, "close", close_directory)
+    monkeypatch.setattr(publisher.os, "fsync", fsync)
+    original_unlink = Path.unlink
+    if crash_before_cleanup:
+        def crash_on_control_unlink(path, *args, **kwargs):
+            if path == publisher._unresolved_push_path(state):
+                raise SystemExit("injected crash after rollback and retry")
+            return original_unlink(path, *args, **kwargs)
+        monkeypatch.setattr(Path, "unlink", crash_on_control_unlink)
+
+    @publisher._recoverable_publish("create", "published")
+    def publish(repo_root, _queue_root, state_root, *, git=publisher.run_git,
+                _transaction_base_sha=None, _mutation_journal=None):
+        journal = _mutation_journal
+        journal.begin()
+        journal.select_runs(["batch-one", "batch-two"])
+        journal.capture(lambda: (repo_root / "app/web/owned.txt").write_text("batch\n"))
+        publisher._stage_commit_tag_push(
+            repo_root, version, git, namespace_plan=plan, push=True, release_gate=False,
+            state_root=state_root, phase="create", run_ids=["batch-one", "batch-two"],
+            outcome_evidence_dir=state_root / "evidence" / f"publish-{version}",
+            mutation_journal=journal,
+        )
+        raise AssertionError("push 前故障不可到達發布完成")
+
+    if crash_before_cleanup:
+        with pytest.raises(SystemExit, match="injected crash after rollback and retry"):
+            publish(repo, queue, state, git=real_git)
+        monkeypatch.setattr(Path, "unlink", original_unlink)
+        assert publisher._unresolved_push_path(state).is_file()
+        @publisher._recoverable_publish("create", "published")
+        def resume(_repo_root, _queue_root, _state_root, *, git=publisher.run_git,
+                   _transaction_base_sha=None, _mutation_journal=None):
+            return {"status": "idle", "published": 0}
+        publisher.run_git(remote, ["tag", f"v{version}", base])
+        with pytest.raises(publisher.PublishBlocked, match="local or remote Git identity differs"):
+            resume(repo, queue, state, git=real_git)
+        assert publisher._unresolved_push_path(state).is_file()
+        publisher.run_git(remote, ["tag", "-d", f"v{version}"])
+        assert resume(repo, queue, state, git=real_git)["status"] == "idle"
+    elif directory_fsync_failures == 1:
+        result = publish(repo, queue, state, git=real_git)
+        assert result["status"] == "failed_recovered"
+    else:
+        with pytest.raises(publisher.PublishBlocked, match="pre-push control cleanup failed after rollback"):
+            publish(repo, queue, state, git=real_git)
+    assert len(injected) == directory_fsync_failures
+    assert push_calls == []
+    failure = json.loads(next((state / "evidence").glob("failed-create-*/failure.json")).read_text(encoding="utf-8"))
+    assert failure["failed_head"] != base
+    assert failure["removed_local_tags"] == [f"v{version}"]
+    assert failure["repo_recovered"] is True
+    assert publisher.run_git(repo, ["rev-parse", "HEAD"]) == base
+    assert publisher.run_git(remote, ["rev-parse", "refs/heads/main"]) == base
+    assert publisher.run_git(repo, ["tag", "--list", f"v{version}"]) == ""
+    assert publisher.run_git(remote, ["tag", "--list", f"v{version}"]) == ""
+    assert not publisher._unresolved_push_path(state).exists()
+    assert sorted(path.name for path in (state / "retry/create").glob("*.json")) == ["batch-one.json", "batch-two.json"]
+
+
+def test_p1_batch_rollback_failure_preserves_pending_evidence(tmp_path, monkeypatch):
+    fixture = _p1_batch_fixture(tmp_path, monkeypatch, 2)
+    root, queue, state, _, base_git, calls, _, _ = fixture
+    monkeypatch.setattr(publisher, "_run_checked", lambda *_a, **_k: None)
+    head = ["a" * 40]
+    def git(repo, args, _input=None):
+        if args == ["rev-parse", "HEAD"]:
+            return head[0]
+        if args[0] == "commit":
+            head[0] = "c" * 40
+        if args[:2] == ["tag", "-a"]:
+            calls.append(args)
+            raise RuntimeError("synthetic tag failure")
+        if args[0] == "update-ref":
+            calls.append(args)
+            raise OSError("synthetic rollback ref failure")
+        return base_git(repo, args, _input)
+    with pytest.raises(OSError, match="synthetic rollback ref failure"):
+        publisher.publish_ready_runs(root, queue, state, git=git, max_runs=2,
+                                     push=True, run_tests=False, release_gate=False,
+                                     seed_translations=False)
+    attempts = list((state / "evidence").glob("failed-create-*/failure-attempt.json"))
+    assert len(attempts) == 1
+    assert publisher._read_json(attempts[0])["run_ids"] == ["g1-batch-01", "g1-create"]
+    result = publisher._read_json(attempts[0].with_name("recovery-result.json"))
+    assert result["steps"][-1]["step"] == "update-ref"
+    assert result["steps"][-1]["status"] == "failed"
+    assert not attempts[0].with_name("failure.json").exists()
+    assert publisher._load_ledger(state)["published_runs"] == []
+    assert head[0] == "c" * 40
+    assert not any(command[0] == "push" for command in calls)
 
 
 @pytest.mark.parametrize("intent", ["--exact-run-id", "--exact-fresh-ja-run-id"])
@@ -8199,6 +8710,62 @@ def test_g1_main_exact_requires_complete_existing_contract(tmp_path, monkeypatch
     monkeypatch.setattr(publisher, "_isolated_transaction_worktree", lambda *a, **k: pytest.fail("缺契約不可進交易"))
     with pytest.raises(SystemExit, match="complete deployment contract"):
         publisher.main()
+
+
+@pytest.mark.parametrize("flags", [
+    ["--batch-new", "--push", "--max-runs", "1"],
+    ["--batch-new", "--push", "--max-runs", "11"],
+    ["--batch-new", "--push", "--max-runs", "2", "--new-only"],
+    ["--batch-new", "--push", "--max-runs", "2", "--skip-tests"],
+    ["--push", "--max-runs", "10", "--new-only"],
+    ["--push", "--max-runs", "11", "--include-rewrites", "--skip-tests", "--skip-release-gate"],
+])
+def test_p1_batch_cli_rejects_unbounded_or_bypass_before_runtime(tmp_path, monkeypatch, flags):
+    monkeypatch.setattr(sys, "argv", ["publisher", "--queue-root", str(tmp_path / "queue"), *flags])
+    monkeypatch.setattr(publisher, "_validate_formal_runtime",
+                        lambda *_a: pytest.fail("無效批次不可讀 runtime"))
+    with pytest.raises(SystemExit, match="batch NEW|multi-run NEW"):
+        publisher.main()
+
+
+def test_p1_aggregate_direct_multi_run_push_rejects_before_selection(tmp_path, monkeypatch):
+    monkeypatch.setattr(publisher, "_exact_publish_lane",
+                        lambda *_args, **_kwargs: pytest.fail("聚合多筆 push 不得進選取"))
+    with pytest.raises(publisher.PublishBlocked, match="multi-run aggregate push"):
+        publisher.publish_ready_all(tmp_path, tmp_path / "queue", tmp_path / "state",
+                                    max_runs=11, push=True, run_tests=False,
+                                    release_gate=False)
+
+
+def test_p1_batch_guard_rechecks_stop_day_and_existing_daily_limit(tmp_path, monkeypatch):
+    day = publisher.datetime.now(publisher.CONTINUOUS_TIMEZONE).date().isoformat()
+    usage = []
+    monkeypatch.setattr(publisher, "_continuous_daily_usage",
+                        lambda _queue, _state, selected_day: (usage.append(selected_day) or 291, None))
+    monkeypatch.setattr(publisher, "_continuous_preexisting_stop", lambda *_args: None)
+    publisher._batch_new_guard(tmp_path / "queue", tmp_path / "state", day, 9)
+    assert usage == [day]
+    with pytest.raises(publisher.PublishBlocked, match="daily article limit"):
+        publisher._batch_new_guard(tmp_path / "queue", tmp_path / "state", day, 10)
+    monkeypatch.setattr(publisher, "_continuous_preexisting_stop",
+                        lambda *_args: {"status": "OPERATOR_REQUIRED"})
+    with pytest.raises(publisher.PublishBlocked, match="stopped"):
+        publisher._batch_new_guard(tmp_path / "queue", tmp_path / "state", day, 1)
+    with pytest.raises(publisher.PublishBlocked, match="day rolled over"):
+        publisher._batch_new_guard(tmp_path / "queue", tmp_path / "state", "2000-01-01", 1)
+
+
+def test_p1_batch_quota_rejects_before_mutating_collector(tmp_path, monkeypatch):
+    root, queue, state, _, git, _, _, _ = _p1_batch_fixture(tmp_path, monkeypatch, 2)
+    day = publisher.datetime.now(publisher.CONTINUOUS_TIMEZONE).date().isoformat()
+    monkeypatch.setattr(publisher, "_continuous_daily_usage", lambda *_args: (291, None))
+    monkeypatch.setattr(publisher, "_continuous_preexisting_stop", lambda *_args: None)
+    monkeypatch.setattr(publisher, "collect_ready_runs",
+                        lambda *_args, **_kwargs: pytest.fail("額度不足不得先掃描並改寫題庫"))
+    with pytest.raises(publisher.PublishBlocked, match="daily article limit"):
+        publisher.publish_ready_runs(root, queue, state, git=git, max_runs=10,
+                                     push=True, run_tests=True, release_gate=True,
+                                     batch_day=day)
 
 
 @pytest.mark.parametrize("selection", ["create", "rewrite", "translation", "all", "ambiguous"])

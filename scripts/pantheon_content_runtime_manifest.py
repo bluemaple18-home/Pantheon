@@ -248,7 +248,7 @@ def create_shutdown_readiness_permit(
         or not ready_root.is_absolute()
         or not labels
         or len(labels) != len(set(labels))
-        or any(label not in SERVICE_LABELS for label in labels)
+        or any(label not in activation_service_labels(manifest) for label in labels)
         or not 1 <= timeout_seconds <= 300
         or owner_pid <= 1
     ):
@@ -328,6 +328,8 @@ def validate_shutdown_readiness_permit(
         or payload.get("ready_root") != str(ready_root)
         or not isinstance(payload.get("labels"), list)
         or service_label not in payload["labels"]
+        or service_label not in activation_service_labels(manifest)
+        or any(label not in activation_service_labels(manifest) for label in payload["labels"])
     ):
         raise RuntimeManifestError("shutdown readiness permit identity mismatch")
     return payload
@@ -497,6 +499,22 @@ def _validate_actor_head(actor_root: Path, expected_head: str) -> None:
         raise RuntimeManifestError("runtime actor worktree is dirty")
 
 
+PUBLISHER_GUARD_SCOPE = "publisher_guard"
+PUBLISHER_GUARD_LABELS = (
+    "com.pantheon.agy-content-publisher",
+    "com.pantheon.content-capacity-guard",
+)
+
+
+def activation_service_labels(manifest: dict[str, Any]) -> tuple[str, ...]:
+    """預設保留七服務；只有 manifest 明示的兩服務 scope 可縮小啟用權威。"""
+    if "activation_scope" not in manifest:
+        return SERVICE_LABELS
+    if manifest["activation_scope"] != PUBLISHER_GUARD_SCOPE:
+        raise RuntimeManifestError("runtime activation scope is invalid")
+    return PUBLISHER_GUARD_LABELS
+
+
 def _manifest_digest(payload: dict[str, Any]) -> str:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
@@ -511,7 +529,7 @@ def _runtime_identity_digest(payload: dict[str, Any]) -> str:
         "generation": payload["generation"],
         **{field: payload[field] for field in PATH_FIELDS},
     }
-    for field in ("actor_head", "python_executable", "uv_executable"):
+    for field in ("actor_head", "python_executable", "uv_executable", "activation_scope"):
         if field in payload:
             identity[field] = payload[field]
     return _manifest_digest(identity)
@@ -530,6 +548,7 @@ def build_manifest(
     actor_head: str | None = None,
     python_executable: Path | None = None,
     uv_executable: Path | None = None,
+    activation_scope: str | None = None,
 ) -> dict[str, Any]:
     if not identity or identity.strip() != identity:
         raise RuntimeManifestError("identity is required")
@@ -558,6 +577,9 @@ def build_manifest(
         "log_root": _canonical_directory(log_root, "log_root"),
         "service_labels": list(SERVICE_LABELS),
     }
+    if activation_scope is not None:
+        payload["activation_scope"] = activation_scope
+        activation_service_labels(payload)
     if actor_head is not None:
         if SHA1_PATTERN.fullmatch(actor_head) is None:
             raise RuntimeManifestError("actor head must be exact git sha")
@@ -623,6 +645,7 @@ def load_manifest(
         raise RuntimeManifestError("runtime digest is invalid")
     if GENERATION_PATTERN.fullmatch(str(payload.get("generation", ""))) is None:
         raise RuntimeManifestError("runtime generation is invalid")
+    activation_service_labels(payload)
     actor_root = Path(str(payload["actor_root"]))
     if "actor_head" in payload:
         actor_head = str(payload["actor_head"])
@@ -662,7 +685,7 @@ def load_manifest(
 
 
 def receipt_for_label(manifest: dict[str, Any], label: str) -> dict[str, Any]:
-    if label not in SERVICE_LABELS:
+    if label not in activation_service_labels(manifest):
         raise RuntimeManifestError("service label is not registered")
     receipt = {
         "label": label,
@@ -684,17 +707,18 @@ def receipt_for_label(manifest: dict[str, Any], label: str) -> dict[str, Any]:
 def validate_receipts(
     manifest: dict[str, Any], receipts: list[dict[str, Any]]
 ) -> dict[str, Any]:
+    allowed = set(activation_service_labels(manifest))
     seen: set[str] = set()
     for receipt in receipts:
         label = str(receipt.get("label", ""))
-        if label not in SERVICE_LABELS or label in seen:
+        if label not in allowed or label in seen:
             raise RuntimeManifestError("receipt label is missing, duplicated, or unregistered")
         seen.add(label)
         expected = receipt_for_label(manifest, label)
         for field, value in expected.items():
             if receipt.get(field) != value:
                 raise RuntimeManifestError(f"{label} {field} mismatch")
-    if seen != set(SERVICE_LABELS):
+    if seen != allowed:
         raise RuntimeManifestError("runtime receipts are incomplete")
     return {"status": "PASS", "manifest_digest": manifest["manifest_digest"]}
 
@@ -992,7 +1016,7 @@ def validate_runtime_tick(
         raise RuntimeManifestError("formal publisher uv_executable is required")
     if any(os.environ.get(key) != value for key, value in expected_environment.items()):
         raise RuntimeManifestError("formal runtime generation or identity mismatch")
-    if service_label not in SERVICE_LABELS:
+    if service_label not in activation_service_labels(manifest):
         raise RuntimeManifestError("formal runtime service label is unregistered")
     expected_queue = Path(manifest["queue_root"])
     if service_label.startswith("com.pantheon.agy-gemini-") and service_label != SERVICE_LABELS[1]:
@@ -1097,8 +1121,9 @@ def activate_barrier(
     ready_root: Path,
     manifest: dict[str, Any],
 ) -> dict[str, Any]:
+    active_labels = activation_service_labels(manifest)
     if any(
-        not (ready_root / f"{label}.json").is_file() for label in SERVICE_LABELS
+        not (ready_root / f"{label}.json").is_file() for label in active_labels
     ):
         raise RuntimeManifestError("readiness acknowledgements are incomplete")
     acknowledgements = [
@@ -1107,9 +1132,9 @@ def activate_barrier(
             manifest,
             label,
         )
-        for label in SERVICE_LABELS
+        for label in active_labels
     ]
-    if len(acknowledgements) != len(SERVICE_LABELS):
+    if len(acknowledgements) != len(active_labels):
         raise RuntimeManifestError("readiness acknowledgements are incomplete")
     barrier = {
         "schema_version": SCHEMA_VERSION,
@@ -1117,7 +1142,7 @@ def activate_barrier(
         "runtime_identity_digest": manifest["runtime_identity_digest"],
         "generation": manifest["generation"],
         "owner_uid": os.getuid(),
-        "service_labels": list(SERVICE_LABELS),
+        "service_labels": list(active_labels),
         "ack_digests": [item["ack_digest"] for item in acknowledgements],
     }
     write_manifest(barrier_path, barrier)
@@ -1132,6 +1157,7 @@ def activate_barrier(
 
 
 def validate_barrier(path: Path, manifest: dict[str, Any]) -> dict[str, Any]:
+    active_labels = activation_service_labels(manifest)
     payload = _read_private_json(path, "activation barrier is invalid")
     expected = {
         "schema_version": SCHEMA_VERSION,
@@ -1139,12 +1165,12 @@ def validate_barrier(path: Path, manifest: dict[str, Any]) -> dict[str, Any]:
         "runtime_identity_digest": manifest["runtime_identity_digest"],
         "generation": manifest["generation"],
         "owner_uid": os.getuid(),
-        "service_labels": list(SERVICE_LABELS),
+        "service_labels": list(active_labels),
     }
     if any(payload.get(field) != value for field, value in expected.items()):
         raise RuntimeManifestError("activation barrier identity mismatch")
     digests = payload.get("ack_digests")
-    if not isinstance(digests, list) or len(digests) != len(SERVICE_LABELS) or any(
+    if not isinstance(digests, list) or len(digests) != len(active_labels) or any(
         SHA256_PATTERN.fullmatch(str(value)) is None for value in digests
     ):
         raise RuntimeManifestError("activation barrier acknowledgements are incomplete")
@@ -1208,6 +1234,7 @@ def parse_args() -> argparse.Namespace:
     create.add_argument("--actor-head", required=True)
     create.add_argument("--python-executable", type=Path, required=True)
     create.add_argument("--uv-executable", type=Path)
+    create.add_argument("--activation-scope", choices=[PUBLISHER_GUARD_SCOPE])
     create.add_argument("--output", type=Path, required=True)
     field = subparsers.add_parser("field")
     field.add_argument("--manifest", type=Path, required=True)
@@ -1555,6 +1582,7 @@ def main() -> int:
                 actor_head=args.actor_head,
                 python_executable=args.python_executable,
                 uv_executable=args.uv_executable,
+                activation_scope=getattr(args, "activation_scope", None),
             )
             write_manifest(args.output, manifest)
             print(json.dumps(manifest, sort_keys=True))

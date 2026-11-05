@@ -1054,6 +1054,7 @@ class MutationJournal:
         self.prepared_approvals: dict[Path, Path] = {}
         self.deferred: list[tuple[str, str]] = []
         self.commit_sha: str | None = None
+        self.prepush_control_write_failed = False
 
     @contextmanager
     def state_scope(self, state_root: Path | None, *, blocking: bool = False) -> Iterator[bool]:
@@ -3328,6 +3329,76 @@ def _owns_unresolved_push(state_root: Path, phase: str, journal: MutationJournal
     )
 
 
+def _clear_recovered_unpushed_batch_control(
+    repo_root: Path, state_root: Path, git: GitRunner, control: dict[str, Any], phase: str,
+) -> bool:
+    """僅依已回退的真 Git／失敗收據，清除崩潰後殘留的多筆 push 控制紀錄。"""
+    run_ids = control.get("run_ids")
+    candidate_sha = control.get("candidate_sha")
+    version = control.get("version")
+    if (phase not in {"create", "rewrite"} or control.get("phase") != phase
+        or control.get("status") != "PUSH_OUTCOME_UNKNOWN"
+        or not isinstance(run_ids, list) or len(run_ids) <= 1
+        or any(not isinstance(value, str) or not EXACT_RUN_ID_PATTERN.fullmatch(value) for value in run_ids)
+        or len(set(run_ids)) != len(run_ids)
+        or not isinstance(candidate_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", candidate_sha)
+        or not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version)):
+        return False
+    label = "publish" if phase == "create" else "rewrite"
+    expected_evidence = state_root / "evidence" / f"{label}-{version}" / f"{label}-evidence.json"
+    if Path(str(control.get("publish_evidence") or "")).resolve() != expected_evidence.resolve():
+        return False
+    matched: list[tuple[Path, dict[str, Any]]] = []
+    for failure_path in (state_root / "evidence").glob(f"failed-{phase}-*/failure.json"):
+        failure = _read_json(failure_path)
+        if (failure.get("status") == "FAILED_RECOVERED" and failure.get("repo_recovered") is True
+            and failure.get("phase") == phase and failure.get("run_ids") == run_ids
+            and failure.get("failed_head") == candidate_sha
+            and failure.get("status_after_recovery") == []
+            and f"v{version}" in failure.get("removed_local_tags", [])):
+            matched.append((failure_path, failure))
+    if len(matched) != 1:
+        return False
+    failure_path, failure = matched[0]
+    base_sha = failure.get("base_sha")
+    if not isinstance(base_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", base_sha):
+        raise PublishBlocked("recovered batch base identity is invalid")
+    for run_id in run_ids:
+        retry_path = _retry_path(state_root, phase, run_id)
+        if not retry_path.is_file():
+            raise PublishBlocked("recovered batch retry evidence is incomplete")
+        retry = _read_json(retry_path)
+        if (retry.get("phase") != phase or retry.get("run_id") != run_id
+            or Path(str(retry.get("evidence") or "")).resolve() != failure_path.resolve()
+            or retry.get("candidate_preserved") is not True):
+            raise PublishBlocked("recovered batch retry identity differs")
+    ledger = _load_ledger(state_root)
+    if any(
+        item.get("run_id") in run_ids or item.get("version") == version or item.get("commit_sha") == candidate_sha
+        for bucket in ("published_runs", "rewrite_released_runs", "translation_published_runs")
+        for item in ledger[bucket]
+    ):
+        raise PublishBlocked("recovered batch already owns published ledger identity")
+    git(repo_root, ["fetch", "origin", "main"], None)
+    if (git(repo_root, ["rev-parse", "HEAD"], None) != base_sha
+        or git(repo_root, ["rev-parse", "origin/main"], None) != base_sha
+        or git(repo_root, ["rev-parse", f"{candidate_sha}^"], None) != base_sha
+        or git(repo_root, ["status", "--porcelain"], None)
+        or git(repo_root, ["tag", "--list", f"v{version}"], None)
+        or git(repo_root, ["ls-remote", "origin", f"refs/tags/v{version}", f"refs/tags/v{version}^{{}}"], None)):
+        raise PublishBlocked("recovered batch local or remote Git identity differs")
+    control_path = _unresolved_push_path(state_root)
+    if _read_json(control_path) != control:
+        raise PublishBlocked("recovered batch control changed before cleanup")
+    control_path.unlink()
+    directory_fd = os.open(control_path.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+    return True
+
+
 def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
     def decorate(function: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
         @functools.wraps(function)
@@ -3349,6 +3420,10 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                 control_path = _unresolved_push_path(state_root)
                 if control_path.is_file():
                     control = _read_json(control_path)
+                    if (phase in {"create", "rewrite"} and isinstance(control.get("run_ids"), list)
+                        and len(control["run_ids"]) > 1):
+                        journal.acquire_writer()
+                        _clear_recovered_unpushed_batch_control(repo_root, state_root, git, control, phase)
                     selected = _normalize_exact_run_ids(kwargs.get("exact_run_ids"))
                     if phase == "translation" and control.get("status") == "PUSH_PREPARED" and selected == frozenset({str(control.get("run_id"))}):
                         return _resume_prepared_translation(repo_root, queue_root, state_root, git, control, _mutation_journal=journal)
@@ -3429,7 +3504,7 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                     }
                 except Exception as error:
                     journal.acquire_writer()
-                    if _owns_unresolved_push(state_root, phase, journal):
+                    if _owns_unresolved_push(state_root, phase, journal) and not journal.prepush_control_write_failed:
                         raise PushOutcomeUnknown(
                             "push or published handoff requires reconciliation; no rollback/retry"
                         ) from error
@@ -3453,6 +3528,20 @@ def _recoverable_publish(phase: str, count_key: str) -> Callable[[Callable[..., 
                         error,
                         evidence_path,
                     )
+                    if journal.prepush_control_write_failed and control_path.is_file():
+                        if not _owns_unresolved_push(state_root, phase, journal):
+                            raise PublishBlocked("pre-push control identity differs after rollback")
+                        try:
+                            control_path.unlink()
+                            directory_fd = os.open(control_path.parent, os.O_RDONLY)
+                            try:
+                                os.fsync(directory_fd)
+                            finally:
+                                os.close(directory_fd)
+                        except Exception as cleanup_error:
+                            raise PublishBlocked(
+                                "pre-push control cleanup failed after rollback"
+                            ) from cleanup_error
                     return {
                         "schema_version": SCHEMA_VERSION,
                         "status": "failed_recovered",
@@ -4620,7 +4709,9 @@ def _rewrite_release_article_ids(queue_root: Path, run_id: str) -> list[str]:
     return []
 
 
-def _seed_pending_translations(repo_root: Path, queue_root: Path, state_root: Path) -> list[str]:
+def _seed_pending_translations(
+    repo_root: Path, queue_root: Path, state_root: Path, atomic_ledger: bool = False,
+) -> list[str]:
     """獨立交接每個已發布來源；錯誤留 pending，I/O 故障不可偽裝成功。"""
     ledger = _load_ledger(state_root)
     seeded_run_ids: list[str] = []
@@ -4649,6 +4740,7 @@ def _seed_pending_translations(repo_root: Path, queue_root: Path, state_root: Pa
                 translation_runs.extend(multilingual.enqueue_article_translations(
                     repo_root, queue_root, source_run_id=str(item["run_id"]),
                     article_id=str(article_id), lane=lane,
+                    **({"atomic_brief": True} if atomic_ledger else {}),
                 ))
             except (ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:
                 errors.append({"article_id": str(article_id), "error_type": type(error).__name__, "error": str(error)})
@@ -4662,7 +4754,7 @@ def _seed_pending_translations(repo_root: Path, queue_root: Path, state_root: Pa
             item["translation_seeded_at"] = _now()
             item.pop("translation_seed_errors", None)
         # 每個來源分別保存進度，後一筆失敗不得抹掉已完成交接。
-        _write_json(_ledger_path(state_root), ledger)
+        (_atomic_write_json if atomic_ledger else _write_json)(_ledger_path(state_root), ledger)
         seeded_run_ids.extend(run["run_id"] for run in translation_runs)
     return seeded_run_ids
 
@@ -4998,6 +5090,7 @@ def _stage_commit_tag_push(
     prepared_context: dict[str, Any] | None = None,
     revalidate: Callable[[], None] | None = None,
     mutation_journal: MutationJournal | None = None,
+    before_push: Callable[[], None] | None = None,
 ) -> str:
     with _publisher_writer_scope(repo_root, state_root, git, mutation_journal):
         if revalidate is not None:
@@ -5035,6 +5128,8 @@ def _stage_commit_tag_push(
                     "--require-head-tag",
                 ],
             )
+        if before_push is not None:
+            before_push()
         if prepared_context is not None and push:
             context_keys = set("stage_receipt_sha256 approved_candidate_file_sha256 approved_article_sha256 approved_review_file_sha256 formal_review_result_sha256 formal_job_id formal_request_sha256 replacement_of replacement_reason record_before_sha256 record_after_sha256 module_before_sha256 module_after_sha256 manifest_sha256 base_sha expected_remote_main_before publication_plan_digest ledger_path publish_evidence_path recorded_at".split())
             if state_root is None or phase != "translation" or len(run_ids or []) != 1 or set(prepared_context) != context_keys:
@@ -5049,12 +5144,19 @@ def _stage_commit_tag_push(
         if handoff_control:
             if not run_ids or outcome_evidence_dir is None:
                 raise PublishBlocked("published handoff control context is incomplete")
-            _atomic_write_json(_unresolved_push_path(state_root), {
+            control_path = _unresolved_push_path(state_root)
+            control_payload = {
                 "schema_version": SCHEMA_VERSION, "status": "PUSH_OUTCOME_UNKNOWN",
                 "phase": phase, "candidate_sha": commit_sha, "version": version,
                 "run_ids": list(run_ids), "recorded_at": _now(),
                 "publish_evidence": str(outcome_evidence_dir / ("publish-evidence.json" if phase == "create" else "rewrite-evidence.json")),
-            })
+            }
+            try:
+                _atomic_write_json(control_path, control_payload)
+            except Exception:
+                if mutation_journal is not None and len(run_ids) > 1:
+                    mutation_journal.prepush_control_write_failed = True
+                raise
         if push:
             try:
                 git(repo_root, release_plan["push"], None)
@@ -5325,19 +5427,27 @@ def publish_ready_runs(
     _mutation_journal: MutationJournal | None = None,
     exact_run_ids: Iterable[str] | None = None,
     seed_translations: bool = True,
+    batch_day: str | None = None,
 ) -> dict[str, Any]:
     selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
+    if batch_day is not None and (
+        not 2 <= max_runs <= 10 or selected_run_ids is not None
+        or not push or not run_tests or not release_gate or not seed_translations
+    ):
+        raise PublishBlocked("batch NEW contract requires 2..10 runs, push, full gates and translation seed")
     _exact_publish_lane(queue_root, state_root, selected_run_ids, max_runs, "create")
     state_root.mkdir(parents=True, exist_ok=True)
     journal = _mutation_journal or MutationJournal(repo_root, git)
     with journal.state_scope(state_root) as admitted:
         if not admitted:
             return {"schema_version": SCHEMA_VERSION, "status": "busy", "published": 0}
+        if batch_day is not None:
+            _batch_new_guard(queue_root, state_root, batch_day, max_runs)
         base_sha = _transaction_base_sha or _assert_clean_origin_head(repo_root, git)
         recovered_translation_runs = (
             []
-            if dry_run or selected_run_ids is not None or not seed_translations
-            else _seed_pending_translations(repo_root, queue_root, state_root)
+            if batch_day is not None or dry_run or selected_run_ids is not None or not seed_translations
+            else _seed_pending_translations(repo_root, queue_root, state_root, max_runs > 1)
         )
         ready = collect_ready_runs(
             queue_root,
@@ -5348,6 +5458,10 @@ def publish_ready_runs(
         )
         if selected_run_ids is not None:
             _exact_article_identity(ready, "create", selected_run_ids)
+        if batch_day is not None:
+            if len(ready) != max_runs or any(len(candidate["articles"]) != 1 for _, candidate, _ in ready):
+                raise PublishBlocked("batch NEW requires exactly the requested ready single-article runs")
+            _batch_new_guard(queue_root, state_root, batch_day, len(ready))
         if not ready:
             return {
                 "schema_version": SCHEMA_VERSION,
@@ -5368,11 +5482,18 @@ def publish_ready_runs(
                 "base_sha": base_sha,
                 "release_plan": namespace_plan.receipt(),
             }
+        if len(ready) > 1 and not push:
+            raise PublishBlocked("batch publish requires push")
 
         journal.selected_inputs = ready
         revalidate = _freeze_publish_revalidation(
             repo_root, queue_root, state_root, ready, base_sha, "create", git, journal=journal, exact_run_ids=selected_run_ids
         )
+        if batch_day is not None:
+            frozen_revalidate = revalidate
+            def revalidate() -> None:
+                frozen_revalidate()
+                _batch_new_guard(queue_root, state_root, batch_day, len(ready))
         journal.prepare()
         journal.begin()
         changed: list[str] = []
@@ -5446,6 +5567,10 @@ def publish_ready_runs(
             state_root=state_root,
             phase="create",
             run_ids=run_ids,
+            before_push=(
+                (lambda: _batch_new_guard(queue_root, state_root, batch_day, len(ready)))
+                if batch_day is not None else None
+            ),
         )
         ledger = _load_ledger(state_root)
         entries, evidence = _publication_records(
@@ -5453,19 +5578,20 @@ def publish_ready_runs(
             commit_sha=commit_sha, base_sha=base_sha, changed=changed,
             article_count=article_count, published_at=_now(), pushed=push,
         )
+        write_handoff_json = _atomic_write_json if len(ready) > 1 else _write_json
         ledger["published_runs"].extend(entries)
-        _write_json(_ledger_path(state_root), ledger)
+        write_handoff_json(_ledger_path(state_root), ledger)
         seeded_translation_runs = (
             []
             if selected_run_ids is not None or not seed_translations
             else [
                 *recovered_translation_runs,
-                *_seed_pending_translations(repo_root, queue_root, state_root),
+                *_seed_pending_translations(repo_root, queue_root, state_root, len(ready) > 1),
             ]
         )
         evidence["seeded_translation_runs"] = seeded_translation_runs
         evidence.update(_translation_seed_evidence(state_root))
-        _write_json(evidence_dir / "publish-evidence.json", evidence)
+        write_handoff_json(evidence_dir / "publish-evidence.json", evidence)
         if push:
             _unresolved_push_path(state_root).unlink(missing_ok=True)
         return evidence
@@ -5887,6 +6013,8 @@ def publish_ready_all(
 ) -> dict[str, Any]:
     """同一輪先處理新文、舊文，再發布已通過的多語版本。"""
     selected = _normalize_exact_run_ids(exact_run_ids)
+    if selected is None and push and max_runs > 1 and not dry_run:
+        raise PublishBlocked("multi-run aggregate push requires bounded batch NEW entry")
     lane = _exact_publish_lane(queue_root, state_root, selected, max_runs)
     if lane is not None:
         publishers = {"create": publish_ready_runs, "rewrite": publish_ready_rewrite_runs,
@@ -6115,6 +6243,17 @@ def _continuous_preexisting_stop(
     return None
 
 
+def _batch_new_guard(queue_root: Path, state_root: Path, day: str, articles: int) -> None:
+    """批次在持有 publisher writer 鎖時重驗既有停送與每日文章額度。"""
+    if day != datetime.now(CONTINUOUS_TIMEZONE).date().isoformat():
+        raise PublishBlocked("batch NEW day rolled over")
+    if _continuous_preexisting_stop(state_root, None) is not None:
+        raise PublishBlocked("batch NEW is stopped")
+    used, _ = _continuous_daily_usage(queue_root, state_root, day)
+    if used + articles > CONTINUOUS_DAILY_MAX_ARTICLES:
+        raise PublishBlocked("batch NEW exceeds daily article limit")
+
+
 @formal_runtime.with_runtime_work_lease
 def publish_continuous_tick(
     repo_root: Path,
@@ -6230,6 +6369,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--continuous-tick", action="store_true")
     parser.add_argument("--pages-deploy", action="store_true")
     parser.add_argument("--new-only", action="store_true")
+    parser.add_argument("--batch-new", action="store_true")
     parser.add_argument("--legacy-report", action="store_true")
     parser.add_argument("--reconcile-unresolved-push", action="store_true",
                         help="獨立維護模式：核對已發布結果並補齊帳證；不得搭配發布模式")
@@ -6273,6 +6413,7 @@ def parse_args() -> argparse.Namespace:
 @formal_runtime.with_runtime_work_lease
 def main() -> int:
     args = parse_args()
+    batch_new = bool(getattr(args, "batch_new", False))
     reconcile_push = bool(getattr(args, "reconcile_unresolved_push", False))
     if reconcile_push and (
         any(getattr(args, name, False) for name in (
@@ -6317,6 +6458,25 @@ def main() -> int:
         raise SystemExit("continuous tick requires include-rewrites, max-runs 1, and no other selector")
     if continuous_tick and not args.dry_run and not args.push:
         raise SystemExit("continuous tick requires push")
+    if batch_new:
+        if (
+            not 2 <= args.max_runs <= 10 or not args.push
+            or args.skip_tests or args.skip_release_gate or args.new_only
+            or args.include_rewrites or args.rewrite_release or continuous_tick
+            or exact_run_ids is not None or fresh_ja_run_id is not None
+            or fresh_ja_prepare or args.legacy_report or reconcile_push
+            or args.pages_deploy or args.recover_exhausted_create_run
+            or args.recover_exhausted_rewrite_run or args.recover_review_quarantine_run
+        ):
+            raise SystemExit("batch NEW requires --push, --max-runs 2..10 and full NEW release gates")
+    elif (
+        args.push and args.max_runs > 1 and exact_run_ids is None
+        and fresh_ja_run_id is None and not continuous_tick
+        and not args.rewrite_release
+        and not args.deployment_preflight
+        and not reconcile_push
+    ):
+        raise SystemExit("multi-run NEW push requires --batch-new")
     selector_kwargs = (
         {"exact_run_ids": exact_run_ids} if exact_run_ids is not None else {}
     )
@@ -6375,9 +6535,13 @@ def main() -> int:
         publisher_fn = publish_ready_runs
         if new_only:
             selector_kwargs["seed_translations"] = False
+        if batch_new:
+            selector_kwargs["batch_day"] = datetime.now(CONTINUOUS_TIMEZONE).date().isoformat()
     queue_root = args.queue_root.resolve()
     state_root = (repo_root / args.state_root).resolve() if not args.state_root.is_absolute() else args.state_root.resolve()
     runtime_receipt = _validate_formal_runtime(repo_root, queue_root, state_root)
+    if batch_new and runtime_receipt.get("status") != "PASS":
+        raise SystemExit("batch NEW requires formal runtime identity")
     if not reconcile_push:
         _trim_configured_launchd_logs()
     contract_values = (
@@ -6392,6 +6556,8 @@ def main() -> int:
         value is not None for value in contract_values
     ):
         raise SystemExit("exact canary requires a complete deployment contract")
+    if batch_new and not all(value is not None for value in contract_values):
+        raise SystemExit("batch NEW requires a complete deployment contract")
     if continuous_tick and not all(value is not None for value in contract_values):
         raise SystemExit("continuous tick requires a complete deployment contract")
     if any(value is not None for value in contract_values) and not all(

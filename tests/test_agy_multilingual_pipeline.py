@@ -6177,6 +6177,49 @@ def test_handoff_orphan_brief_drift_is_not_overwritten(tmp_path):
     assert path.read_bytes() == before
 
 
+def test_batch_handoff_brief_partial_write_keeps_retryable_identity(tmp_path, monkeypatch):
+    source = source_article_with_policy()
+    queue = tmp_path / 'queue'
+    kwargs = dict(source_run_id='batch-source-01', article_id='TEST-001', lane='i18n-new',
+                  source_loader=lambda *_: source, atomic_brief=True)
+    original_write_bytes = Path.write_bytes
+    direct_attempts = []
+
+    def truncate_direct_brief(path, data):
+        if path.name == 'brief.json':
+            direct_attempts.append(path)
+            original_write_bytes(path, b'{')
+            raise OSError('synthetic partial brief write')
+        return original_write_bytes(path, data)
+
+    monkeypatch.setattr(Path, 'write_bytes', truncate_direct_brief)
+    records = multilingual.enqueue_article_translations(tmp_path, queue, **kwargs)
+    assert len(records) == 3
+    assert direct_attempts == []
+    for record in records:
+        brief_path = Path(record['run_dir']) / 'brief.json'
+        assert multilingual.read_translation_brief_payload(brief_path)['run_id'] == record['run_id']
+    assert multilingual.enqueue_article_translations(tmp_path, queue, **kwargs) == records
+
+
+def test_single_handoff_brief_keeps_legacy_writer(tmp_path, monkeypatch):
+    source = source_article_with_policy()
+    writes = []
+    original = multilingual.pipeline.write_json
+
+    def legacy_write(path, payload):
+        if path.name == 'brief.json':
+            writes.append(path)
+        return original(path, payload)
+
+    monkeypatch.setattr(multilingual.pipeline, 'write_json', legacy_write)
+    records = multilingual.enqueue_article_translations(
+        tmp_path, tmp_path / 'queue', source_run_id='single-source-01',
+        article_id='TEST-001', lane='i18n-new', source_loader=lambda *_: source,
+    )
+    assert len(records) == len(writes) == 3
+
+
 def native_approved_stage_fixture(tmp_path: Path, *, source_contract=None) -> dict:
     """沿用 replacement fixture，改成未經退件的首輪 native 核准。"""
     from scripts import agy_gemini_outbox as outbox
