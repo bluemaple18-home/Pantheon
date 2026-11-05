@@ -7,6 +7,7 @@ import json
 import os
 import plistlib
 import subprocess
+import stat
 import sys
 import time
 
@@ -111,7 +112,7 @@ class HybridHost:
             p.wait(timeout=5)
 
 
-@pytest.mark.parametrize('mode',['success','reject','lost_ack','publish_advance','publish_lightweight','publish_tag_wrong_commit','publish_no_ledger','publish_code_drift','publish_tag_missing','release_gap','cleanup_gap'])
+@pytest.mark.parametrize('mode',['success','reject','lost_ack','publish_advance','publish_private','publish_lightweight','publish_tag_wrong_commit','publish_no_ledger','publish_code_drift','publish_tag_missing','release_gap','cleanup_gap'])
 def test_real_git_source_outcome_and_real_wrapper_pair(tmp_path,mode):
     started=time.time()
     source=tmp_path/'source';source.mkdir();bare=tmp_path/'remote.git'
@@ -196,8 +197,14 @@ def test_real_git_source_outcome_and_real_wrapper_pair(tmp_path,mode):
                     git(release,'-c','user.name=Isolated Probe','-c','user.email=probe@localhost',*tag_args)
                 git(release,'push','--atomic','origin','HEAD:refs/heads/main','refs/tags/v0.0.1')
                 if mode=='publish_tag_missing':git(bare,'update-ref','-d','refs/tags/v0.0.1')
-                if mode!='publish_no_ledger':write_private(state/'ledger.json',json.dumps({'published_runs':[{'run_id':'isolated-release',
-                    'commit_sha':published,'version':'0.0.1','article_ids':['ISOLATED']}]}).encode())
+                if mode!='publish_no_ledger':
+                    # 使用正式 Publisher 的原子 writer，覆蓋現役0644與私有0600兩種來源。
+                    previous_umask=os.umask(0o077 if mode=='publish_private' else 0o022)
+                    try:
+                        publisher._atomic_write_json(state/'ledger.json',{'published_runs':[{'run_id':'isolated-release',
+                            'commit_sha':published,'version':'0.0.1','article_ids':['ISOLATED']}]})
+                    finally:os.umask(previous_umask)
+                    assert stat.S_IMODE((state/'ledger.json').stat().st_mode)==(0o600 if mode=='publish_private' else 0o644)
                 actual=git(bare,'rev-parse','refs/heads/main')
             before_commands=len([x for x in host.commands if len(x)>1 and x[1] in ['bootstrap','bootout']])
             if mode=='release_gap':
@@ -210,7 +217,7 @@ def test_real_git_source_outcome_and_real_wrapper_pair(tmp_path,mode):
             else:
                 result=promotion.recover_publisher_guard(request,expected_plan_digest=digest,runner=host)
                 assert result['status']=='HEALTHY'
-                if mode in {'publish_advance','publish_lightweight'}:
+                if mode in {'publish_advance','publish_private','publish_lightweight'}:
                     assert result['health']['remote']['status']=='PUBLISHED_DESCENDANT'
             assert len([x for x in host.commands if len(x)>1 and x[1] in ['bootstrap','bootout']])==before_commands
             assert runtime.validate_barrier(state/'four-lane-activation-target.barrier',new)['status']=='PASS'
@@ -238,3 +245,72 @@ def test_real_git_source_outcome_and_real_wrapper_pair(tmp_path,mode):
             (evidence/(mode+'-git-summary.json')).write_text(json.dumps(summary,indent=2)+'\n')
             (evidence/(mode+'-controller-receipt.json')).write_text(json.dumps(final_receipt,indent=2)+'\n')
     finally:host.cleanup()
+
+
+@pytest.mark.parametrize('mode',[0o600,0o644])
+def test_publication_ledger_snapshot_accepts_publisher_writer(tmp_path,mode):
+    path=tmp_path/'ledger.json';payload={'published_runs':[{'run_id':'writer-contract'}]}
+    previous=os.umask(0o077 if mode==0o600 else 0o022)
+    try:publisher._atomic_write_json(path,payload)
+    finally:os.umask(previous)
+    first_inode=path.stat().st_ino
+    # 同一正式 writer 再替換一次，確保 reader 不依賴首次建立的 inode 或 chmod。
+    previous=os.umask(0o077 if mode==0o600 else 0o022)
+    try:publisher._atomic_write_json(path,payload)
+    finally:os.umask(previous)
+    assert path.stat().st_ino!=first_inode
+    assert stat.S_IMODE(path.stat().st_mode)==mode
+    before=path.read_bytes();identity,actual=promotion._pg_publication_ledger_snapshot(path)
+    assert actual==payload and identity['sha256']==hashlib.sha256(before).hexdigest()
+    assert identity['inode']==path.stat().st_ino and identity['size']==len(before)
+    assert path.read_bytes()==before and stat.S_IMODE(path.stat().st_mode)==mode
+
+
+@pytest.mark.parametrize('kind',['missing','symlink','parent_symlink','hardlink','directory',
+                                 'group_write','world_write','other_mode','wrong_owner','invalid_json','array'])
+def test_publication_ledger_snapshot_rejects_unsafe_input(tmp_path,monkeypatch,kind):
+    path=tmp_path/'ledger.json';publisher._atomic_write_json(path,{'published_runs':[]})
+    if kind=='missing':path.unlink()
+    elif kind=='symlink':
+        target=tmp_path/'actual.json';path.rename(target);path.symlink_to(target)
+    elif kind=='parent_symlink':
+        parent=tmp_path/'actual';parent.mkdir();path.rename(parent/path.name)
+        alias=tmp_path/'alias';alias.symlink_to(parent,target_is_directory=True);path=alias/path.name
+    elif kind=='hardlink':os.link(path,tmp_path/'alias.json')
+    elif kind=='directory':path.unlink();path.mkdir()
+    elif kind=='group_write':path.chmod(0o664)
+    elif kind=='world_write':path.chmod(0o646)
+    elif kind=='other_mode':path.chmod(0o640)
+    elif kind=='wrong_owner':monkeypatch.setattr(promotion.os,'getuid',lambda:path.stat().st_uid+1)
+    elif kind=='invalid_json':path.write_bytes(b'{')
+    elif kind=='array':path.write_bytes(b'[]')
+    with pytest.raises(promotion.PromotionError,match='publication ledger'):
+        promotion._pg_publication_ledger_snapshot(path)
+
+
+@pytest.mark.parametrize('kind',['mode','replace','same_size_restored_mtime'])
+def test_publication_ledger_snapshot_rejects_change_during_read(tmp_path,monkeypatch,kind):
+    path=tmp_path/'ledger.json';publisher._atomic_write_json(path,{'owner':'good'})
+    original=promotion.os.read;initial=path.stat();changed=False
+    def racing_read(fd,size):
+        nonlocal changed
+        chunk=original(fd,size)
+        if chunk and not changed:
+            changed=True
+            if kind=='mode':path.chmod(0o666)
+            elif kind=='replace':publisher._atomic_write_json(path,{'owner':'good'})
+            else:
+                path.write_bytes(path.read_bytes().replace(b'good',b'evil'))
+                os.utime(path,ns=(initial.st_atime_ns,initial.st_mtime_ns))
+        return chunk
+    monkeypatch.setattr(promotion.os,'read',racing_read)
+    with pytest.raises(promotion.PromotionError,match='publication ledger changed'):
+        promotion._pg_publication_ledger_snapshot(path)
+    assert changed
+
+
+def test_publication_ledger_does_not_relax_private_action_receipts(tmp_path):
+    path=tmp_path/'ledger.json';publisher._atomic_write_json(path,{'published_runs':[]});path.chmod(0o644)
+    assert promotion._pg_publication_ledger_snapshot(path)[1]=={'published_runs':[]}
+    with pytest.raises(activation.RuntimeActivationError):activation.capture_file_identity(path)
+    with pytest.raises(activation.RuntimeActivationError):activation.load_action_receipt(path)

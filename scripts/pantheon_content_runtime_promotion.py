@@ -2531,6 +2531,44 @@ def _pg_release_tag_proof(request, commands, tag, commit):
             "tag_kind": "annotated" if peeled_ref in refs else "lightweight"}
 
 
+def _pg_publication_ledger_snapshot(path: Path):
+    """業務 ledger 可為0600／0644；JSON 與身分取自同一 no-follow FD。"""
+    descriptor = None
+    try:
+        _pg_require(path.is_absolute() and path.resolve(strict=True) == path,
+                    "publication ledger path must be canonical")
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        before = os.fstat(descriptor)
+
+        def fingerprint(metadata):
+            return (metadata.st_dev, metadata.st_ino, metadata.st_mode, metadata.st_uid,
+                    metadata.st_nlink, metadata.st_size, metadata.st_mtime_ns, metadata.st_ctime_ns)
+
+        _pg_require(stat.S_ISREG(before.st_mode) and before.st_uid == os.getuid()
+                    and before.st_nlink == 1 and stat.S_IMODE(before.st_mode) in {0o600, 0o644}
+                    and fingerprint(before) == fingerprint(path.lstat()),
+                    "publication ledger identity is invalid")
+        chunks = []
+        while chunk := os.read(descriptor, 1024 * 1024):
+            chunks.append(chunk)
+        data = b"".join(chunks)
+        ledger = json.loads(data)
+        _pg_require(isinstance(ledger, dict), "publication ledger must be an object")
+        after = os.fstat(descriptor)
+        _pg_require(fingerprint(before) == fingerprint(after) == fingerprint(path.lstat())
+                    and path.resolve(strict=True) == path,
+                    "publication ledger changed during read")
+        identity = {"path": str(path), "device": after.st_dev, "inode": after.st_ino,
+                    "size": after.st_size, "mtime_ns": after.st_mtime_ns,
+                    "sha256": hashlib.sha256(data).hexdigest()}
+        return identity, ledger
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise PromotionError("publication ledger is unavailable or invalid") from error
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
 def _pg_published_remote(request, receipt, commands):
     """交接後接受有 ledger/tag/同版 runtime 證據的有界正常前進；push fence 仍只准精確 TARGET。"""
     remote = _pg_remote(request, commands)
@@ -2552,10 +2590,8 @@ def _pg_published_remote(request, receipt, commands):
         commits = _pg_git(commands, actor, "rev-list", "--first-parent", "--max-count=21", observed,
                           "^" + request.target_sha).splitlines()
         _pg_require(0 < len(commits) <= 20, "publication history exceeds bounded health sample")
-        activation = _pg_activation()
         ledger_path = state / "ledger.json"
-        identity = activation.capture_file_identity(ledger_path)
-        ledger = activation.load_action_receipt(ledger_path)
+        identity, ledger = _pg_publication_ledger_snapshot(ledger_path)
         entries = []
         for key in ("published_runs", "rewrite_released_runs", "translation_published_runs"):
             records = ledger.get(key, [])
@@ -2579,7 +2615,7 @@ def _pg_published_remote(request, receipt, commands):
                         "publication committed version differs")
             proofs.append({"commit_sha": commit, "version": version, "run_ids": [item["run_id"] for item in records],
                            **tag_proof})
-        _pg_require(activation.capture_file_identity(ledger_path) == identity
+        _pg_require(_pg_publication_ledger_snapshot(ledger_path)[0] == identity
                     and _pg_remote(request, commands).get("sha") == observed, "publication observation changed")
         return {"status": "PUBLISHED_DESCENDANT", "sha": observed, "ledger": identity, "proofs": proofs}
     except Exception as error:
