@@ -6254,6 +6254,81 @@ def _batch_new_guard(queue_root: Path, state_root: Path, day: str, articles: int
         raise PublishBlocked("batch NEW exceeds daily article limit")
 
 
+def _continuous_preferred_new_batch(
+    repo_root: Path, queue_root: Path, state_root: Path, *, day: str, before: int,
+    git: GitRunner, alert_sender: capacity_guard.OperatorAlertSender | None,
+) -> dict[str, Any] | None:
+    """只在原線別輪到 NEW 時嘗試合批；開始交易後不再降級重發。"""
+    if before + 2 > CONTINUOUS_DAILY_MAX_ARTICLES:
+        return None
+    with MutationJournal(repo_root, git).state_scope(state_root) as admitted:
+        if not admitted:
+            return {"schema_version": SCHEMA_VERSION, "status": "busy"}
+        ready = collect_ready_runs(queue_root, state_root, limit=2, repo_root=repo_root)
+        if len(ready) != 2 or any(len(candidate["articles"]) != 1 for _, candidate, _ in ready):
+            return None
+    # 原生批次自行重新取得交易鎖並重驗候選、stop、quota及remote；peek不保留候選。
+    result = publish_ready_runs(
+        repo_root, queue_root, state_root, max_runs=2, push=True,
+        run_tests=True, release_gate=True, git=git, batch_day=day,
+    )
+    if result.get("status") != "PUBLISHED":
+        return {"schema_version": SCHEMA_VERSION, "status": result.get("status"),
+                "lane": "new", "result": result}
+    run_ids, article_ids = result.get("run_ids"), result.get("article_ids")
+    if (not isinstance(run_ids, list) or len(run_ids) != 2
+            or any(not isinstance(rid, str) or not rid for rid in run_ids)
+            or len(set(run_ids)) != 2 or not isinstance(article_ids, list)
+            or len(article_ids) != 2 or any(not isinstance(aid, str) or not aid for aid in article_ids)
+            or len(set(article_ids)) != 2):
+        return _continuous_blocker(state_root, "publication_readback_mismatch", day, alert_sender)
+    end_day = datetime.now(CONTINUOUS_TIMEZONE).date().isoformat()
+    after, observed_lane = _continuous_daily_usage(queue_root, state_root, end_day)
+    matching = [entry for entry in _load_ledger(state_root)["published_runs"]
+                if entry.get("run_id") in run_ids]
+    # 原生 article_ids 另有排序；依實際完成的run讀回既有queue來源，不zip或保留peek。
+    source_articles: dict[str, list[str]] = {}
+    try:
+        for path in _run_files(queue_root):
+            try:
+                state = _read_json(path)
+            except (OSError, ValueError):
+                continue
+            if not isinstance(state, dict) or state.get("run_id") not in run_ids:
+                continue
+            rid = state["run_id"]
+            if rid in source_articles or state.get("lane") != "new":
+                raise ValueError("batch owner source is duplicated or differs")
+            state_result = state.get("result") if isinstance(state.get("result"), dict) else {}
+            candidate_path = Path(str(state_result.get("candidate") or Path(str(state.get("run_dir") or "")) / "candidate.json"))
+            if not candidate_path.resolve().is_relative_to(queue_root.resolve()):
+                raise ValueError("batch owner source is outside queue")
+            candidate = _read_json(candidate_path)
+            if (not isinstance(candidate, dict) or candidate.get("run_id") != rid
+                    or not isinstance(candidate.get("articles"), list) or len(candidate["articles"]) != 1):
+                raise ValueError("batch owner article identity differs")
+            source_articles[rid] = [candidate["articles"][0]["id"]]
+    except (OSError, ValueError, KeyError, TypeError):
+        return _continuous_blocker(state_root, "publication_readback_mismatch", day, alert_sender)
+    owners_valid = (
+        len(matching) == 2 and {entry.get("run_id") for entry in matching} == set(run_ids)
+        and set(source_articles) == set(run_ids)
+        and all(entry.get("commit_sha") == result.get("commit_sha")
+                and entry.get("version") == result.get("version")
+                and entry.get("article_ids") == source_articles[entry["run_id"]]
+                and datetime.fromisoformat(entry["published_at"]).astimezone(CONTINUOUS_TIMEZONE).date().isoformat() == day
+                for entry in matching)
+        and {aid for entry in matching for aid in entry["article_ids"]} == set(article_ids)
+    )
+    if (end_day != day or after != before + 2 or observed_lane != "new"
+            or result.get("pushed") is not True or not result.get("commit_sha")
+            or not result.get("version") or not owners_valid):
+        return _continuous_blocker(state_root, "publication_readback_mismatch", day, alert_sender)
+    return {"schema_version": SCHEMA_VERSION, "status": "PUBLISHED", "lane": "new",
+            "run_id": run_ids[0], "run_ids": run_ids, "daily_articles": after,
+            "result": result, "deployment": {"status": "not_enabled"}}
+
+
 @formal_runtime.with_runtime_work_lease
 def publish_continuous_tick(
     repo_root: Path,
@@ -6270,10 +6345,16 @@ def publish_continuous_tick(
     pages_enabled: bool = False,
     pages_post: Callable[[], dict] | None = None,
     pages_verify: Callable[[dict], dict] | None = None,
+    prefer_new_batch_size: int | None = None,
 ) -> dict[str, Any]:
     """四線輪流，每次只交一個既有 G1 exact 交易。"""
     if max_runs != 1 or (not dry_run and not push):
         raise PublishBlocked("continuous tick requires max_runs=1 and push")
+    if prefer_new_batch_size is not None and (
+        type(prefer_new_batch_size) is not int or prefer_new_batch_size != 2
+        or not push or dry_run or not run_tests or not release_gate or pages_enabled
+    ):
+        raise PublishBlocked("preferred NEW batch requires size 2, push and full gates without pages or dry-run")
     stopped = _continuous_preexisting_stop(state_root, alert_sender)
     if stopped is not None:
         return stopped
@@ -6307,6 +6388,13 @@ def publish_continuous_tick(
         return {"schema_version": SCHEMA_VERSION, "status": "busy"}
     if selected is not None:
         lane, phase, run_id = selected
+        if prefer_new_batch_size is not None and lane == "new":
+            batch = _continuous_preferred_new_batch(
+                repo_root, queue_root, state_root, day=day, before=before,
+                git=git, alert_sender=alert_sender,
+            )
+            if batch is not None:
+                return batch
         aggregate = publish_ready_all(
             repo_root, queue_root, state_root, max_runs=1, dry_run=dry_run,
             push=push, run_tests=run_tests, release_gate=release_gate, git=git,
@@ -6354,6 +6442,13 @@ def publish_continuous_tick(
 
 
 def parse_args() -> argparse.Namespace:
+    class OnceNewBatchSize(argparse.Action):
+        """拒絕重複的 opt-in；不能以後值覆蓋已宣告的旗標。"""
+        def __call__(self, parser, namespace, values, option_string=None):
+            if getattr(namespace, self.dest, None) is not None:
+                parser.error("--prefer-new-batch-size must occur once")
+            setattr(namespace, self.dest, int(values))
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--queue-root", type=Path)
@@ -6367,6 +6462,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rewrite-release", action="store_true")
     parser.add_argument("--include-rewrites", action="store_true")
     parser.add_argument("--continuous-tick", action="store_true")
+    parser.add_argument("--prefer-new-batch-size", choices=("2",), action=OnceNewBatchSize)
     parser.add_argument("--pages-deploy", action="store_true")
     parser.add_argument("--new-only", action="store_true")
     parser.add_argument("--batch-new", action="store_true")
@@ -6447,6 +6543,17 @@ def main() -> int:
     if fresh_ja_run_id is not None and exact_run_ids is not None:
         raise SystemExit("--exact-fresh-ja-run-id cannot be combined with --exact-run-id")
     continuous_tick = bool(getattr(args, "continuous_tick", False))
+    prefer_new_batch_size = getattr(args, "prefer_new_batch_size", None)
+    if prefer_new_batch_size is not None and (
+        type(prefer_new_batch_size) is not int or prefer_new_batch_size != 2
+        or not continuous_tick or batch_new or not args.push or args.dry_run
+        or args.skip_tests or args.skip_release_gate or getattr(args, "pages_deploy", False)
+        or any(getattr(args, name, False) for name in (
+            "deployment_preflight", "manifest_authorized_deployment_preflight",
+            "recover_exhausted_create_run", "recover_exhausted_rewrite_run", "recover_review_quarantine_run",
+        ))
+    ):
+        raise SystemExit("preferred NEW batch requires full continuous tick gates and size 2")
     if getattr(args, "pages_deploy", False) and not continuous_tick:
         raise SystemExit("pages deployment requires continuous tick")
     if continuous_tick and (
@@ -6523,6 +6630,8 @@ def main() -> int:
         raise SystemExit("review quarantine recovery cannot be combined with release modes")
     if continuous_tick:
         publisher_fn = publish_continuous_tick
+        if prefer_new_batch_size is not None:
+            selector_kwargs["prefer_new_batch_size"] = prefer_new_batch_size
         selector_kwargs["alert_sender"] = capacity_guard._send_operator_alert_via_openclaw
         selector_kwargs["pages_enabled"] = bool(getattr(args, "pages_deploy", False))
     elif fresh_ja_run_id is not None:

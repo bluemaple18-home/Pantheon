@@ -18,6 +18,136 @@ AUTHORIZATION_DIGEST = "a" * 64
 REGRESSION_ID = "REG-PANTHEON-AGGREGATE-RUNTIME-PROMOTION-001"
 
 
+def _normal_publisher_contract_fixture():
+    """只建立 argv 身分契約輸入，不啟動 Publisher 或接觸正式 runtime。"""
+    manifest = {
+        "python_executable": "/synthetic/.venv/bin/python",
+        "actor_root": "/synthetic/actor",
+        "queue_root": "/synthetic/queue",
+        "publisher_state_root": "/synthetic/state",
+        "actor_head": "b" * 40,
+        "runtime_digest": "c" * 64,
+    }
+    arguments = [
+        manifest["python_executable"], "-m", "scripts.pantheon_content_runtime_manifest", "barrier-exec",
+        "--barrier", "/synthetic/state/barrier", "--expected-digest", "d" * 64,
+        "--manifest", "/synthetic/manifest.json", "--service-label", promotion.PUBGUARD_LABELS[0],
+        "--ready-root", "/synthetic/ready", "--timeout", "360", "--",
+        manifest["python_executable"], "-m", "scripts.agy_content_publisher",
+        "--repo-root", manifest["actor_root"], "--queue-root", manifest["queue_root"],
+        "--state-root", manifest["publisher_state_root"], "--max-runs", "1",
+        "--continuous-tick", "--include-rewrites", "--push",
+        "--expected-repo-root", manifest["actor_root"], "--expected-queue-root", manifest["queue_root"],
+        "--expected-state-root", manifest["publisher_state_root"],
+        "--expected-runtime-sha", manifest["actor_head"],
+        "--expected-runtime-digest", manifest["runtime_digest"], "--expected-push-mode", "push",
+    ]
+    return manifest, arguments
+
+
+def test_normal_publisher_contract_accepts_prefer_new_batch_size_two():
+    manifest, arguments = _normal_publisher_contract_fixture()
+    arguments.extend(["--prefer-new-batch-size", "2"])
+    promotion._pg_publisher_normal_contract(manifest, arguments)
+
+
+@pytest.mark.parametrize("opt_in", [False, True])
+@pytest.mark.parametrize("reverse_flags", [False, True])
+def test_normal_publisher_contract_preserves_legacy_and_flag_order(opt_in, reverse_flags):
+    manifest, arguments = _normal_publisher_contract_fixture()
+    if opt_in:
+        arguments[20:20] = ["--prefer-new-batch-size", "2"]
+    if reverse_flags:
+        groups = []
+        for value in arguments[20:]:
+            if value.startswith("--"):
+                groups.append([value])
+            else:
+                groups[-1].append(value)
+        arguments[20:] = [value for group in reversed(groups) for value in group]
+    promotion._pg_publisher_normal_contract(manifest, arguments)
+
+
+@pytest.mark.parametrize("extra", [
+    ["--prefer-new-batch-size", "1"],
+    ["--prefer-new-batch-size", "3"],
+    ["--prefer-new-batch-size", "10"],
+    ["--prefer-new-batch-size", "02"],
+    ["--prefer-new-batch-size", ""],
+    ["--prefer-new-batch-size"],
+    ["--prefer-new-batch-size", "--push"],
+    ["--prefer-new-batch-size", "2", "--prefer-new-batch-size", "2"],
+    ["--prefer-new-batch-size=2"],
+    ["--prefer-new-batch", "2"],
+    ["--prefer-new-batch-size", "2", "--unknown-flag"],
+    ["--prefer-new-batch-size", "2", "--batch-new"],
+])
+def test_normal_publisher_contract_rejects_invalid_batch_option(extra):
+    manifest, arguments = _normal_publisher_contract_fixture()
+    with pytest.raises(promotion.PromotionError, match="normal Publisher"):
+        promotion._pg_publisher_normal_contract(manifest, arguments + extra)
+
+
+@pytest.mark.parametrize("opt_in", [False, True])
+@pytest.mark.parametrize(("flag", "wrong_value"), [
+    ("--repo-root", "/other/actor"),
+    ("--queue-root", "/other/queue"),
+    ("--state-root", "/other/state"),
+    ("--max-runs", "2"),
+    ("--max-runs", "10"),
+    ("--expected-repo-root", "/other/actor"),
+    ("--expected-queue-root", "/other/queue"),
+    ("--expected-state-root", "/other/state"),
+    ("--expected-runtime-sha", "e" * 40),
+    ("--expected-runtime-digest", "f" * 64),
+    ("--expected-push-mode", "no-push"),
+])
+def test_normal_publisher_contract_keeps_required_values_bound(opt_in, flag, wrong_value):
+    manifest, arguments = _normal_publisher_contract_fixture()
+    if opt_in:
+        arguments.extend(["--prefer-new-batch-size", "2"])
+    arguments[arguments.index(flag) + 1] = wrong_value
+    with pytest.raises(promotion.PromotionError, match=f"normal Publisher identity mismatch: {flag}"):
+        promotion._pg_publisher_normal_contract(manifest, arguments)
+
+
+@pytest.mark.parametrize("opt_in", [False, True])
+@pytest.mark.parametrize("mutation", ["missing", "duplicated"])
+@pytest.mark.parametrize("flag", [
+    "--repo-root", "--queue-root", "--state-root", "--max-runs",
+    "--expected-repo-root", "--expected-queue-root", "--expected-state-root",
+    "--expected-runtime-sha", "--expected-runtime-digest", "--expected-push-mode",
+    "--continuous-tick", "--include-rewrites", "--push",
+])
+def test_normal_publisher_contract_keeps_required_flags(opt_in, mutation, flag):
+    manifest, arguments = _normal_publisher_contract_fixture()
+    if opt_in:
+        arguments.extend(["--prefer-new-batch-size", "2"])
+    index = arguments.index(flag)
+    width = 1 if flag in {"--continuous-tick", "--include-rewrites", "--push"} else 2
+    if mutation == "missing":
+        del arguments[index:index + width]
+        message = "normal Publisher flags incomplete"
+    else:
+        arguments.extend(arguments[index:index + width])
+        message = "normal Publisher flag forbidden or duplicated"
+    with pytest.raises(promotion.PromotionError, match=message):
+        promotion._pg_publisher_normal_contract(manifest, arguments)
+
+
+@pytest.mark.parametrize("opt_in", [False, True])
+@pytest.mark.parametrize(("offset", "wrong_value"), [
+    (0, "/other/python"), (1, "-c"), (2, "scripts.other_publisher"),
+])
+def test_normal_publisher_contract_keeps_runtime_command(opt_in, offset, wrong_value):
+    manifest, arguments = _normal_publisher_contract_fixture()
+    if opt_in:
+        arguments.extend(["--prefer-new-batch-size", "2"])
+    arguments[17 + offset] = wrong_value
+    with pytest.raises(promotion.PromotionError, match="normal Publisher command mismatch"):
+        promotion._pg_publisher_normal_contract(manifest, arguments)
+
+
 def _finalize_fixture(tmp_path: Path):
     """普通檔案合成已驗收交易，不執行 installer、Git 或 provider。"""
     root = tmp_path.resolve()
@@ -250,8 +380,9 @@ def test_finalize_fails_closed_without_verified_authority(tmp_path, damage):
 @pytest.mark.parametrize("with_lease", [False, True])
 def test_promotion_git_passes_context_lease_fd(tmp_path, monkeypatch, with_lease):
     monkeypatch.delenv("PANTHEON_RUNTIME_WORK_LEASE_FD", raising=False)
-    with (tmp_path / "lease").open("w") as lease:
+    with (tmp_path / "runtime-work.lock").open("w") as lease:
         token = runtime._WORK_LEASE.set(lease.fileno() if with_lease else None)
+        root_token = runtime._WORK_LEASE_ROOT.set(tmp_path if with_lease else None)
         observed = []
 
         def run(command, **kwargs):
@@ -262,6 +393,7 @@ def test_promotion_git_passes_context_lease_fd(tmp_path, monkeypatch, with_lease
             monkeypatch.setattr(promotion.subprocess, "run", run)
             assert promotion._git(tmp_path, "status") == "synthetic"
         finally:
+            runtime._WORK_LEASE_ROOT.reset(root_token)
             runtime._WORK_LEASE.reset(token)
         assert observed == [(lease.fileno(),) if with_lease else ()]
 

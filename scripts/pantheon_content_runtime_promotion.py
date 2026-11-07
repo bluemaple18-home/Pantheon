@@ -2001,7 +2001,7 @@ def _pg_check_five(request, commands, plan):
 
 
 def _pg_publisher_normal_contract(manifest, arguments):
-    """鎖住現役自然 tick 語意；拒絕未知、重複、縮寫與所有維護／批次選項。"""
+    """鎖住現役自然 tick 語意；僅額外允許明確選用兩篇 NEW 批次。"""
     child = arguments[17:]
     _pg_require(child[:3] == [manifest["python_executable"], "-m", "scripts.agy_content_publisher"],
                 "normal Publisher command mismatch")
@@ -2013,6 +2013,8 @@ def _pg_publisher_normal_contract(manifest, arguments):
         "--expected-runtime-digest": manifest["runtime_digest"], "--expected-push-mode": "push",
     }
     switches = {"--continuous-tick", "--include-rewrites", "--push"}
+    required = set(expected) | switches
+    expected["--prefer-new-batch-size"] = "2"
     seen = set()
     index = 3
     while index < len(child):
@@ -2025,7 +2027,7 @@ def _pg_publisher_normal_contract(manifest, arguments):
             _pg_require(index < len(child) and child[index] == expected[flag],
                         f"normal Publisher identity mismatch: {flag}")
             index += 1
-    _pg_require(seen == (set(expected) | switches), "normal Publisher flags incomplete")
+    _pg_require(seen - {"--prefer-new-batch-size"} == required, "normal Publisher flags incomplete")
 
 
 def _pg_guard_normal_contract(manifest, arguments):

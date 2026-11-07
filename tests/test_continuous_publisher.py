@@ -1,12 +1,24 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime as RealDatetime
 from pathlib import Path
 import sys
 
 import pytest
 
 from scripts import agy_content_publisher as publisher
+
+
+@pytest.fixture(autouse=True)
+def _fixed_fixture_day(monkeypatch):
+    """既有樣本的日期固定在10/25；僅替換本測試模組使用的時鐘。"""
+    class FixtureDatetime(RealDatetime):
+        @classmethod
+        def now(cls, tz=None):
+            value = cls(2026, 10, 25, 12, tzinfo=publisher.CONTINUOUS_TIMEZONE)
+            return value.astimezone(tz) if tz is not None else value.replace(tzinfo=None)
+    monkeypatch.setattr(publisher, 'datetime', FixtureDatetime)
 
 
 def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -92,6 +104,207 @@ def _tick(fixture):
     return publisher.publish_continuous_tick.__wrapped__(
         repo, queue, state_root, max_runs=1, push=True,
     )
+
+
+def _batch_fixture(tmp_path, monkeypatch):
+    fixture = _fixture(tmp_path, monkeypatch)
+    repo, queue, state_root, runs, _calls, behavior = fixture
+    run_id = 'test-new-second'
+    directory = queue / 'new' / run_id
+    directory.mkdir()
+    candidate = {'run_id': run_id, 'mode': 'create', 'articles': [{'id': run_id}]}
+    (directory / 'candidate.json').write_text(json.dumps(candidate))
+    state = {'run_id': run_id, 'lane': 'new', 'run_dir': str(directory),
+             'result': {'candidate': str(directory / 'candidate.json')}}
+    (queue / 'runs' / (run_id + '.json')).write_text(json.dumps(state))
+    original = publisher.collect_ready_runs
+    batch_calls = []
+
+    def collect(*args, limit=1, **kwargs):
+        ready = original(*args, limit=limit, **kwargs)
+        if limit == 2 and ready and behavior.get('enough', True):
+            return [*ready, (state, candidate, {})]
+        return ready
+
+    def publish(*args, **kwargs):
+        batch_calls.append(kwargs)
+        if behavior.get('batch_error'):
+            raise publisher.PublishBlocked('候選在批次准入時漂移')
+        if behavior.get('batch_failure'):
+            return {'status': 'FAILED_RECOVERED', 'published': 0}
+        ids = [runs['new'][0]['run_id'], run_id]
+        commit = 'b' * 40
+        ledger = publisher._load_ledger(state_root)
+        for rid in ids:
+            ledger['published_runs'].append({'run_id': rid, 'article_ids': [rid],
+                'published_at': '2026-10-25T12:00:00+08:00', 'version': '0.3.0', 'commit_sha': commit})
+        publisher._atomic_write_json(publisher._ledger_path(state_root), ledger)
+        return {'status': 'PUBLISHED', 'pushed': True, 'run_ids': ids,
+                'article_ids': ids, 'commit_sha': commit, 'version': '0.3.0'}
+
+    monkeypatch.setattr(publisher, 'collect_ready_runs', collect)
+    monkeypatch.setattr(publisher, 'publish_ready_runs', publish)
+    return fixture, batch_calls, publish
+
+
+def _preferred_tick(fixture, **kwargs):
+    repo, queue, state_root, *_ = fixture
+    return publisher.publish_continuous_tick.__wrapped__(repo, queue, state_root,
+        max_runs=1, push=True, prefer_new_batch_size=2, **kwargs)
+
+
+def test_preferred_new_batch_publishes_two_then_yields_to_next_lane(tmp_path, monkeypatch):
+    fixture, calls, _ = _batch_fixture(tmp_path, monkeypatch)
+    first = _preferred_tick(fixture)
+    assert first['status'] == 'PUBLISHED' and first['daily_articles'] == 2
+    assert len(first['run_ids']) == 2 and fixture[4] == []
+    assert len(calls) == 1 and calls[0]['max_runs'] == 2
+    assert calls[0]['batch_day'] == '2026-10-25'
+    assert calls[0]['run_tests'] and calls[0]['release_gate'] and calls[0]['push']
+    assert _preferred_tick(fixture)['lane'] == 'i18n-new'
+    assert len(calls) == 1
+
+
+def test_batch_preference_off_still_publishes_only_one(tmp_path, monkeypatch):
+    fixture, calls, _ = _batch_fixture(tmp_path, monkeypatch)
+    assert _tick(fixture)['daily_articles'] == 1
+    assert calls == [] and len(fixture[4]) == 1
+
+
+@pytest.mark.parametrize('reason', ['insufficient', 'quota_one'])
+def test_preferred_batch_falls_back_only_before_attempt(tmp_path, monkeypatch, reason):
+    fixture, calls, _ = _batch_fixture(tmp_path, monkeypatch)
+    if reason == 'insufficient':
+        fixture[5]['enough'] = False
+    else:
+        monkeypatch.setattr(publisher, 'CONTINUOUS_DAILY_MAX_ARTICLES', 1)
+    result = _preferred_tick(fixture)
+    assert result['daily_articles'] == 1
+    assert calls == [] and len(fixture[4]) == 1
+
+
+@pytest.mark.parametrize('reason', ['batch_failure', 'batch_error'])
+def test_failed_preferred_batch_never_republishes_single_in_same_tick(tmp_path, monkeypatch, reason):
+    fixture, calls, _ = _batch_fixture(tmp_path, monkeypatch)
+    fixture[5][reason] = True
+    if reason == 'batch_error':
+        with pytest.raises(publisher.PublishBlocked, match='漂移'):
+            _preferred_tick(fixture)
+    else:
+        assert _preferred_tick(fixture)['status'] == 'FAILED_RECOVERED'
+    assert len(calls) == 1 and fixture[4] == []
+    assert _preferred_tick(fixture)['lane'] == 'i18n-new'
+
+
+@pytest.mark.parametrize('corruption', ['missing_owner', 'duplicate_run', 'wrong_commit', 'wrong_article', 'wrong_version', 'swapped_owners'])
+def test_preferred_batch_readback_checks_both_exact_owners(tmp_path, monkeypatch, corruption):
+    fixture, _calls, publish = _batch_fixture(tmp_path, monkeypatch)
+    def corrupt(*args, **kwargs):
+        result = publish(*args, **kwargs)
+        if corruption == 'duplicate_run':
+            result['run_ids'] = result['run_ids'][:1] * 2
+        else:
+            ledger = publisher._load_ledger(fixture[2])
+            if corruption == 'missing_owner':
+                ledger['published_runs'].pop()
+            elif corruption == 'wrong_commit':
+                ledger['published_runs'][1]['commit_sha'] = 'c' * 40
+            elif corruption == 'wrong_article':
+                ledger['published_runs'][1]['article_ids'] = ['wrong']
+            elif corruption == 'swapped_owners':
+                left, right = ledger['published_runs']
+                left['article_ids'], right['article_ids'] = right['article_ids'], left['article_ids']
+            else:
+                ledger['published_runs'][1]['version'] = '0.3.98'
+            publisher._atomic_write_json(publisher._ledger_path(fixture[2]), ledger)
+        return result
+    monkeypatch.setattr(publisher, 'publish_ready_runs', corrupt)
+    result = _preferred_tick(fixture)
+    assert result['status'] == 'OPERATOR_REQUIRED'
+    assert (fixture[2] / 'continuous-publisher-stop.json').exists()
+    assert fixture[4] == []
+
+
+def test_preferred_batch_joins_actual_owner_without_zipping_sorted_article_ids(tmp_path, monkeypatch):
+    fixture, _calls, publish = _batch_fixture(tmp_path, monkeypatch)
+    def reordered(*args, **kwargs):
+        result = publish(*args, **kwargs)
+        result['run_ids'] = list(reversed(result['run_ids']))
+        result['article_ids'] = sorted(result['article_ids'])
+        return result
+    monkeypatch.setattr(publisher, 'publish_ready_runs', reordered)
+    assert _preferred_tick(fixture)['status'] == 'PUBLISHED'
+
+
+def test_preferred_batch_readback_ignores_unrelated_invalid_state(tmp_path, monkeypatch):
+    fixture, _calls, _publish = _batch_fixture(tmp_path, monkeypatch)
+    (fixture[1] / 'runs' / 'unrelated.json').write_text('{invalid')
+    assert _preferred_tick(fixture)['status'] == 'PUBLISHED'
+
+
+def test_preferred_batch_readback_uses_completed_runs_not_peek_reservation(tmp_path, monkeypatch):
+    fixture, _calls, publish = _batch_fixture(tmp_path, monkeypatch)
+    def reselected(*args, **kwargs):
+        result = publish(*args, **kwargs)
+        ledger = publisher._load_ledger(fixture[2])
+        actual_ids = []
+        for entry in ledger['published_runs']:
+            rid = entry['run_id'] + '-reselected'
+            directory = fixture[1] / 'new' / rid
+            directory.mkdir()
+            (directory / 'candidate.json').write_text(json.dumps({'run_id': rid, 'articles': [{'id': entry['article_ids'][0]}]}))
+            (fixture[1] / 'runs' / (rid + '.json')).write_text(json.dumps({'run_id': rid, 'lane': 'new', 'run_dir': str(directory)}))
+            entry['run_id'] = rid
+            actual_ids.append(rid)
+        publisher._atomic_write_json(publisher._ledger_path(fixture[2]), ledger)
+        result['run_ids'] = actual_ids
+        return result
+    monkeypatch.setattr(publisher, 'publish_ready_runs', reselected)
+    result = _preferred_tick(fixture)
+    assert result['status'] == 'PUBLISHED'
+    assert all(rid.endswith('-reselected') for rid in result['run_ids'])
+
+
+@pytest.mark.parametrize('name,value', [('run_tests', False), ('release_gate', False), ('dry_run', True), ('pages_enabled', True)])
+def test_preferred_batch_rejects_weakened_gates(tmp_path, monkeypatch, name, value):
+    fixture, calls, _ = _batch_fixture(tmp_path, monkeypatch)
+    with pytest.raises(publisher.PublishBlocked):
+        _preferred_tick(fixture, **{name: value})
+    assert calls == [] and fixture[4] == []
+
+
+def test_preferred_batch_retains_stop_and_unknown_push_locks(tmp_path, monkeypatch):
+    fixture, calls, _ = _batch_fixture(tmp_path, monkeypatch)
+    def unknown(*_):
+        raise publisher.PublishBlocked('unknown push')
+    monkeypatch.setattr(publisher, '_assert_no_unresolved_push', unknown)
+    with pytest.raises(publisher.PublishBlocked, match='unknown push'):
+        _preferred_tick(fixture)
+    assert calls == [] and fixture[4] == []
+    monkeypatch.setattr(publisher, '_continuous_preexisting_stop', lambda *_: {'status': 'OPERATOR_REQUIRED'})
+    assert _preferred_tick(fixture)['status'] == 'OPERATOR_REQUIRED'
+    assert calls == []
+
+
+@pytest.mark.parametrize('argv', [
+    ['--prefer-new-batch-size', '1'], ['--prefer-new-batch-size', '10'],
+    ['--prefer-new-batch-size', '02'],
+    ['--prefer-new-batch-size'],
+    ['--prefer-new-batch-size', '2', '--prefer-new-batch-size=2'],
+])
+def test_preferred_batch_parser_rejects_invalid_or_repeated_flag(monkeypatch, argv):
+    monkeypatch.setattr(sys, 'argv', ['publisher', *argv])
+    with pytest.raises(SystemExit):
+        publisher.parse_args()
+
+
+@pytest.mark.parametrize('extra', [[], ['--continuous-tick', '--include-rewrites', '--push', '--skip-tests'],
+    ['--continuous-tick', '--include-rewrites', '--push', '--pages-deploy'],
+    ['--continuous-tick', '--include-rewrites', '--push', '--deployment-preflight']])
+def test_preferred_batch_cli_requires_full_continuous_contract(monkeypatch, extra):
+    monkeypatch.setattr(sys, 'argv', ['publisher', '--max-runs', '1', '--prefer-new-batch-size', '2', *extra])
+    with pytest.raises(SystemExit):
+        publisher.main.__wrapped__()
 
 
 def test_continuous_four_ticks_apply_one_distinct_article_each(
