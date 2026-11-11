@@ -10,7 +10,7 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=agy-i18n-0-3-1020";
+} from "./article-registry.js?v=agy-i18n-0-3-1021";
 import {
   ARTICLE_LOCALE_CONFIG,
   ARTICLE_UI_MESSAGES,
