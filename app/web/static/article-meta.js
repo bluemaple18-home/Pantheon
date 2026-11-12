@@ -10,7 +10,7 @@ import {
   listArticleRecords,
   listArticlesForTopic,
   listPublicTagLabelsForArticle,
-} from "./article-registry.js?v=agy-i18n-0-3-1046";
+} from "./article-registry.js?v=agy-auto-new-v1-20260914-047-01";
 import {
   ARTICLE_LOCALE_CONFIG,
   ARTICLE_UI_MESSAGES,
@@ -1462,7 +1462,13 @@ import { AGY_AUTO_NEW_V1_20260922_057_01_ARTICLE_BODY_LIBRARY } from "./article-
 
 import { AGY_AUTO_NEW_V1_20260922_034_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-auto-new-v1-20260922-034-01.js?v=agy-auto-new-v1-20260922-034-01";
 
+import { AGY_AUTO_NEW_V1_20260915_123_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-auto-new-v1-20260915-123-01.js?v=agy-auto-new-v1-20260915-123-01";
+
+import { AGY_AUTO_NEW_V1_20260914_047_01_ARTICLE_BODY_LIBRARY } from "./article-expansion-agy-auto-new-v1-20260914-047-01.js?v=agy-auto-new-v1-20260914-047-01";
+
 const ARTICLE_BODY_LIBRARY = {
+  ...AGY_AUTO_NEW_V1_20260914_047_01_ARTICLE_BODY_LIBRARY,
+  ...AGY_AUTO_NEW_V1_20260915_123_01_ARTICLE_BODY_LIBRARY,
   ...AGY_AUTO_NEW_V1_20260922_034_01_ARTICLE_BODY_LIBRARY,
   ...AGY_AUTO_NEW_V1_20260922_057_01_ARTICLE_BODY_LIBRARY,
   ...AGY_AUTO_NEW_V1_20260919_070_01_ARTICLE_BODY_LIBRARY,
