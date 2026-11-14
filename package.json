@@ -1,6 +1,6 @@
 {
   "name": "pantheon-engine-bridges",
-  "version": "0.3.1111",
+  "version": "0.3.1112",
   "private": true,
   "type": "module",
   "scripts": {
