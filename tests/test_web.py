@@ -39,7 +39,7 @@ from scripts.prerender_article_shells import (
 from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 
-ARTICLE_CACHE_TOKEN = "agy-i18n-0-3-1094"
+ARTICLE_CACHE_TOKEN = "agy-auto-new-v1-20260920-160-01"
 
 INITIAL_FIRST_30_ARTICLE_PATHS = [
     "/articles/personality/personality-0001",
@@ -890,6 +890,8 @@ DAILY_PUBLIC_ARTICLE_PATHS = [
     "/articles/personality/personality-4220",
     "/articles/astrology/astrology-0261",
     "/articles/personality/personality-4034",
+    "/articles/personality/personality-3730",
+    "/articles/personality/personality-4276",
 ]
 
 CODEX_EMERGENCY_PUBLIC_ARTICLE_PATHS = [
