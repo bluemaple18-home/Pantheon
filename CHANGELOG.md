@@ -2,6 +2,14 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.1159] - 2026-11-16
+
+- Release tag：`v0.3.1159`
+- 公開文章總數：1074
+- 發布範圍：自動發布 Gemini Reviewer APPROVE 且 deterministic gate 通過的新文章 2 個 run；run_id：auto-new-v1-20260916-005-01, auto-new-v1-20260922-087-01。
+- 驗證：publisher clean-origin gate、Reviewer hash gate、deterministic quality gate、batch uniqueness gate、focused article pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/publish-0.3.1159`
+
 ## [0.3.1158] - 2026-11-16
 
 - Release tag：`v0.3.1158`
