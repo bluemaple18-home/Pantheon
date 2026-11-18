@@ -5825,15 +5825,22 @@ def test_create_apply_gate_still_requires_publication_policy() -> None:
         )
 
 
-def test_matrix_backlog_uses_semantic_aliases_and_avoids_duplicates(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    "published_v2_ids",
+    [set(), {"V2-MBTI-PAIR-INFP-ISTP-LOVE", "V2-ZODIAC-PAIR-TAURUS-TAURUS-LOVE"}],
+    ids=["before-publication", "after-approved-pair"],
+)
+def test_matrix_backlog_uses_semantic_aliases_and_avoids_duplicates(
+    monkeypatch: pytest.MonkeyPatch, published_v2_ids: set[str],
+) -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    integrated_inventory = pipeline._registry_inventory(repo_root)
-    baseline_inventory = [
-        item
-        for item in integrated_inventory
-        if str(item.get("id")) not in AGY_MATRIX_IDS | DAILY_QUEUE_IDS
+    # 固定樣本驗證別名與去重；正式發文造成的待發數減少不能讓測試失敗。
+    inventory = [
+        {"id": "LEGACY-CAREER", "primaryKeyword": "事業宮", "title": "事業宮怎麼看"},
+        {"id": "LEGACY-YEAR", "primaryKeyword": "八字流年", "title": "八字流年怎麼看"},
+        *(row for row in build_matrix_v2_rows() if row["id"] in published_v2_ids),
     ]
-    monkeypatch.setattr(pipeline, "_registry_inventory", lambda _: baseline_inventory)
+    monkeypatch.setattr(pipeline, "_registry_inventory", lambda _: inventory)
     backlog = build_matrix_backlog(repo_root)
     ids = {item["id"] for item in backlog}
 
@@ -5843,7 +5850,8 @@ def test_matrix_backlog_uses_semantic_aliases_and_avoids_duplicates(monkeypatch:
     assert {"ASC-ARIES", "ASC-TAURUS", "ASC-GEMINI"} <= ids
     assert "CHART-CYCLE-DECADE" in ids
     assert AGY_MATRIX_IDS | DAILY_QUEUE_IDS <= ids
-    assert len(ids & V2_MATRIX_IDS) >= 1000
+    assert ids & V2_MATRIX_IDS == V2_MATRIX_IDS - published_v2_ids
+    assert not ids & published_v2_ids
     assert len(ids) == len(backlog)
 
 
