@@ -41,16 +41,6 @@ from scripts.update_articles_hub_dates import render_articles_hub_dates
 
 ARTICLE_CACHE_TOKEN = "agy-i18n-0-3-1191"
 
-
-def _article_entry_src() -> str:
-    match = re.search(
-        r'<script\b[^>]*\bsrc="(static/article\.js\?v=[^"]+)"',
-        Path("app/web/article.html").read_text(),
-    )
-    assert match is not None
-    return match.group(1)
-
-
 INITIAL_FIRST_30_ARTICLE_PATHS = [
     "/articles/personality/personality-0001",
     "/articles/personality/personality-0002",
@@ -1286,7 +1276,7 @@ def test_article_urls_serve_article_template() -> None:
         assert "ui-brand-mark" in response.text
         assert 'rel="icon" href="/static/pantheon-orb-alpha-poster.webp"' in response.text
         assert "/static/styles.css?v=article-mobile-overflow-20260718-1" in response.text
-        assert f"/{_article_entry_src()}" in response.text
+        assert f"/static/article.js?v={ARTICLE_CACHE_TOKEN}" in response.text
 
 
 def test_article_raw_html_has_path_specific_seo_shell() -> None:
@@ -1875,8 +1865,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     motion_visual_js = Path("app/web/static/pantheon-motion-visual.js").read_text()
     styles_css = Path("app/web/static/styles.css").read_text()
     redirects = Path("app/web/_redirects").read_text()
-    assert "await loadArticleContent(window.location.pathname, window.location.origin" in article_js
-    assert "if (content?.redirectTo)" in article_js
+    assert "buildArticleContent(window.location.pathname, window.location.origin" in article_js
+    assert "if (content.redirectTo)" in article_js
     assert "window.location.replace(content.redirectTo)" in article_js
     assert "applyArticleSeo(content, dom, window.location.origin)" in article_js
     assert "document.body.dataset.locale = content.locale || \"zh-Hant\"" in article_js
@@ -1935,7 +1925,7 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     assert "data-topic-visible-links" in article_html
     assert 'document.write(`<base href="${window.location.protocol === "file:" ? "./" : "/"}">`)' in article_html
     assert 'href="static/styles.css?v=article-mobile-overflow-20260718-1"' in article_html
-    assert f'src="{_article_entry_src()}"' in article_html
+    assert f'src="static/article.js?v={ARTICLE_CACHE_TOKEN}"' in article_html
     assert "data-article-navigation" in article_html
     assert "data-article-cta" in article_html
     assert "id=\"site-entity-jsonld\"" in article_html

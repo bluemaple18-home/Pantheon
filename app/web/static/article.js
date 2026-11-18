@@ -1,4 +1,4 @@
-import { loadArticleContent } from "./article-content-loader.js?v=article-payload-20261118-2";
+import { buildArticleContent } from "./article-meta.js?v=agy-i18n-0-3-1191";
 import { applyArticleSeo } from "./article-seo.js?v=article-content-20260710-10";
 
 const INLINE_TOPIC_MAX_LINKS = 8;
@@ -41,13 +41,13 @@ const dom = {
   faqJsonLd: document.querySelector("#faq-jsonld"),
 };
 
-const content = await loadArticleContent(window.location.pathname, window.location.origin, {
+const content = buildArticleContent(window.location.pathname, window.location.origin, {
   author: dom.articleAuthor?.textContent?.trim(),
-}, () => import("./article-meta.js?v=agy-i18n-0-3-1191"));
+});
 
-if (content?.redirectTo) {
+if (content.redirectTo) {
   window.location.replace(content.redirectTo);
-} else if (content) {
+} else {
   renderArticleChrome(content);
   applyArticleSeo(content, dom, window.location.origin);
   initArticlePointerEffects();
