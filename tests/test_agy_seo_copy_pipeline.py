@@ -6421,17 +6421,34 @@ def test_apply_rewrite_release_fails_closed_before_ready(tmp_path: Path) -> None
         pipeline.apply_rewrite_release(tmp_path, release_root)
 
 
-def test_integrated_matrix_backlog_keeps_daily_queue_first_then_v2() -> None:
+@pytest.mark.parametrize("publication_progress", ["current", "next-batches", "completed"])
+def test_integrated_matrix_backlog_keeps_daily_queue_first_then_v2(
+    monkeypatch: pytest.MonkeyPatch, publication_progress: str,
+) -> None:
     repo_root = Path(__file__).resolve().parents[1]
+    inventory = pipeline._registry_inventory(repo_root)
+    monkeypatch.setattr(pipeline, "_registry_inventory", lambda _: inventory)
+    before = build_matrix_backlog(repo_root)
+    # 發文會減少待發量；繼續發文及全部發完都必須符合相同排序與去重契約。
+    published = []
+    if publication_progress == "completed":
+        published = before
+    elif publication_progress == "next-batches":
+        published = [row for row in before if row["id"].startswith("V2-")][:4]
+    inventory.extend(published)
     backlog = build_matrix_backlog(repo_root)
     backlog_ids = [item["id"] for item in backlog]
     legacy_rows = pipeline._matrix_rows((repo_root / pipeline.MATRIX_PLAN).read_text(encoding="utf-8"))
     remaining_daily = [row["id"] for row in legacy_rows if row["id"] in DAILY_QUEUE_IDS and row["id"] in backlog_ids]
 
     assert backlog_ids[: len(remaining_daily)] == remaining_daily
-    assert len(backlog) >= 1000
     assert len(set(backlog_ids)) == len(backlog)
-    assert any(item["id"].startswith("V2-") for item in backlog[len(remaining_daily) :])
+    assert not set(backlog_ids) & {item["id"] for item in inventory}
+    assert len(backlog) <= len(before)
+    if published:
+        assert len(backlog) < len(before)
+    if publication_progress == "completed":
+        assert backlog == []
 
 
 def test_apply_writes_only_approved_articles_without_git_actions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

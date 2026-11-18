@@ -2,6 +2,14 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.1196] - 2026-11-18
+
+- Release tag：`v0.3.1196`
+- 公開文章總數：1084。
+- 發布範圍：補齊中文待發庫存整合測試，保留剛完成的1195日文文章與退版後產品程式，不修改排程或品質gate。
+- 驗證：重現再發布四篇及全部完成時原測試誤判；修正後current／next-batches／completed與語義別名共5項測試通過，5項負向probe被拒絕，獨立覆核PASS。1195正式排程另已通過771項release測試並成功發布，公開正文可讀。
+- 證據：`.work/article-resource-rollback-20261118/backlog_1195_green.log`、`review-backlog-complete.md`、`public_1195_browser.json`。
+
 ## [0.3.1195] - 2026-11-18
 
 - Release tag：`v0.3.1195`
