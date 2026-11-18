@@ -8,6 +8,7 @@ import html
 import json
 import re
 from pathlib import Path
+from functools import lru_cache
 
 
 WEB_DIR = Path(__file__).parent / "app" / "web"
@@ -276,6 +277,50 @@ def replace_meta_content(markup: str, attr_name: str, attr_value: str, content_v
     return re.sub(pattern, rf"\g<1>{escaped}\3", markup, count=1)
 
 
+@lru_cache(maxsize=1)
+def _article_hydration_contents() -> dict[str, dict]:
+    """每個生成程序只讀一次既有 JS builder，不建立另一份內容來源。"""
+    from scripts import agy_seo_copy_pipeline as pipeline
+
+    script = """
+import { listArticleRecords, getArticlePath } from './app/web/static/article-registry.js';
+import { buildArticleContent } from './app/web/static/article-meta.js';
+const origin = __ORIGIN__;
+console.log(JSON.stringify(Object.fromEntries(listArticleRecords().map((article) => {
+  const path = getArticlePath(article);
+  return [path, buildArticleContent(path, origin, {
+    author: 'Pantheon 編輯部', updated: article.updated || '',
+  })];
+}))));
+""".replace("__ORIGIN__", json.dumps(SITE_ORIGIN))
+    result = pipeline._run_registry_node_script(Path(__file__).resolve().parent, script)
+    return json.loads(result.stdout)
+
+
+def _article_hydration_payload(meta: dict) -> str | None:
+    # 既有生成器已提供正文時才嵌入；raw shell 與集結頁保留原本的 fallback。
+    if meta.get("content_type") != "Article" or "bodySections" not in meta:
+        return None
+    content = _article_hydration_contents().get(meta["path"])
+    if content is None:
+        return None
+    from scripts import agy_seo_copy_pipeline as pipeline
+
+    content = {
+        **content,
+        "author": pipeline.load_article_publication_policy()["identity"]["author_name"],
+        "answer": meta["answer"],
+        "bodySections": meta["bodySections"],
+        "faq": meta["faq"],
+    }
+    for field in ("published", "updated"):
+        if meta.get(field):
+            content[field] = meta[field]
+        else:
+            content.pop(field, None)
+    return json_script({"path": meta["path"], "content": content}).replace("<", "\\u003c")
+
+
 def render_article_shell_from_meta(meta: dict[str, str]) -> HTMLResponse:
     markup = (WEB_DIR / "article.html").read_text(encoding="utf-8")
     # Raw shell supports file:// preview; HTTP responses keep site-root asset URLs.
@@ -338,6 +383,13 @@ def render_article_shell_from_meta(meta: dict[str, str]) -> HTMLResponse:
         pattern = rf'<section class="article-hub-visible-links ui-panel" aria-label="[^"]+" {data_hook} hidden></section>'
         markup = re.sub(pattern, visible_links_markup, markup, count=1)
     markup = markup.replace("</article>", f"{build_prerender_internal_links(meta.get('internal_links', []))}</article>", 1)
+    payload = _article_hydration_payload(meta)
+    if payload is not None:
+        markup = markup.replace(
+            "</body>",
+            f'<script type="application/json" id="article-content-payload">{payload}</script>\n</body>',
+            1,
+        )
     return HTMLResponse(markup)
 
 

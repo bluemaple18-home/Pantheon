@@ -2,6 +2,15 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.1192] - 2026-11-18
+
+- Release tag：`v0.3.1192`
+- 公開文章總數：1084。
+- 發布範圍：單篇文章改從預渲染頁讀取本頁資料；沿既有 main renderer 輸出 payload，保留現役鎖定生成器與 Publisher runtime；重新生成 1102 個文章／集結頁。
+- 驗證：最新 1191 基準的文章／web／runtime transport 回歸 123 passed；兩篇 Chrome 各 3 個 JavaScript／7 個站內請求，全部 200，正文與 FAQ 互動正常；正式生成兩輪 88.947／91.006 秒且輸出冪等；1084 篇 payload 與 frozen actor runtime 比對通過，獨立重審無 blocker。
+- 驗證限制：全庫慢測 945 passed／25 failed／1 skipped 後中止，未宣稱全庫通過；錯誤涉及的六個產品檔案與基準相同。正式發布與 Google 即時測試尚未執行。
+- 證據：`.work/article-resource-fanout-20261118/final/receipt.md`（原工作區）。
+
 ## [0.3.1191] - 2026-11-18
 
 - Release tag：`v0.3.1191`
