@@ -2490,6 +2490,7 @@ def test_collect_ready_translation_runs_does_not_bypass_ledger_lifecycle(
     assert publisher.collect_ready_translation_runs(repo_root, queue_root, state_root) == []
 
 
+@pytest.mark.parametrize("reason", ["reviewer rejection", "publisher only supports create mode"])
 @pytest.mark.parametrize("quarantined", [True, False])
 @pytest.mark.parametrize("lane", ["i18n-new", "i18n-rewrite"])
 def test_collect_ready_translation_runs_respects_quarantine(
@@ -2497,6 +2498,7 @@ def test_collect_ready_translation_runs_respects_quarantine(
     monkeypatch: pytest.MonkeyPatch,
     quarantined: bool,
     lane: str,
+    reason: str,
 ) -> None:
     run_id = "translation-quarantine-fixture"
     state_root = tmp_path / "state"
@@ -2508,7 +2510,7 @@ def test_collect_ready_translation_runs_respects_quarantine(
     review = {"run_id": run_id}
     _write_json(state_root / "ledger.json", {
         "schema_version": 1,
-        "quarantined_runs": ([{"run_id": run_id, "reason": "reviewer rejection"}] if quarantined else []),
+        "quarantined_runs": ([{"run_id": run_id, "reason": reason}] if quarantined else []),
     })
     _write_json(state_path, state)
     _write_json(run_dir / "brief.json", brief)
@@ -3076,7 +3078,7 @@ def test_collect_ready_rewrite_runs_respects_quarantine_and_reject(tmp_path: Pat
         {
             "schema_version": 1,
             "published_runs": [],
-            "quarantined_runs": [{"run_id": "rewrite-approved", "reason": "publisher only supports create mode"}],
+            "quarantined_runs": [{"run_id": "rewrite-approved", "reason": "reviewer rejection"}],
         },
     )
     monkeypatch.setattr(publisher.pipeline, "rewrite_aggregate_findings", lambda _brief, _articles: ([], []))
@@ -3084,6 +3086,113 @@ def test_collect_ready_rewrite_runs_respects_quarantine_and_reject(tmp_path: Pat
     ready = publisher.collect_ready_rewrite_runs(queue_root, state_root, limit=10)
 
     assert ready == []
+
+
+@pytest.mark.parametrize("legacy_quarantine", [False, True])
+def test_new_to_rewrite_lifecycle_preserves_legacy_mode_quarantine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, legacy_quarantine: bool,
+) -> None:
+    """new 掃描不得污染 rewrite；歷史誤標仍須通過來源與 commit 前重驗。"""
+    queue, state_root = tmp_path / "queue", tmp_path / "state"
+    run_dir = tmp_path / "runs" / "rewrite-cross-lane"
+    article = make_schema_conformant_rewrite_article()
+    _write_rewrite_run(queue, run_dir, article)
+    _write_run(queue, tmp_path / "runs" / "healthy-create", make_publishable_article())
+    quarantines = ([{"run_id": run_dir.name, "reason": "publisher only supports create mode"}]
+                   if legacy_quarantine else [])
+    _write_json(state_root / "ledger.json", {"schema_version": 1, "quarantined_runs": quarantines})
+
+    created = publisher.collect_ready_runs(queue, state_root, limit=10)
+    assert [state["run_id"] for state, _, _ in created] == ["healthy-create"]
+    assert publisher._load_ledger(state_root)["quarantined_runs"] == quarantines
+    ready = publisher.collect_ready_rewrite_runs(queue, state_root, limit=10)
+    assert [state["run_id"] for state, _, _, _ in ready] == [run_dir.name]
+    brief = ready[0][3]
+    monkeypatch.setattr(publisher.pipeline, "_existing_rewrite_inventory", lambda _: {
+        article["article_id"]: {
+            "record": {**article["identity"], "articleCategory": article["identity"]["category"],
+                       "urlSlug": article["identity"]["slug"]},
+            "currentBody": brief["articles"][0]["current_body"],
+        },
+    })
+    ready = publisher._filter_rewrite_runs_with_current_sources(
+        tmp_path, state_root, ready, quarantine=True,
+    )
+    assert len(ready) == 1
+    base = "a" * 40
+    def fake_git(_repo: Path, args: list[str], _input: str | None = None) -> str:
+        assert args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"], ["fetch", "origin", "main"])
+        return "" if args[0] == "fetch" else base
+    revalidate = publisher._freeze_publish_revalidation(
+        tmp_path, queue, state_root, ready, base, "rewrite", fake_git,
+    )
+    revalidate()
+    # 凍結後才出現真正隔離，仍須在最後寫入前拒絕。
+    publisher._record_quarantine(state_root, ready[0][0], "operator quarantine")
+    with pytest.raises(publisher.PublishBlocked, match="no longer eligible"):
+        revalidate()
+
+
+def test_rewrite_precommit_revalidates_legacy_mode_quarantine(tmp_path: Path) -> None:
+    """即使 selector 已放行，commit 前也必須套用相同的 rewrite 隔離語義。"""
+    queue, state_root = tmp_path / "queue", tmp_path / "state"
+    run_dir = tmp_path / "runs" / "rewrite-legacy-precommit"
+    _write_rewrite_run(queue, run_dir, make_schema_conformant_rewrite_article())
+    _write_json(state_root / "ledger.json", {"schema_version": 1, "quarantined_runs": [
+        {"run_id": run_dir.name, "reason": "publisher only supports create mode"},
+    ]})
+    state, candidate, review = publisher._load_completed_run(queue / "runs" / f"{run_dir.name}.json")
+    brief = publisher._load_rewrite_brief(run_dir, run_dir.name)
+    base = "a" * 40
+    def fake_git(_repo: Path, args: list[str], _input: str | None = None) -> str:
+        assert args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"], ["fetch", "origin", "main"])
+        return "" if args[0] == "fetch" else base
+    publisher._freeze_publish_revalidation(
+        tmp_path, queue, state_root, [(state, candidate, review, brief)], base, "rewrite", fake_git,
+    )()
+
+
+@pytest.mark.parametrize("reason", ["reviewer rejection", "rewrite identity drift for LEGACY-001", "operator quarantine"])
+def test_rewrite_true_quarantine_blocks_even_with_legacy_mode_reason(
+    tmp_path: Path, reason: str,
+) -> None:
+    queue, state_root = tmp_path / "queue", tmp_path / "state"
+    run_dir = tmp_path / "runs" / "rewrite-real-quarantine"
+    _write_rewrite_run(queue, run_dir, make_schema_conformant_rewrite_article())
+    _write_json(state_root / "ledger.json", {"schema_version": 1, "quarantined_runs": [
+        {"run_id": run_dir.name, "reason": "publisher only supports create mode"},
+        {"run_id": run_dir.name, "reason": reason},
+    ]})
+    assert publisher.collect_ready_rewrite_runs(queue, state_root) == []
+    state, candidate, review = publisher._load_completed_run(queue / "runs" / f"{run_dir.name}.json")
+    brief = publisher._load_rewrite_brief(run_dir, run_dir.name)
+    with pytest.raises(publisher.PublishBlocked, match="no longer eligible"):
+        publisher._revalidate_selected_run_state(state_root, [(state, candidate, review, brief)], "rewrite")
+
+
+@pytest.mark.parametrize("reason", ["reviewer rejection", "publisher only supports create mode"])
+def test_create_quarantine_keeps_blocking_its_own_lane(tmp_path: Path, reason: str) -> None:
+    queue, state_root = tmp_path / "queue", tmp_path / "state"
+    run_dir = tmp_path / "runs" / "create-quarantined"
+    _write_run(queue, run_dir, make_publishable_article())
+    _write_json(state_root / "ledger.json", {"schema_version": 1, "quarantined_runs": [
+        {"run_id": run_dir.name, "reason": reason},
+    ]})
+    assert publisher.collect_ready_runs(queue, state_root) == []
+    ready = [publisher._load_completed_run(queue / "runs" / f"{run_dir.name}.json")]
+    with pytest.raises(publisher.PublishBlocked, match="no longer eligible"):
+        publisher._revalidate_selected_run_state(state_root, ready, "create")
+
+
+def test_create_selector_unknown_mode_still_fails_closed(tmp_path: Path) -> None:
+    queue, state_root = tmp_path / "queue", tmp_path / "state"
+    run_dir = tmp_path / "runs" / "unknown-mode"
+    _write_run(queue, run_dir, make_publishable_article())
+    candidate = publisher._read_json(run_dir / "candidate.json")
+    candidate["mode"] = "unknown-mode"
+    _write_json(run_dir / "candidate.json", candidate)
+    assert publisher.collect_ready_runs(queue, state_root) == []
+    assert publisher._policy_rejection_path(state_root, "create", run_dir.name).is_file()
 
 
 def test_schema_conformant_rewrite_passes_offline_generation_to_publisher_eligibility(
@@ -6355,6 +6464,16 @@ def test_sync_web_test_cache_token_updates_runtime_templates_from_same_token(tmp
     web_dir = tmp_path / "app/web"
     test_dir.mkdir(parents=True)
     web_dir.mkdir(parents=True)
+    static = web_dir / "static"
+    static.mkdir()
+    (static / "article.js").write_text(
+        'import { render } from "./article-meta.js?v=old-token";\n', encoding="utf-8",
+    )
+    (static / "article-meta.js").write_text(
+        'import { records } from "./article-registry.js?v=old-token";\n'
+        'import { locales } from "./article-locales.js?v=agy-i18n-0-3-80";\n',
+        encoding="utf-8",
+    )
     (test_dir / "test_web.py").write_text('ARTICLE_CACHE_TOKEN = "old-token"\n', encoding="utf-8")
     (web_dir / "article.html").write_text(
         '<script type="module" src="static/article.js?v=old-token"></script>\n',
@@ -6377,6 +6496,15 @@ def test_sync_web_test_cache_token_updates_runtime_templates_from_same_token(tmp
     assert '<meta property="article:modified_time" content="2026-07-23" />' in hub
     assert '"dateModified": "2026-07-23"' in hub
     assert '<time datetime="2026-07-23" data-articles-updated>2026-07-23</time>' in hub
+
+    # 同一瀏覽器經過下一次發布，語言目錄也必須取得新的快取識別。
+    for token in ("agy-i18n-0-3-59", "agy-i18n-0-3-60"):
+        publisher._sync_web_test_cache_token(tmp_path, cache_token=token)
+        assert f"static/article.js?v={token}" in (web_dir / "article.html").read_text()
+        assert f"article-meta.js?v={token}" in (static / "article.js").read_text()
+        meta = (static / "article-meta.js").read_text()
+        assert f"article-registry.js?v={token}" in meta
+        assert f"article-locales.js?v={token}" in meta
 
 
 def test_run_release_tests_runs_fast_preflight_before_full_gate(

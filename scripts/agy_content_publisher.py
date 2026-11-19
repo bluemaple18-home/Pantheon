@@ -3906,7 +3906,7 @@ def collect_ready_runs(
             _record_invalid_candidate_policy_rejection(state_root, "create", state_path)
             continue
         run_id = str(state["run_id"])
-        if candidate.get("mode") == "translate_existing":
+        if candidate.get("mode") in {"translate_existing", "rewrite_existing_body"}:
             continue
         if candidate.get("mode") != "create":
             _record_quarantine(state_root, state, "publisher only supports create mode")
@@ -4245,7 +4245,7 @@ def collect_ready_rewrite_runs(
     selected_run_ids = _normalize_exact_run_ids(exact_run_ids)
     ledger = _load_ledger(state_root)
     released = {str(item.get("run_id")) for item in ledger["rewrite_released_runs"]}
-    quarantined = {str(item.get("run_id")) for item in ledger["quarantined_runs"]}
+    quarantined = _rewrite_quarantined_run_ids(ledger)
     ready: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     seen_article_ids: set[str] = set()
     seen_body_hashes: dict[str, str] = {}
@@ -4901,7 +4901,12 @@ def _revalidate_selected_run_state(
     if check_unresolved:
         _assert_no_unresolved_push(state_root)
     ledger = _load_ledger(state_root)
-    quarantined = {str(item.get("run_id")) for item in ledger["quarantined_runs"]}
+    # rewrite 與 selector 一致，只忽略歷史 create-only 誤標；其他 lane 不放寬。
+    quarantined = (
+        _rewrite_quarantined_run_ids(ledger)
+        if phase == "rewrite"
+        else {str(item.get("run_id")) for item in ledger["quarantined_runs"]}
+    )
     for item in ready:
         state = item[0]
         run_id = str(state["run_id"])

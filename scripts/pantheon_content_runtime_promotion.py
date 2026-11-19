@@ -1989,7 +1989,133 @@ def _pg_observe(request, commands, labels):
             for label in labels}
 
 
+def _pg_target_labels(plan):
+    """舊 pair receipt 沒有新欄位時，維持原來兩服務邊界。"""
+    return tuple(plan.get("target_labels", PUBGUARD_LABELS))
+
+
+def _pg_startup_semantics(payload):
+    """只揭露 current/target 的啟動與批次差異，不替 operator 改設定。"""
+    arguments = payload.get("ProgramArguments", [])
+    flag = "--prefer-new-batch-size"
+    index = arguments.index(flag) if flag in arguments else -1
+    return {"RunAtLoad": payload.get("RunAtLoad", False), "StartInterval": payload.get("StartInterval"),
+            "prefer_new_batch_size": arguments[index + 1] if 0 <= index < len(arguments) - 1 else None}
+
+
+def _pg_previous_authorities(request, commands, current):
+    """逐份封定 mixed previous；dormant metadata 不得取代現役 pair authority。"""
+    activation = _pg_activation()
+    result, manifests = {}, {}
+    for label in runtime_manifest.SERVICE_LABELS:
+        path = request.launch_agents_dir / f"{label}.plist"
+        payload = plistlib.loads(path.read_bytes())
+        args = payload.get("ProgramArguments", [])
+        separator = args.index("--")
+        mode = "activation-only" if "--activation-only" in args[:separator] else "normal"
+        receipt = runtime_manifest.plist_receipt(path, expected_activation_mode=mode)
+        source = Path(payload["EnvironmentVariables"]["PANTHEON_RUNTIME_MANIFEST"])
+        identity = activation.capture_file_identity(source)
+        declared = {field: receipt[field] for field in runtime_manifest.PATH_FIELDS}
+        for value in declared.values():
+            root = Path(value)
+            _pg_require(root.is_absolute() and root.resolve(strict=True) == root and root.is_dir(),
+                        "previous declared root is not canonical")
+        if label in PUBGUARD_LABELS:
+            if source not in manifests:
+                manifests[source] = _pg_load_manifest(source, commands, receipt["manifest_digest"])
+            previous = manifests[source]
+            _pg_require(previous == current and source == request.old_manifest_path and mode == "normal",
+                        "current pair authority mismatch")
+            for key, value in runtime_manifest.receipt_for_label(current, label).items():
+                _pg_require(receipt.get(key) == value, f"current pair authority mismatch: {label} {key}")
+            runtime_manifest.validate_barrier(
+                Path(current["publisher_state_root"]) / f"four-lane-activation-{current['generation']}.barrier", current)
+        # Dormant 的 env 是歷史宣告，不要求被覆寫的 reference 現在仍屬同代；兩者各自封存，絕不執行。
+        barrier = Path(receipt["publisher_state_root"]) / f"four-lane-activation-{receipt['generation']}.barrier"
+        _pg_require(args[4:12] == ["--barrier", str(barrier), "--expected-digest", receipt["manifest_digest"],
+                                  "--manifest", str(source), "--service-label", label],
+                    "previous wrapper authority mismatch")
+        _pg_require(identity == activation.capture_file_identity(source), "previous manifest identity drift")
+        result[label] = {"manifest": identity, "barrier_path": str(barrier),
+                         "barrier": activation.capture_file_identity(barrier) if os.path.lexists(barrier) else None,
+                         "activation_mode": mode, "declared_receipt": receipt, "process_roots": declared}
+    return result
+
+
+def _pg_check_previous(request, receipt, commands):
+    """只重驗已封定 previous 與本交易 own 的 old/target 中間態，不猜測外部改動。"""
+    plan = receipt["plan"]
+    if _pg_target_labels(plan) == PUBGUARD_LABELS:
+        return
+    activation = _pg_activation()
+    disabled = sorted(activation.read_disabled_service_labels(_pg_target_labels(plan), runner=commands))
+    initial = set(plan["previous_disabled"])
+    enabled_by_us = {event.get("label") for event in receipt["events"] if event["action"] == "enable-service"}
+    _pg_require(set(disabled) <= initial and initial - set(disabled) <= enabled_by_us,
+                "disabled service authority drift")
+    for label, previous in plan["previous_authorities"].items():
+        source = previous["manifest"]
+        _pg_require(activation.capture_file_identity(Path(source["path"])) == source,
+                    "previous manifest sealed identity drift")
+        barrier = Path(previous["barrier_path"])
+        actual = activation.capture_file_identity(barrier) if os.path.lexists(barrier) else None
+        _pg_require(actual == previous["barrier"], "previous barrier sealed identity drift")
+        for kind in ("manifest", "barrier"):
+            identity = previous[kind]
+            if identity is not None:
+                backup = request.transaction_root / f"{label}.previous.{kind}.json"
+                _pg_require(file_sha256(backup) == identity["sha256"], "previous authority recovery bytes changed")
+        backup = request.transaction_root / f"{label}.previous.plist"
+        _pg_require(file_sha256(backup) == plan["old_plists"][label]["sha256"], "previous recovery bytes changed")
+        destination = request.launch_agents_dir / f"{label}.plist"
+        digest = file_sha256(destination)
+        old = digest == plan["old_plists"][label]["sha256"]
+        _pg_require(old or (label in receipt["touched_labels"]
+                    and digest == plan["staged_plists"][label]["sha256"]), "previous/target destination drift")
+        if label not in PUBGUARD_LABELS and old:
+            _pg_require(_pg_observe(request, commands, (label,))[label]["topology"] == "ABSENT",
+                        f"dormant previous service unexpectedly loaded: {label}")
+
+
+def _pg_producer_normal_contract(manifest, label, payload):
+    """只接受原四線 normal coordinator/runner，不以 aggregate metadata 取代 child 契約。"""
+    child = payload["ProgramArguments"][17:]
+    _pg_require(payload["EnvironmentVariables"].get("AGY_GEMINI_NEW_ONLY", "0") == "0",
+                "four-lane producer cannot be new-only")
+    prefix = [manifest["python_executable"], "-m"]
+    if label == "com.pantheon.agy-gemini-coordinator":
+        _pg_require(child[:3] == [*prefix, "scripts.agy_gemini_coordinator"],
+                    "normal coordinator command mismatch")
+        values = {"--repo-root": manifest["actor_root"], "--queue-root": manifest["queue_root"],
+                  "--legacy-state-root": manifest["publisher_state_root"], "--lane-mode": "cycle"}
+        roots = {"--new-matrix-run-root", "--legacy-run-root"}
+        switches = {"--new-matrix-sweep", "--legacy-sweep"}
+        seen, index = set(), 3
+        while index < len(child):
+            flag = child[index]
+            _pg_require(flag not in seen and flag in (set(values) | roots | switches),
+                        "normal coordinator flag forbidden or duplicated")
+            seen.add(flag)
+            index += 1
+            if flag not in switches:
+                _pg_require(index < len(child), "normal coordinator value missing")
+                value = child[index]
+                _pg_require(value == values[flag] if flag in values else
+                            Path(value).is_absolute() and Path(value).resolve() == Path(value),
+                            "normal coordinator identity mismatch")
+                index += 1
+        _pg_require(seen == set(values) | roots | switches, "normal coordinator flags incomplete")
+    else:
+        lane = label.removeprefix("com.pantheon.agy-gemini-")
+        _pg_require(lane in {"new", "rewrite", "i18n-new", "i18n-rewrite"} and child ==
+                    [*prefix, "scripts.agy_gemini_runner", "--queue-root", manifest["queue_root"],
+                     "--lane", lane, "process-once"], "normal lane command mismatch")
+
+
 def _pg_check_five(request, commands, plan):
+    if _pg_target_labels(plan) != PUBGUARD_LABELS:
+        return {}
     labels = tuple(label for label in runtime_manifest.SERVICE_LABELS if label not in PUBGUARD_LABELS)
     observed = _pg_observe(request, commands, labels)
     for label in labels:
@@ -2095,8 +2221,13 @@ def _pg_spec(request: PublisherGuardRequest, commands) -> dict[str, Any]:
     old = _pg_load_manifest(request.old_manifest_path, commands)
     new = _pg_load_manifest(request.new_manifest_path, commands)
     helper = getattr(runtime_manifest, "activation_service_labels", None)
-    _pg_require(helper is not None and new.get("activation_scope") == "publisher_guard"
-                and helper(new) == PUBGUARD_LABELS, "publisher_guard manifest support required")
+    labels = helper(new) if helper is not None else ()
+    _pg_require(labels in (PUBGUARD_LABELS, runtime_manifest.SERVICE_LABELS),
+                "publisher_guard manifest support required")
+    full = labels == runtime_manifest.SERVICE_LABELS
+    if full:
+        _pg_require("activation_scope" not in new and helper(old) == PUBGUARD_LABELS,
+                    "full target requires current publisher_guard authority")
     _pg_require(new["service_labels"] == list(runtime_manifest.SERVICE_LABELS), "registration set changed")
     for field in ("queue_root", "publisher_state_root", "log_root"):
         _pg_require(old[field] == new[field], f"shared {field} changed")
@@ -2131,7 +2262,8 @@ def _pg_spec(request: PublisherGuardRequest, commands) -> dict[str, Any]:
                 and old["generation"] != new["generation"], "old manifest/generation must be preserved")
     state = Path(new["publisher_state_root"])
     barrier = state / f"four-lane-activation-{new['generation']}.barrier"
-    _pg_require(len(request.staged_plists) == 2, "exactly two staged plists required")
+    _pg_require(len(request.staged_plists) == len(labels),
+                "exact target staged plists required" if full else "exactly two staged plists required")
     runtime_manifest.aggregate_plist_preflight(new, list(request.staged_plists), expected_activation_mode="normal")
     staged = {}
     ready_root = None
@@ -2139,9 +2271,9 @@ def _pg_spec(request: PublisherGuardRequest, commands) -> dict[str, Any]:
         identity = activation.capture_file_identity(path)
         plist = plistlib.loads(path.read_bytes())
         label = plist["Label"]
-        _pg_require(label in PUBGUARD_LABELS and label not in staged, "staged label invalid")
+        _pg_require(label in labels and label not in staged, "staged label invalid")
         _pg_require(type(plist.get("StartInterval")) is int
-                    and plist["StartInterval"] == (60 if label == PUBGUARD_LABELS[0] else 300)
+                    and plist["StartInterval"] == (300 if label == PUBGUARD_LABELS[1] else 60)
                     and "KeepAlive" not in plist and plist.get("RunAtLoad") is True, "normal schedule mismatch")
         args = plist.get("ProgramArguments", [])
         _pg_require(len(args) > 17 and args[1:4] == ["-m", "scripts.pantheon_content_runtime_manifest", "barrier-exec"]
@@ -2160,9 +2292,11 @@ def _pg_spec(request: PublisherGuardRequest, commands) -> dict[str, Any]:
         if label == PUBGUARD_LABELS[0]:
             runtime_manifest.publisher_plist_preflight(new, path, require_no_exact_run_id=True)
             _pg_publisher_normal_contract(new, args)
-        else:
+        elif label == PUBGUARD_LABELS[1]:
             _pg_guard_normal_contract(new, args)
-    _pg_require(set(staged) == set(PUBGUARD_LABELS), "staged pair incomplete")
+        else:
+            _pg_producer_normal_contract(new, label, plist)
+    _pg_require(set(staged) == set(labels), "staged target incomplete")
     # 交易輸出與保留輸入不得互為 ancestor；防止 receipt／barrier 覆寫舊 actor。
     protected = [old_actor, actor, request.source_repo, Path(new["queue_root"])]
     for output in (txn, ready_root, barrier, request.launch_agents_dir):
@@ -2187,8 +2321,9 @@ def _pg_spec(request: PublisherGuardRequest, commands) -> dict[str, Any]:
         "state_root": str(state), "ready_root": str(ready_root), "barrier": str(barrier),
         "shutdown_lease": activation.capture_file_identity(state / "runtime-work.lock"),
         "staged_plists": staged,
-        "five_plists": {label: activation.capture_file_identity(request.launch_agents_dir / f"{label}.plist")
-                        for label in runtime_manifest.SERVICE_LABELS if label not in PUBGUARD_LABELS},
+        **({"target_labels": list(labels)} if full else {
+            "five_plists": {label: activation.capture_file_identity(request.launch_agents_dir / f"{label}.plist")
+                            for label in runtime_manifest.SERVICE_LABELS if label not in PUBGUARD_LABELS}}),
     }
 
 
@@ -2213,16 +2348,33 @@ def plan_publisher_guard(request: PublisherGuardRequest, *, runner=None) -> dict
                 "new generation readiness must not exist before prepare")
     _pg_require(not runtime_manifest.shutdown_readiness_permit_path(Path(plan["state_root"])).exists(),
                 "existing readiness permit cannot be replaced")
-    pair = _pg_observe(request, commands, PUBGUARD_LABELS)
-    _pg_require(all(item["topology"] in {"LOADED", "ABSENT"} for item in pair.values()), "old pair identity UNKNOWN")
-    plan["initial_services"] = pair
+    labels = _pg_target_labels(plan)
+    previous = _pg_observe(request, commands, labels)
+    _pg_require(all(item["topology"] in {"LOADED", "ABSENT"} for item in previous.values()),
+                "old pair identity UNKNOWN")
+    plan["initial_services"] = previous
     plan["old_plists"] = {label: _pg_activation().capture_file_identity(
-                            request.launch_agents_dir / f"{label}.plist") for label in PUBGUARD_LABELS}
+                            request.launch_agents_dir / f"{label}.plist") for label in labels}
+    if labels != PUBGUARD_LABELS:
+        _pg_require(all(previous[label]["topology"] == ("LOADED" if label in PUBGUARD_LABELS else "ABSENT")
+                        for label in labels), "mixed previous topology mismatch")
+        current = _pg_load_manifest(request.old_manifest_path, commands)
+        plan["previous_authorities"] = _pg_previous_authorities(request, commands, current)
+        plan["startup_semantics"] = {
+            label: {"previous": _pg_startup_semantics(plistlib.loads(
+                        (request.launch_agents_dir / f"{label}.plist").read_bytes())),
+                    "target": _pg_startup_semantics(plistlib.loads(
+                        Path(plan["staged_plists"][label]["path"]).read_bytes()))}
+            for label in labels}
+        plan["previous_disabled"] = sorted(_pg_activation().read_disabled_service_labels(labels, runner=commands))
+        _pg_require(not set(plan["previous_disabled"]) & set(PUBGUARD_LABELS),
+                    "current pair must remain enabled")
     return {"status": "PLANNED", "plan_digest": _json_digest(plan), "plan": plan}
 
 
 def prepare_publisher_guard(request: PublisherGuardRequest, *, expected_plan_digest: str, runner=None):
     """任何 source 推送前封存恢復資料及 explicit push_source；prepare 本身不推送。"""
+    activation = _pg_activation()
     result = plan_publisher_guard(request, runner=runner)
     _pg_require(result["plan_digest"] == expected_plan_digest, "expected plan digest mismatch")
     _pg_require(not request.transaction_root.exists(), "transaction already exists; use recover")
@@ -2237,6 +2389,21 @@ def prepare_publisher_guard(request: PublisherGuardRequest, *, expected_plan_dig
         destination = request.transaction_root / f"{label}.target.plist"
         _pg_activation().maintenance_atomic(destination, Path(identity["path"]).read_bytes())
         _pg_require(file_sha256(destination) == identity["sha256"], "recovery payload readback mismatch")
+    if _pg_target_labels(result["plan"]) != PUBGUARD_LABELS:
+        for label, identity in result["plan"]["old_plists"].items():
+            source = Path(identity["path"])
+            _pg_require(_pg_activation().capture_file_identity(source) == identity, "previous plist drift before backup")
+            destination = request.transaction_root / f"{label}.previous.plist"
+            activation.maintenance_atomic(destination, source.read_bytes())
+            _pg_require(file_sha256(destination) == identity["sha256"], "previous backup readback mismatch")
+            for kind in ("manifest", "barrier"):
+                related = result["plan"]["previous_authorities"][label][kind]
+                if related is not None:
+                    source = Path(related["path"])
+                    _pg_require(activation.capture_file_identity(source) == related, "previous authority drift before backup")
+                    destination = request.transaction_root / f"{label}.previous.{kind}.json"
+                    activation.maintenance_atomic(destination, source.read_bytes())
+                    _pg_require(file_sha256(destination) == related["sha256"], "previous authority backup mismatch")
     _pg_finish(request, receipt, event, payloads_sealed=True)
     receipt["status"] = "PREPARED"
     _pg_save(request, receipt)
@@ -2303,7 +2470,7 @@ def _pg_drain(request, receipt, commands, manifest, suffix, *, mode="drain"):
     result = _pg_activation().run_process_boundary(journal_path=journal,
         timeout_seconds=min(10, max(0.01, commands.deadline - time.monotonic())),
         domain=f"gui/{os.getuid()}", owned_roots={field: manifest[field] for field in runtime_manifest.PATH_FIELDS},
-        mode=mode, arguments=PUBGUARD_LABELS, runner=commands)
+        mode=mode, arguments=_pg_target_labels(receipt["plan"]), runner=commands)
     _pg_require(result.get("status") == ("DRAINED" if mode == "drain" else "OBSERVED")
                 and not result.get("resample_required", False), "process lineage UNKNOWN")
     _pg_finish(request, receipt, event, result=result)
@@ -2324,8 +2491,47 @@ def _pg_revoke(request, receipt, state):
     _pg_save(request, receipt)
 
 
+def _pg_enable_target(request, receipt, commands, label):
+    """只有已安裝 target 的本交易原 disabled label 可精確 enable，且必須讀回。"""
+    plan = receipt["plan"]
+    if label not in plan.get("previous_disabled", []):
+        return
+    path = request.launch_agents_dir / f"{label}.plist"
+    _pg_require(file_sha256(path) == plan["staged_plists"][label]["sha256"], "enable requires installed target")
+    disabled = _pg_activation().read_disabled_service_labels(_pg_target_labels(plan), runner=commands)
+    if label not in disabled:
+        _pg_require(any(event["action"] == "enable-service" and event.get("label") == label
+                        for event in receipt["events"]), "unowned enable state")
+        return
+    event = _pg_event(request, receipt, "enable-service", label=label, previously_disabled=True)
+    result = commands(["launchctl", "enable", f"gui/{os.getuid()}/{label}"])
+    after = _pg_activation().read_disabled_service_labels(_pg_target_labels(plan), runner=commands)
+    _pg_finish(request, receipt, event, returncode=result.returncode, disabled_after=sorted(after))
+    _pg_require(result.returncode == 0 and label not in after, "enable outcome UNKNOWN")
+
+
+def _pg_restore_disabled_before_admission(request, receipt, commands):
+    """未 admit 的故障只還原本交易 enable 過的 override；不回舊 actor 或重啟服務。"""
+    plan = receipt["plan"]
+    if _pg_target_labels(plan) == PUBGUARD_LABELS or _pg_handoff_published(receipt):
+        return
+    _pg_resume_commands(request, receipt)
+    owned = {event.get("label") for event in receipt["events"] if event["action"] == "enable-service"}
+    disabled = _pg_activation().read_disabled_service_labels(_pg_target_labels(plan), runner=commands)
+    for label in plan["previous_disabled"]:
+        if label not in disabled:
+            _pg_require(label in owned, "foreign disabled-state mutation")
+            event = _pg_event(request, receipt, "restore-disabled", label=label)
+            result = commands(["launchctl", "disable", f"gui/{os.getuid()}/{label}"])
+            after = _pg_activation().read_disabled_service_labels(_pg_target_labels(plan), runner=commands)
+            _pg_finish(request, receipt, event, returncode=result.returncode, disabled_after=sorted(after))
+            _pg_require(result.returncode == 0 and label in after, "disabled restoration UNKNOWN")
+            disabled = after
+
+
 def _pg_forward(request, receipt, commands, *, allow_source_push=False):
     plan = receipt["plan"]
+    labels = _pg_target_labels(plan)
     activation = _pg_activation()
     manifest = _pg_load_manifest(request.new_manifest_path, commands, plan["manifest_digest"])
     state = Path(plan["state_root"])
@@ -2354,6 +2560,7 @@ def _pg_forward(request, receipt, commands, *, allow_source_push=False):
                     receipt["remote"] = remote
                     _pg_save(request, receipt)
                     _pg_check_five(request, commands, plan)
+                    _pg_check_previous(request, receipt, commands)
                     receipt.setdefault("guard_observations", []).append(_pg_guard_clear(manifest))
                     _pg_save(request, receipt)
                     if remote["status"] == "OLD" and allow_source_push:
@@ -2365,10 +2572,17 @@ def _pg_forward(request, receipt, commands, *, allow_source_push=False):
                     # 不能先 drain 等待 barrier 的新 wrapper，否則會自我等待直到 timeout。
                     _pg_drain(request, receipt, commands, old, "old-cohort", mode="observe")
                     _pg_drain(request, receipt, commands, manifest, "new-cohort", mode="observe")
-                    observations = _pg_observe(request, commands, PUBGUARD_LABELS)
+                    historical = {}
+                    for item in plan.get("previous_authorities", {}).values():
+                        roots = item["process_roots"]
+                        key = tuple(roots[field] for field in runtime_manifest.PATH_FIELDS)
+                        historical[key] = roots
+                    for index, prior in enumerate(historical.values()):
+                        _pg_drain(request, receipt, commands, prior, f"dormant-{index}", mode="observe")
+                    observations = _pg_observe(request, commands, labels)
                     receipt.setdefault("observations", []).append(observations)
                     _pg_save(request, receipt)
-                    for label in PUBGUARD_LABELS:
+                    for label in labels:
                         current = observations[label]
                         _pg_require(current["topology"] != "UNKNOWN", f"service control UNKNOWN: {label}")
                         destination = request.launch_agents_dir / f"{label}.plist"
@@ -2389,6 +2603,8 @@ def _pg_forward(request, receipt, commands, *, allow_source_push=False):
                             _pg_require(result.returncode == 0 and after["topology"] == "ABSENT", "bootout outcome UNKNOWN")
                     _pg_drain(request, receipt, commands, old, "old-cohort")
                     _pg_drain(request, receipt, commands, manifest, "new-cohort")
+                    for index, prior in enumerate(historical.values()):
+                        _pg_drain(request, receipt, commands, prior, f"dormant-{index}")
                     barrier = Path(plan["barrier"])
                     ready = Path(plan["ready_root"])
                     # generation 專有 ack 不清除；重試前驗證，絕不造假 wrapper ack。
@@ -2396,19 +2612,19 @@ def _pg_forward(request, receipt, commands, *, allow_source_push=False):
                         runtime_manifest.validate_barrier(barrier, manifest)
                     event = _pg_event(request, receipt, "create-permit")
                     permit = runtime_manifest.create_shutdown_readiness_permit(state, manifest,
-                        barrier=barrier, ready_root=ready, labels=list(PUBGUARD_LABELS),
+                        barrier=barrier, ready_root=ready, labels=list(labels),
                         timeout_seconds=min(300, max(1, commands.deadline - time.monotonic())), owner_pid=os.getpid())
                     receipt["permit"] = permit
                     activation._fsync_directory(state)
                     receipt["permit_revoked"] = False
                     _pg_finish(request, receipt, event, permit=permit)
                     ack_baseline = {}
-                    for label in PUBGUARD_LABELS:
+                    for label in labels:
                         ack = ready / f"{label}.json"
                         ack_baseline[label] = activation.capture_file_identity(ack) if ack.exists() else None
                     receipt.setdefault("ack_baselines", []).append(ack_baseline)
                     _pg_save(request, receipt)
-                    for label in PUBGUARD_LABELS:
+                    for label in labels:
                         target = request.transaction_root / f"{label}.target.plist"
                         _pg_require(file_sha256(target) == plan["staged_plists"][label]["sha256"], "staged recovery bytes changed")
                         destination = request.launch_agents_dir / f"{label}.plist"
@@ -2419,6 +2635,7 @@ def _pg_forward(request, receipt, commands, *, allow_source_push=False):
                         activation.maintenance_atomic(destination, target.read_bytes())
                         _pg_require(file_sha256(destination) == file_sha256(target), "plist install readback mismatch")
                         _pg_finish(request, receipt, event, identity=activation.capture_file_identity(destination))
+                        _pg_enable_target(request, receipt, commands, label)
                         event = _pg_event(request, receipt, "bootstrap", label=label)
                         result = commands(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(destination)])
                         after = _pg_observe(request, commands, (label,))[label]
@@ -2427,10 +2644,10 @@ def _pg_forward(request, receipt, commands, *, allow_source_push=False):
                     while True:
                         try:
                             acks = [runtime_manifest._load_readiness_ack(ready / f"{label}.json", manifest, label)
-                                    for label in PUBGUARD_LABELS]
+                                    for label in labels]
                             fresh = {label: activation.capture_file_identity(ready / f"{label}.json")
-                                     for label in PUBGUARD_LABELS}
-                            _pg_require(all(fresh[label] != ack_baseline[label] for label in PUBGUARD_LABELS),
+                                     for label in labels}
+                            _pg_require(all(fresh[label] != ack_baseline[label] for label in labels),
                                         "wrapper acknowledgement not refreshed")
                             break
                         except (OSError, runtime_manifest.RuntimeManifestError, PromotionError):
@@ -2452,6 +2669,9 @@ def _pg_forward(request, receipt, commands, *, allow_source_push=False):
                 finally:
                     try:
                         _pg_revoke(request, receipt, state)
+                        if not _pg_handoff_published(receipt):
+                            commands.deadline = max(commands.deadline, time.monotonic() + 5)
+                            _pg_restore_disabled_before_admission(request, receipt, commands)
                     except BaseException as cleanup_error:
                         receipt["errors"].append({"phase": "permit-cleanup", "error": f"{type(cleanup_error).__name__}: {cleanup_error}"})
                         _pg_save(request, receipt)
@@ -2636,7 +2856,7 @@ def _pg_health(request, receipt, commands):
                 and not runtime_manifest.shutdown_readiness_permit_path(state).exists(), "permit cleanup incomplete")
     commands.deadline = time.monotonic() + request.health_timeout_seconds
     with _pg_watchdog(request.health_timeout_seconds):
-        observed = _pg_observe(request, commands, PUBGUARD_LABELS)
+        observed = _pg_observe(request, commands, _pg_target_labels(plan))
         pending = {}
         for label, item in observed.items():
             identity = item.get("identity") or {}
@@ -2659,6 +2879,9 @@ def _pg_health(request, receipt, commands):
                 raise PromotionError(f"normal payload process state UNKNOWN: {label}")
         manifest = _pg_load_manifest(request.new_manifest_path, commands, plan["manifest_digest"])
         runtime_manifest.validate_barrier(Path(plan["barrier"]), manifest)
+        if _pg_target_labels(plan) != PUBGUARD_LABELS:
+            _pg_require(not _pg_activation().read_disabled_service_labels(_pg_target_labels(plan), runner=commands),
+                        "admitted target service disabled; readback only")
         five = _pg_check_five(request, commands, plan)
         receipt.setdefault("guard_observations", []).append(_pg_guard_clear(manifest))
         remote = _pg_published_remote(request, receipt, commands)
@@ -2688,10 +2911,11 @@ def _pg_run_locked(request, *, expected_plan_digest, runner, recovering):
             # 靜態 authority 重驗；不以一次 plan 或舊 status 取代實測。
             static = _pg_spec(request, commands)
             sealed = {key: value for key, value in receipt["plan"].items()
-                      if key not in {"old_plists", "initial_services"}}
+                      if key not in {"old_plists", "initial_services", "previous_authorities", "previous_disabled", "startup_semantics"}}
             _pg_require(static == sealed, "sealed actor/manifest/controller/input drift")
             _pg_resume_commands(request, receipt)
-            for label in PUBGUARD_LABELS:
+            _pg_check_previous(request, receipt, commands)
+            for label in _pg_target_labels(receipt["plan"]):
                 path = request.transaction_root / f"{label}.target.plist"
                 _pg_require(file_sha256(path) == sealed["staged_plists"][label]["sha256"], "recovery payload missing")
             published = _pg_handoff_published(receipt)
@@ -2723,8 +2947,14 @@ def _pg_run_locked(request, *, expected_plan_digest, runner, recovering):
         try:
             commands.deadline = time.monotonic() + 5
             with _pg_watchdog(5):
-                receipt["five_after_failure"] = {"status": "PASS", "observations":
-                    _pg_check_five(request, commands, receipt["plan"])}
+                if _pg_target_labels(receipt["plan"]) == PUBGUARD_LABELS:
+                    receipt["five_after_failure"] = {"status": "PASS", "observations":
+                        _pg_check_five(request, commands, receipt["plan"])}
+                else:
+                    observed = _pg_observe(request, commands, _pg_target_labels(receipt["plan"]))
+                    receipt["target_after_failure"] = {"status": "OBSERVED", "services": observed}
+                    _pg_require(all(item["topology"] != "UNKNOWN" for item in observed.values()),
+                                "target failure readback UNKNOWN")
         except BaseException as readback_error:
             receipt["five_after_failure"] = {"status": "UNKNOWN", "error": f"{type(readback_error).__name__}: {readback_error}"}
             receipt["errors"].append({"phase": "five-after-failure", "error": receipt["five_after_failure"]["error"]})

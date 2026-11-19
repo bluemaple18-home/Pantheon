@@ -56,23 +56,42 @@ def plist_for(m,label,manifest_path,ready):
         inner=[m['python_executable'],'-m','scripts.pantheon_content_capacity_guard',
             '--queue-root',m['queue_root'],'--publisher-root',m['publisher_state_root'],
             '--log-root',m['log_root'],'--state-file',str(Path(m['queue_root'])/'capacity-guard-state.json'),'check']
+    if label not in PAIR:
+        if label=='com.pantheon.agy-gemini-coordinator':
+            inner=[m['python_executable'],'-m','scripts.agy_gemini_coordinator',
+                '--queue-root',m['queue_root'],'--repo-root',m['actor_root'],
+                '--new-matrix-run-root',str(Path(m['actor_root'])/'.work/gsc-copy'),'--new-matrix-sweep',
+                '--legacy-state-root',m['publisher_state_root'],
+                '--legacy-run-root',str(Path(m['actor_root'])/'.work/gsc-copy'),'--legacy-sweep','--lane-mode','cycle']
+        else:
+            inner=[m['python_executable'],'-m','scripts.agy_gemini_runner','--queue-root',m['queue_root'],
+                '--lane',label.removeprefix('com.pantheon.agy-gemini-'),'process-once']
     args=[m['python_executable'],'-m','scripts.pantheon_content_runtime_manifest','barrier-exec',
         '--barrier',str(barrier),'--expected-digest',m['manifest_digest'],'--manifest',str(manifest_path),
         '--service-label',label,'--ready-root',str(ready),'--timeout','180','--',*inner]
     return {'Label':label,'ProgramArguments':args,'EnvironmentVariables':env,'WorkingDirectory':m['actor_root'],
-        'StartInterval':60 if label==PAIR[0] else 300,'RunAtLoad':True}
+        'StartInterval':300 if label==PAIR[1] else 60,'RunAtLoad':True}
 
 
 class HybridHost:
     """Git/manifest 使用原生 bounded runner；兩個 wrapper 為真，payload 是無副作用 sentinel。"""
     def __init__(self,request,root,mode):
-        self.request=request;self.root=root;self.mode=mode;self.loaded={x:x in PAIR for x in runtime.SERVICE_LABELS}
+        self.request=request;self.root=root;self.mode=mode;self.target_labels=runtime.activation_service_labels(runtime.load_manifest(request.new_manifest_path));self.loaded={x:x in PAIR for x in runtime.SERVICE_LABELS}
+        self.disabled=set(runtime.SERVICE_LABELS)-set(PAIR) if self.target_labels!=PAIR else set()
         self.processes={};self.commands=[];self.push_under_ex=[];self.native=promotion._PublisherGuardCommands(request)
         self.injected=False
     def __call__(self,argv,*,timeout):
         self.commands.append(list(argv));self.native.deadline=time.monotonic()+timeout
         if argv[0] in ('/bin/launchctl','launchctl'):
             action=argv[1]
+            if action=='print-disabled':
+                text='disabled services = {\n'+''.join(f'    "{label}" => true\n' for label in sorted(self.disabled))+'}\n'
+                return subprocess.CompletedProcess(argv,0,text,'')
+            if action in ('enable','disable'):
+                label=argv[2].split('/',2)[2];assert label in self.target_labels and label not in PAIR
+                if action=='enable':self.disabled.discard(label)
+                else:self.disabled.add(label)
+                return subprocess.CompletedProcess(argv,0,'','')
             if action=='print':
                 label=argv[2].split('/',2)[2]
                 if not self.loaded[label]:return subprocess.CompletedProcess(argv,113,'','isolated absent')
@@ -81,12 +100,12 @@ class HybridHost:
                 text=f'{argv[2]} = {{\n path = {self.request.launch_agents_dir/(label+".plist")}\n state = {state}\n runs = 1\n last exit code = {exitcode}\n{pid}}}\n'
                 return subprocess.CompletedProcess(argv,0,text,'')
             if action=='bootout':
-                label=argv[2].split('/',2)[2];assert label in PAIR
+                label=argv[2].split('/',2)[2];assert label in self.target_labels
                 p=self.processes.get(label)
                 if p and p.poll() is None:p.kill();p.wait(timeout=5)
                 self.loaded[label]=False;return subprocess.CompletedProcess(argv,0,'','')
             if action=='bootstrap':
-                d=plistlib.loads(Path(argv[3]).read_bytes());label=d['Label'];assert label in PAIR
+                d=plistlib.loads(Path(argv[3]).read_bytes());label=d['Label'];assert label in self.target_labels
                 mark=self.root/(label+'.sentinel')
                 args=d['ProgramArguments'];sep=args.index('--')
                 # 真 wrapper 的標準正常路徑，最後 payload 換成有限 sentinel；不聲稱驗過文章/Guard business payload。
@@ -112,8 +131,7 @@ class HybridHost:
             p.wait(timeout=5)
 
 
-@pytest.mark.parametrize('mode',['success','reject','lost_ack','publish_advance','publish_private','publish_lightweight','publish_tag_wrong_commit','publish_no_ledger','publish_code_drift','publish_tag_missing','release_gap','cleanup_gap'])
-def test_real_git_source_outcome_and_real_wrapper_pair(tmp_path,mode):
+def _run_real_git_source_outcome(tmp_path,mode,*,full=False):
     started=time.time()
     source=tmp_path/'source';source.mkdir();bare=tmp_path/'remote.git'
     subprocess.run(['/usr/bin/git','init','--bare','--template=','--initial-branch=main',str(bare)],check=True,capture_output=True)
@@ -130,14 +148,37 @@ def test_real_git_source_outcome_and_real_wrapper_pair(tmp_path,mode):
     for p in [queue,state,logs,launch,stage]:p.mkdir()
     (state/'runtime-work.lock').touch(mode=0o600)
     common=dict(queue_root=queue,publisher_state_root=state,log_root=logs,python_executable=Path(sys.executable).resolve(),uv_executable=Path('/usr/bin/true'))
-    old=runtime.build_manifest(actor_root=old_actor,identity='synthetic-old',generation='old',actor_head=before,**common)
-    new=runtime.build_manifest(actor_root=actor,identity='synthetic-target',generation='target',actor_head=target,activation_scope='publisher_guard',**common)
+    old=runtime.build_manifest(actor_root=old_actor,identity='synthetic-old',generation='old',actor_head=before,**({'activation_scope':'publisher_guard'} if full else {}),**common)
+    new=runtime.build_manifest(actor_root=actor,identity='synthetic-target',generation='target',actor_head=target,**({} if full else {'activation_scope':'publisher_guard'}),**common)
     old_path=tmp_path/'old.json';new_path=tmp_path/'new.json';runtime.write_manifest(old_path,old);runtime.write_manifest(new_path,new)
     ready=tmp_path/'ready';plists=[]
+    labels=runtime.activation_service_labels(new)
+    if full:
+        dormant=runtime.build_manifest(actor_root=old_actor,identity='synthetic-dormant',
+            generation='dormant',actor_head=before,**common)
+        dormant_path=tmp_path/'dormant.json';runtime.write_manifest(dormant_path,dormant)
+        current_ready=tmp_path/'current-ready'
+        for label in PAIR:runtime.write_readiness_ack(current_ready,old,label)
+        runtime.activate_barrier(state/'four-lane-activation-old.barrier',current_ready,old)
     for label in runtime.SERVICE_LABELS:
         write_private(launch/(label+'.plist'),plistlib.dumps({'Label':label,'previous':True}))
-        if label in PAIR:
-            path=stage/(label+'.plist');write_private(path,plistlib.dumps(plist_for(new,label,new_path,ready)));plists.append(path)
+        if full:
+            previous=plist_for(old if label in PAIR else dormant,label,old_path if label in PAIR else dormant_path,
+                               tmp_path/('current-ready' if label in PAIR else 'dormant-ready'))
+            if label not in PAIR:
+                previous['ProgramArguments'].insert(16,'--activation-only')
+            if label==PAIR[0]:
+                previous['RunAtLoad']=False
+                previous['ProgramArguments']+=['--prefer-new-batch-size','2']
+            write_private(launch/(label+'.plist'),plistlib.dumps(previous))
+        if label in labels:
+            payload=plist_for(new,label,new_path,ready)
+            if full and label==PAIR[0]:payload['ProgramArguments']+=['--prefer-new-batch-size','2']
+            path=stage/(label+'.plist');write_private(path,plistlib.dumps(payload));plists.append(path)
+    if full:
+        overwritten=runtime.build_manifest(actor_root=old_actor,identity='overwritten-reference',
+            generation='overwritten-dormant-path',actor_head=before,**common)
+        runtime.write_manifest(dormant_path,overwritten)
     five={p:p.read_bytes() for p in launch.iterdir() if p.stem not in PAIR};old_bytes=old_path.read_bytes()
     if mode=='reject':
         hook=bare/'hooks/pre-receive';hook.parent.mkdir(exist_ok=True);hook.write_text('#!/bin/sh\nexit 1\n');hook.chmod(0o755)
@@ -168,8 +209,16 @@ def test_real_git_source_outcome_and_real_wrapper_pair(tmp_path,mode):
         actual=git(bare,'rev-parse','refs/heads/main')
         receipt=activation.load_action_receipt(promotion._pg_receipt_path(request))
         assert host.push_under_ex==[True]
-        assert all(path.read_bytes()==data for path,data in five.items()) and old_path.read_bytes()==old_bytes
-        assert all(not host.loaded[x] for x in runtime.SERVICE_LABELS if x not in PAIR)
+        assert old_path.read_bytes()==old_bytes
+        if not full:
+            assert all(path.read_bytes()==data for path,data in five.items())
+            assert all(not host.loaded[x] for x in runtime.SERVICE_LABELS if x not in PAIR)
+        else:
+            assert set(receipt['plan']['previous_authorities'])==set(labels)
+            assert receipt['plan']['startup_semantics'][PAIR[0]]['previous']['RunAtLoad'] is False
+            assert receipt['plan']['startup_semantics'][PAIR[0]]['target']['RunAtLoad'] is True
+            for path,data in five.items():
+                assert (request.transaction_root/(path.stem+'.previous.plist')).read_bytes()==data
         if mode=='reject':
             assert actual==before and not host.processes
             assert result['status'] not in {'POSTCHECK_PASSED','COMMITTED'}
@@ -178,7 +227,10 @@ def test_real_git_source_outcome_and_real_wrapper_pair(tmp_path,mode):
             for p in host.processes.values():
                 p.wait(timeout=5)
                 assert p.returncode==0,p.stderr.read()
-            assert all((tmp_path/(label+'.sentinel')).is_file() for label in PAIR)
+            assert all((tmp_path/(label+'.sentinel')).is_file() for label in labels)
+            assert set(host.processes)==set(labels)
+            assert not host.disabled
+            assert set(receipt['health']['services'])==set(labels) if 'health' in receipt else mode=='cleanup_gap'
             if mode.startswith('publish_'):
                 release=tmp_path/'release'
                 git(actor,'worktree','add','--detach',str(release),target)
@@ -234,7 +286,8 @@ def test_real_git_source_outcome_and_real_wrapper_pair(tmp_path,mode):
                 'new_actor_head':git(actor,'rev-parse','HEAD'),'plan_digest':digest,
                 'controller_sha256':hashlib.sha256((ROOT/'scripts/pantheon_content_runtime_promotion.py').read_bytes()).hexdigest(),
                 'status':result['status'],'push_under_ex':host.push_under_ex,
-                'five_bytes_preserved':True,'five_unloaded':True,'old_manifest_preserved':True,
+                'five_bytes_preserved':not full,'five_unloaded':not full,'old_manifest_preserved':True,
+                'target_labels':list(labels),'full_generation':full,'startup_semantics':final_receipt['plan'].get('startup_semantics'),
                 'permit_absent':True,'wrappers_started':list(host.processes),
                 'release_tag_raw':git(bare,'ls-remote',str(bare),'refs/tags/v0.0.1','refs/tags/v0.0.1^{}') if mode.startswith('publish_') else None,
                 'publication_commit_sha':published if mode.startswith('publish_') else None,
@@ -242,9 +295,19 @@ def test_real_git_source_outcome_and_real_wrapper_pair(tmp_path,mode):
                 'commands':host.commands,'limitations':['launchd/ps are injected host adapter',
                     'wrapper payload is harmless sentinel','capacity receipt is synthetic schema wiring',
                     'local bare Git only; not production deployment, business payload or formal readiness']}
-            (evidence/(mode+'-git-summary.json')).write_text(json.dumps(summary,indent=2)+'\n')
-            (evidence/(mode+'-controller-receipt.json')).write_text(json.dumps(final_receipt,indent=2)+'\n')
+            (evidence/(('full-' if full else '')+mode+'-git-summary.json')).write_text(json.dumps(summary,indent=2)+'\n')
+            (evidence/(('full-' if full else '')+mode+'-controller-receipt.json')).write_text(json.dumps(final_receipt,indent=2)+'\n')
     finally:host.cleanup()
+
+
+@pytest.mark.parametrize('mode',['success','reject','lost_ack','publish_advance','publish_private','publish_lightweight','publish_tag_wrong_commit','publish_no_ledger','publish_code_drift','publish_tag_missing','release_gap','cleanup_gap'])
+def test_real_git_source_outcome_and_real_wrapper_pair(tmp_path,mode):
+    _run_real_git_source_outcome(tmp_path,mode)
+
+
+@pytest.mark.parametrize('mode',['success','reject','lost_ack','release_gap','cleanup_gap'])
+def test_real_git_mixed_previous_and_seven_real_wrappers(tmp_path,mode):
+    _run_real_git_source_outcome(tmp_path,mode,full=True)
 
 
 @pytest.mark.parametrize('mode',[0o600,0o644])

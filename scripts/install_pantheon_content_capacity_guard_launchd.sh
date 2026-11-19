@@ -40,12 +40,16 @@ if [[ -z "${TEMP_PLIST_REALPATH}" || ! -f "${TEMP_PLIST_REALPATH}" || -L "${TEMP
 fi
 TEMP_PLIST="${TEMP_PLIST_REALPATH}"
 
-if [[ "${ACTION}" != "--install" && "${ACTION}" != "--preflight" \
+if [[ "${ACTION}" != "--stage-target-only" && "${ACTION}" != "--install" && "${ACTION}" != "--preflight" \
   && "${ACTION}" != "--install-recovery-stage" \
   && "${ACTION}" != "--install-all-stopped-recovery-stage" \
   && "${ACTION}" != "--install-activation-only-all-stopped-recovery-stage" \
   && "${ACTION}" != "--install-publisher-canary-all-stopped-recovery-stage" ]]; then
-  echo "用法：scripts/install_pantheon_content_capacity_guard_launchd.sh [--preflight|--install|--install-recovery-stage|--install-all-stopped-recovery-stage|--install-activation-only-all-stopped-recovery-stage|--install-publisher-canary-all-stopped-recovery-stage]" >&2
+  echo "用法：scripts/install_pantheon_content_capacity_guard_launchd.sh [--stage-target-only OUTPUT_PLIST|--preflight|--install|--install-recovery-stage|--install-all-stopped-recovery-stage|--install-activation-only-all-stopped-recovery-stage|--install-publisher-canary-all-stopped-recovery-stage]" >&2
+  exit 2
+fi
+if [[ "${ACTION}" == "--stage-target-only" && "$#" != "2" ]]; then
+  echo "target-only 必須指定唯一輸出 plist。" >&2
   exit 2
 fi
 if [[ "${PYTHON_PATH}" != /* ]]; then
@@ -237,6 +241,60 @@ fi
 /usr/libexec/PlistBuddy -c "Set :StandardOutPath ${LOG_ROOT}/pantheon-content-capacity-guard.stdout.log" "${TEMP_PLIST}"
 /usr/libexec/PlistBuddy -c "Set :StandardErrorPath ${LOG_ROOT}/pantheon-content-capacity-guard.stderr.log" "${TEMP_PLIST}"
 plutil -lint "${TEMP_PLIST}" >/dev/null
+if [[ "${ACTION}" == "--stage-target-only" ]]; then
+  # 僅輸出一份私有 target；不讀 live aggregate、不建立 shared stage，也不代表容量准入。
+  (
+    cd "${REPO_ROOT}"
+    "${PYTHON_BIN}" - "${TEMP_PLIST}" "${2:-}" "${RUNTIME_MANIFEST_FILE}" "${RUNTIME_MANIFEST_DIGEST}" "${LAUNCH_AGENTS_DIR}" <<'PY'
+from pathlib import Path
+import os, stat, sys
+from scripts import pantheon_content_runtime_manifest as runtime
+from scripts import pantheon_content_runtime_promotion as promotion
+source, output, manifest_path, digest, launch = sys.argv[1:]
+m = runtime.load_manifest(Path(manifest_path), digest)
+target = Path(output)
+if not target.is_absolute() or target.name != "com.pantheon.content-capacity-guard.plist":
+    raise ValueError("target-only output must name the exact Guard plist")
+parent = target.parent
+if parent.resolve(strict=True) != parent or not parent.is_dir() or parent.stat().st_uid != os.getuid() or stat.S_IMODE(parent.stat().st_mode) != 0o700:
+    raise ValueError("target-only parent must be canonical, owned and private")
+for root in [Path(launch), *(Path(m[field]) for field in runtime.PATH_FIELDS)]:
+    root = root.resolve()
+    if target == root or root in target.parents:
+        raise ValueError("target-only output overlaps live/actor roots")
+barrier = Path(m["publisher_state_root"]) / ("four-lane-activation-" + m["generation"] + ".barrier")
+if os.path.lexists(barrier):
+    raise ValueError("target generation already admitted")
+receipt = runtime.plist_receipt(Path(source), expected_activation_mode="normal")
+for key, value in runtime.receipt_for_label(m, "com.pantheon.content-capacity-guard").items():
+    if receipt.get(key) != value:
+        raise ValueError("target-only receipt mismatch: " + key)
+import plistlib
+promotion._pg_guard_normal_contract(m, plistlib.loads(Path(source).read_bytes())["ProgramArguments"])
+body = Path(source).read_bytes()
+directory = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+try:
+    info = os.fstat(directory)
+    current = parent.stat()
+    if (info.st_dev, info.st_ino) != (current.st_dev, current.st_ino):
+        raise ValueError("target-only parent identity drift")
+    fd = os.open(target.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)
+    with os.fdopen(fd, "wb") as stream:
+        stream.write(body)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.fsync(directory)
+    current = parent.stat()
+    if (info.st_dev, info.st_ino) != (current.st_dev, current.st_ino) or parent.resolve() != parent or target.read_bytes() != body:
+        raise ValueError("target-only readback mismatch")
+finally:
+    os.close(directory)
+print("TARGET_STAGED_NOT_ACTIVATED")
+PY
+  )
+  exit 0
+fi
+
 run_capacity_preflight
 
 if [[ "${ACTION}" == "--preflight" ]]; then

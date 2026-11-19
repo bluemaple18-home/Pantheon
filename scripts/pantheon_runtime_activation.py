@@ -27,7 +27,7 @@ T = TypeVar("T")
 CommandRunner = Callable[[list[str]], subprocess.CompletedProcess[str]]
 ACTION_RECEIPT_SCHEMA_VERSION = 1
 TERMINAL_SERVICE_STATES = frozenset({"waiting", "not running", "exited"})
-LAUNCHCTL_OBJECT_START_PATTERN = re.compile(r"^[^{}]+ = \{$")
+LAUNCHCTL_OBJECT_START_PATTERN = re.compile(r"^[^{}]+ (?:=|=>) \{$")
 LAUNCHCTL_STATE_FIELD_PATTERN = re.compile(r"^state = ([^\r\n]+)$")
 LAUNCHCTL_PATH_FIELD_PATTERN = re.compile(r"^path = ([^\r\n]+)$")
 LAUNCHCTL_LAST_EXIT_CODE_FIELD_PATTERN = re.compile(r"^last exit code = (-?[0-9]+)$")

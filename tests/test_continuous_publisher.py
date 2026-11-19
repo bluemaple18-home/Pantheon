@@ -444,8 +444,11 @@ def test_continuous_all_quarantined_lanes_skip_without_transaction(
     publisher._atomic_write_json(publisher._ledger_path(state_root), {
         **publisher._load_ledger(state_root),
         "quarantined_runs": [
-            {"run_id": run_id, "reason": "publisher only supports create mode"}
-            for run_id in ids.values()
+            {"run_id": run_id, "reason": (
+                "reviewer rejection" if lane == "rewrite"
+                else "publisher only supports create mode"
+            )}
+            for lane, run_id in ids.items()
         ],
     })
     paths = {}
