@@ -951,9 +951,13 @@ def run_process_boundary(
         _write_private_json(journal_path, record)
     deadline = now + timeout_seconds if maintenance else float(record.get("deadline", now + timeout_seconds))
 
-    def save() -> None:
+    provisional: dict[str, dict[str, Any]] = {}
+    provisional_groups: set[int] = set()
+    fenced = False
+
+    def save(*, failed: bool = False) -> None:
         # maintenance 保留原 UNKNOWN/archive bytes；唯一發布點是既有原語。
-        if maintenance is None:
+        if maintenance is None and (not fenced or failed):
             _write_private_json(journal_path, record)
 
     def remaining() -> float:
@@ -1027,14 +1031,15 @@ def run_process_boundary(
 
     def missing_known_pids_are_absent(rows: Mapping[int, Any]) -> bool:
         """ps 漏掉的 durable lineage 只能以既有 targeted birth／kill0 證明消失。"""
-        observed = {**record, "processes": dict(record["processes"])}
-        for known_pid, previous in record["processes"].items():
+        observed = {**record, "processes": {**record["processes"], **provisional}}
+        for known_pid, previous in observed["processes"].items():
             if int(known_pid) not in rows:
                 if _process_birth_identity(int(known_pid), previous, observed) is not None:
                     return False
         return True
 
-    def observe() -> list[int]:
+    def observe_snapshot() -> list[int]:
+        nonlocal fenced
         remaining()
         first = services()
         reply = command(["/bin/ps", "-axo", "pid=,ppid=,pgid=,stat=,command="])
@@ -1097,9 +1102,10 @@ def run_process_boundary(
             )
         }
         second = services()
-        if first != second or any(
+        unstable = first != second or any(
             state == "xpcproxy" for _pid, state in [*first.values(), *second.values()]
-        ):
+        )
+        if unstable and not fenced:
             return pending_observation()
         seeds = {
             pid for pid, _state in [*first.values(), *second.values()] if pid is not None
@@ -1108,16 +1114,17 @@ def run_process_boundary(
             raise RuntimeActivationError(
                 "unobserved service PID missing from process snapshot"
             )
-        if not maintenance and not missing_known_pids_are_absent(rows):
+        incomplete = not maintenance and not missing_known_pids_are_absent(rows)
+        if incomplete and not fenced:
             return pending_observation()
         record["resample_required"] = False
         active = (
             owned
             | (seeds & rows.keys())
-            | {int(pid) for pid in record["processes"] if int(pid) in rows}
+            | {int(pid) for pid in (*record["processes"], *provisional) if int(pid) in rows}
         )
-        tracked = {int(pid) for pid in record["processes"]}
-        groups = {int(value) for value in record["groups"]}
+        tracked = {int(pid) for pid in (*record["processes"], *provisional)}
+        groups = {int(value) for value in record["groups"]} | provisional_groups
         while True:
             previous = set(active)
             groups |= {int(rows[pid]["pgid"]) for pid in active}
@@ -1137,24 +1144,44 @@ def run_process_boundary(
                 break
         alive: list[int] = []
         # 所有 birth 完成驗證前只暫存；消失或失敗不能污染持久 lineage。
-        observation_record = {**record, "processes": dict(record["processes"])}
+        observation_record = {**record, "processes": {**record["processes"], **provisional}}
+        if not maintenance and not fenced and any(str(pid) not in record["processes"] for pid in active):
+            # 在讀取初見 birth 前封鎖；硬中斷也不得留下可沿用的舊 OBSERVED。
+            _write_private_json(journal_path, {
+                **record, "status": "UNKNOWN_OR_FAILED",
+                "error": "process birth observation incomplete", "sampled_at": time.time(),
+            })
+            fenced = True
+        # 已有暫存 cohort 時，即使 topology 不穩，也先保存當輪新 child／PG。
+        disappeared = unstable or incomplete
         for pid in active:
             row = rows[pid]
             birth = _process_birth_identity(pid, row, observation_record)
             if birth is None:
-                if str(pid) not in record["processes"]:
+                if maintenance and str(pid) not in record["processes"]:
                     raise RuntimeActivationError(
                         f"unobserved process birth missing from stable snapshot: {pid}"
                     )
-                return pending_observation()
+                disappeared = True
+                continue
             previous = record["processes"].get(str(pid))
             if previous and previous.get("birth") != birth:
                 raise RuntimeActivationError(f"PID reuse: {pid}")
             observation_record["processes"][str(pid)] = {"birth": birth, **row}
             if not row["zombie"]:
                 alive.append(pid)
+        if disappeared:
+            if fenced:
+                # 同快照的有效 birth、消失 PID 與全部群組一起保留到本呼叫閉合。
+                provisional.update({pid: row for pid, row in observation_record["processes"].items()
+                                    if pid not in record["processes"]})
+                provisional_groups.update(groups)
+            return pending_observation()
         remaining()
-        record["processes"] = observation_record["processes"]
+        record["processes"] = {pid: row for pid, row in observation_record["processes"].items()
+                               if row.get("birth") is not None}
+        # 已證消失但未取得 birth 的 PID 不升為可信 lineage／seen_labels。
+        groups = set(record["groups"]) | {row["pgid"] for row in record["processes"].values()}
         for label, (pid, _state) in {**first, **second}.items():
             if (
                 pid is not None
@@ -1167,8 +1194,20 @@ def run_process_boundary(
             active=sorted(alive),
             sampled_at=time.time(),
         )
+        if fenced:
+            record["status"] = "OBSERVED"
+            fenced = False
+            provisional.clear()
+            provisional_groups.clear()
         save()
         return alive
+
+    def observe() -> list[int]:
+        while True:
+            active = observe_snapshot()
+            if not fenced:
+                return active
+            time.sleep(min(0.1, remaining()))
 
     try:
         if maintenance:
@@ -1232,7 +1271,7 @@ def run_process_boundary(
             sampled_at=time.time(),
         )
         try:
-            save()
+            save(failed=True)
         except Exception as write_error:
             raise RuntimeActivationError(
                 f"{record['error']}; journal: {type(write_error).__name__}: {write_error}"

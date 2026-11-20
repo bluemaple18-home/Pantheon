@@ -1225,13 +1225,82 @@ def test_boundary_stable_birth_and_pid_reuse_fail_closed(
     assert saved["groups"] == (prior["groups"] if prior else [])
 
 
-@pytest.mark.parametrize("tracked", [False, True])
-def test_boundary_birth_disappearance_never_promotes_unverified_lineage(
-    boundary_replay, monkeypatch: pytest.MonkeyPatch, tracked: bool,
+def test_boundary_new_short_lived_process_resamples_and_keeps_orphan(
+    boundary_replay, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """birth 中途消失：有舊 lineage 才能 pending；新程序無身分則 fail closed。"""
+    """初見 root 已消失仍須重取樣；同群 orphan 未退不得宣稱 drain。"""
     prepare, journal, _calls, _births, _clock = boundary_replay
-    prior = _boundary_lineage() if tracked else None
+    identities = {100: None, 101: (1, 9001, 1, 101)}
+    queried = _boundary_libproc(monkeypatch, identities)
+    monkeypatch.setattr(activation.os, "kill", lambda _pid, _signal: (_ for _ in ()).throw(
+        ProcessLookupError(activation.errno.ESRCH, "gone"),
+    ))
+    options, replies = prepare([
+        (("running", 100), ("running", 100), "100 1 9001 S /bin/sleep 300\n", ""),
+        (("waiting", None), ("waiting", None), "101 1 9001 S /bin/sleep 300\n", ""),
+        (("waiting", None), ("waiting", None), "", ""),
+    ], real_birth=True)
+    observed = activation.run_process_boundary(mode="observe", **options)
+    assert observed["active"] == [101] and not observed["resample_required"]
+    saved = activation.load_action_receipt(journal)
+    assert "100" not in saved["processes"] and saved["processes"]["101"]["birth"] == [1, 101]
+    assert saved["groups"] == [9001] and saved["seen_labels"] == []
+    assert queried.count(100) >= 2
+    identities[101] = None
+    assert activation.run_process_boundary(mode="drain", **options)["status"] == "DRAINED"
+    assert replies == []
+
+
+@pytest.mark.parametrize("mode", ["observe", "drain"])
+@pytest.mark.parametrize("transition", ["drift", "xpcproxy"])
+def test_boundary_provisional_topology_change_keeps_cross_group_orphan(
+    boundary_replay, monkeypatch: pytest.MonkeyPatch, mode: str, transition: str,
+) -> None:
+    """重取樣的 topology 不穩仍須保存新 child；不得漏掉跨 PG／cwd 的 orphan。"""
+    prepare, journal, _calls, _births, _clock = boundary_replay
+    identities = {100: None, 101: (100, 9001, 1, 101), 200: (101, 9002, 1, 200)}
+    queried = _boundary_libproc(monkeypatch, identities)
+    monkeypatch.setattr(activation.os, "kill", lambda _pid, _signal: (_ for _ in ()).throw(
+        ProcessLookupError(activation.errno.ESRCH, "gone"),
+    ))
+    changing = (("running", 101), ("waiting", None)) if transition == "drift" else (
+        ("xpcproxy", 101), ("xpcproxy", 101),
+    )
+    options, replies = prepare([
+        (("running", 100), ("running", 100),
+         "100 1 9001 S /bin/sleep 300\n101 100 9001 S /bin/sleep 300\n", ""),
+        (*changing, "101 1 9001 S /bin/sleep 300\n200 101 9002 S /bin/sleep 300\n", ""),
+        (("waiting", None), ("waiting", None), "200 1 9002 S /bin/sleep 300\n", ""),
+        (("waiting", None), ("waiting", None), "", ""),
+    ], real_birth=True)
+    original_runner = options["runner"]
+    samples = 0
+    def runner(argv):
+        nonlocal samples
+        if argv[:2] == ["/bin/ps", "-axo"]:
+            samples += 1
+            if samples >= 3:
+                identities[101] = None
+            if samples >= 4:
+                identities[200] = None
+        return original_runner(argv)
+    options["runner"] = runner
+    result = activation.run_process_boundary(mode=mode, **options)
+    if mode == "observe":
+        assert result["active"] == [200] and samples == 3
+        result = activation.run_process_boundary(mode="drain", **options)
+    assert result["status"] == "DRAINED" and replies == [] and samples == 4
+    saved = activation.load_action_receipt(journal)
+    assert saved["processes"]["200"]["birth"] == [1, 200] and 9002 in saved["groups"]
+    assert "100" not in saved["processes"] and queried.count(200) >= 2
+
+
+def test_boundary_birth_disappearance_never_promotes_unverified_lineage(
+    boundary_replay, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """已知 birth 中途消失只可 pending，不能覆寫原可信 lineage。"""
+    prepare, journal, _calls, _births, _clock = boundary_replay
+    prior = _boundary_lineage()
 
     def vanished(pid, row, record):
         # 模擬正式 helper 的確認消失與暫存行為，不能把 birth=None 寫回 trusted journal。
@@ -1243,16 +1312,75 @@ def test_boundary_birth_disappearance_never_promotes_unverified_lineage(
     options, _replies = prepare([
         (("running", 100), ("running", 100), "100 1 9002 S /bin/sleep 300\n", ""),
     ], prior=prior)
-    if tracked:
-        result = activation.run_process_boundary(mode="observe", **options)
-        assert result["resample_required"] and result["active"] == [100]
-    else:
-        with pytest.raises(activation.RuntimeActivationError, match="birth missing"):
-            activation.run_process_boundary(mode="observe", **options)
+    result = activation.run_process_boundary(mode="observe", **options)
+    assert result["resample_required"] and result["active"] == [100]
     saved = activation.load_action_receipt(journal)
     assert saved["processes"] == (prior["processes"] if prior else {})
     assert saved["groups"] == (prior["groups"] if prior else [])
     assert saved["seen_labels"] == (prior["seen_labels"] if prior else [])
+
+
+@pytest.mark.parametrize("fault", ["pid_reuse", "interrupt", "churn", "write_failure"])
+def test_boundary_short_process_fence_blocks_unclosed_observation(
+    boundary_replay, monkeypatch: pytest.MonkeyPatch, fault: str,
+) -> None:
+    """重用、重取樣中斷、持續變動及寫入失敗皆不得把暫存 cohort 當完成。"""
+    prepare, journal, calls, _births, clock = boundary_replay
+    identities = {100: None}
+    _boundary_libproc(monkeypatch, identities)
+    monkeypatch.setattr(activation.os, "kill", lambda _pid, _signal: (_ for _ in ()).throw(
+        ProcessLookupError(activation.errno.ESRCH, "gone"),
+    ))
+    first = (("running", 100), ("running", 100), "100 1 9001 S /bin/sleep 300\n", "")
+    samples = [first, first] if fault == "pid_reuse" else [first, *[
+        (("waiting", None), ("running", 101), "", ""),
+    ] * 4]
+    options, _replies = prepare(samples, real_birth=True)
+    options["timeout_seconds"] = 0.25
+    def wait(seconds):
+        assert activation.load_action_receipt(journal)["status"] == "UNKNOWN_OR_FAILED"
+        if fault == "interrupt":
+            raise KeyboardInterrupt()
+        if fault == "pid_reuse":
+            identities[100] = (1, 9001, 2, 100)
+        clock[0] += seconds
+    monkeypatch.setattr(activation.time, "sleep", wait)
+    if fault == "write_failure":
+        def cannot_write(*_args, **_kwargs):
+            raise OSError("fence unavailable")
+        monkeypatch.setattr(activation, "_write_private_json", cannot_write)
+    error = KeyboardInterrupt if fault == "interrupt" else activation.RuntimeActivationError
+    with pytest.raises(error):
+        activation.run_process_boundary(mode="observe", **options)
+    if fault == "write_failure":
+        assert not journal.exists() and len(calls) == 4
+    else:
+        saved = activation.load_action_receipt(journal)
+        assert saved["status"] == "UNKNOWN_OR_FAILED" and saved["processes"] == {}
+        assert saved["groups"] == [] and saved["seen_labels"] == []
+        with pytest.raises(activation.RuntimeActivationError, match="prior process evidence"):
+            activation.run_process_boundary(mode="observe", **options)
+
+
+def test_boundary_consecutive_short_processes_close_without_trusted_birth(
+    boundary_replay, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """同一次呼叫連遇兩個短命程序，閉合後仍不得製造 seen_labels 或未知 birth。"""
+    prepare, journal, _calls, _births, _clock = boundary_replay
+    queried = _boundary_libproc(monkeypatch, {100: None, 101: None})
+    monkeypatch.setattr(activation.os, "kill", lambda _pid, _signal: (_ for _ in ()).throw(
+        ProcessLookupError(activation.errno.ESRCH, "gone"),
+    ))
+    options, replies = prepare([
+        (("running", 100), ("running", 100), "100 1 9001 S /bin/sleep 300\n", ""),
+        (("waiting", None), ("waiting", None), "101 1 9001 S /bin/sleep 300\n", ""),
+        (("waiting", None), ("waiting", None), "", ""),
+    ], real_birth=True)
+    result = activation.run_process_boundary(mode="drain", **options)
+    assert result["status"] == "DRAINED" and replies == []
+    saved = activation.load_action_receipt(journal)
+    assert saved["processes"] == {} and saved["groups"] == [] and saved["seen_labels"] == []
+    assert queried.count(100) >= 2 and queried.count(101) >= 2
 
 
 def test_capacity_stop_pending_deadline_blocks_bootout(boundary_replay, tmp_path: Path) -> None:
