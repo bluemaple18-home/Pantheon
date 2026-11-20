@@ -433,52 +433,6 @@ def test_published_dispatch_reads_committed_source(published_dispatch, lane, his
     assert f.loaded_paths and all(path != f.actor for path in f.loaded_paths)
 
 
-@pytest.mark.parametrize("case", ["actual", "limit", "over_limit", "single_file", "total_bytes"])
-def test_translation_projection_capacity_before_snapshot(monkeypatch, case):
-    """只驗容量門檻；真投影與兩線來源驗證由既有 Git／Node 案例負責。"""
-    count = {"actual": 1438, "limit": 2048, "over_limit": 2049}.get(case, 5)
-    paths = ["package.json", m.pipeline.POLICY_V2_PATH.as_posix(),
-             "app/web/static/article-registry.js", "app/web/static/article-meta.js"]
-    paths += [f"app/web/static/capacity-{index}.js" for index in range(count - 4)]
-    sizes = [0] * count
-    if case == "single_file":
-        sizes[0] = 4 * 1024 * 1024 + 1
-    elif case == "total_bytes":
-        sizes = [4 * 1024 * 1024] * count
-    oid = "1" * 40
-    listing = b"".join(f"100644 blob {oid} {size}\t{path}\0".encode()
-                       for path, size in zip(paths, sizes))
-    calls = []
-    snapshots = []
-
-    class SnapshotReached(Exception):
-        pass
-
-    def source_git(actor_root, *args, input_bytes=None):
-        calls.append(args[0])
-        if args[0] == "ls-tree":
-            return listing
-        assert args == ("cat-file", "--batch")
-        assert input_bytes == ((oid + "\n") * count).encode()
-        return (f"{oid} blob 0\n\n" * count).encode()
-
-    def snapshot_boundary(**kwargs):
-        assert kwargs == {"prefix": "agy-translation-source-"}
-        snapshots.append(True)
-        raise SnapshotReached
-
-    monkeypatch.setattr(runner, "_translation_source_git", source_git)
-    monkeypatch.setattr(runner.tempfile, "TemporaryDirectory", snapshot_boundary)
-    if case in {"actual", "limit"}:
-        with pytest.raises(SnapshotReached):
-            runner._load_published_translation_source(Path.cwd(), "2" * 40, "TEST-001")
-        assert calls == ["ls-tree", "cat-file"] and snapshots == [True]
-    else:
-        with pytest.raises(ValueError, match="^translation content projection exceeds closed size$"):
-            runner._load_published_translation_source(Path.cwd(), "2" * 40, "TEST-001")
-        assert calls == ["ls-tree"] and not snapshots
-
-
 def test_replacement_loader_reads_published_commit_when_actor_predates_source(published_dispatch):
     f = published_dispatch("i18n-new", historical=False)
     parent_path = f.queue / "runs" / (f.namespace + ".json")

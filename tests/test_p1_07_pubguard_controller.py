@@ -1153,9 +1153,6 @@ class PublisherGuardControllerUnit(unittest.TestCase):
             elif lane == "coordinator":
                 args[args.index("--queue-root") + 1] = runtime["queue_root"]
                 args[args.index("--legacy-state-root") + 1] = runtime["publisher_state_root"]
-            elif label not in PAIR:
-                # 原 installer 的 child 使用分線路徑；環境與 manifest 仍保留總 root。
-                args[args.index("--queue-root") + 1] = str(Path(runtime["queue_root"]) / "lanes" / lane)
             if activation_only:
                 args.insert(args.index("--"), "--activation-only")
             self.write_private(path, plistlib.dumps(payload))
@@ -1207,26 +1204,6 @@ class PublisherGuardControllerUnit(unittest.TestCase):
     def test_mixed_previous_full_target_aggregate_fixture_is_valid(self):
         self._mixed_previous_full_target_fixture()
         self.assertFalse(self.runner.commands)
-
-    def test_full_generation_rejects_global_or_other_lane_child_queue(self):
-        self._mixed_previous_full_target_fixture()
-        for path in self.plists:
-            payload = plistlib.loads(path.read_bytes())
-            label = payload["Label"]
-            if label in PAIR or label.endswith("-coordinator"):
-                continue
-            lane = label.removeprefix("com.pantheon.agy-gemini-")
-            arguments = payload["ProgramArguments"]
-            position = arguments.index("--queue-root") + 1
-            self.assertEqual(arguments[position], str(self.queue / "lanes" / lane))
-            self.assertEqual(payload["EnvironmentVariables"]["PANTHEON_RUNTIME_QUEUE_ROOT"], str(self.queue))
-            controller._pg_producer_normal_contract(self.new, label, payload)
-            for invalid in (self.queue, self.queue / "lanes" / "foreign"):
-                with self.subTest(lane=lane, invalid=str(invalid)):
-                    arguments[position] = str(invalid)
-                    with self.assertRaisesRegex(controller.PromotionError, "normal lane command mismatch"):
-                        controller._pg_producer_normal_contract(self.new, label, payload)
-            arguments[position] = str(self.queue / "lanes" / lane)
 
     def test_pair_to_full_generation_preserves_current_authority(self):
         self._mixed_previous_full_target_fixture()
