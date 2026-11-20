@@ -2115,7 +2115,7 @@ def _pg_producer_normal_contract(manifest, label, payload):
     else:
         lane = label.removeprefix("com.pantheon.agy-gemini-")
         _pg_require(lane in {"new", "rewrite", "i18n-new", "i18n-rewrite"} and child ==
-                    [*prefix, "scripts.agy_gemini_runner", "--queue-root", manifest["queue_root"],
+                    [*prefix, "scripts.agy_gemini_runner", "--queue-root", str(Path(manifest["queue_root"]) / "lanes" / lane),
                      "--lane", lane, "process-once"], "normal lane command mismatch")
 
 

@@ -6026,24 +6026,71 @@ def test_prepare_matrix_cli_accepts_exact_run_identity(monkeypatch: pytest.Monke
     assert args.exact_run_id == "auto-new-v1-20260812-001-02"
 
 
-def test_prepare_rewrite_batch_reads_exact_audit_order_and_current_bodies(tmp_path: Path) -> None:
+@pytest.mark.parametrize("selected", [None, ["id-4", "id-0", "id-2", "id-1", "id-3"], [], ["missing"]])
+def test_existing_rewrite_inventory_filters_before_build(tmp_path: Path, monkeypatch, selected) -> None:
+    """實跑 Node，核對只建所選正文且結果等於全站對應子集。"""
+    static = tmp_path / "app/web/static"
+    static.mkdir(parents=True)
+    (tmp_path / "package.json").write_text('{"type":"module"}')
+    records = [{"id": f"id-{index}"} for index in range(8)]
+    (static / "article-registry.js").write_text(
+        "export const listArticleRecords = () => " + json.dumps(records) + ";\n"
+        'export const getArticlePath = (record) => "/articles/tarot/" + record.id;\n'
+    )
+    (static / "article-meta.js").write_text(
+        'const calls = [];\n'
+        'process.on("exit", () => process.stderr.write(JSON.stringify(calls)));\n'
+        'export function buildArticleContent(path) {\n'
+        '  calls.push(path.split("/").at(-1));\n'
+        '  return {bodySections: [{heading: path, paragraphs: ["原始正文"]}],\n'
+        '    published: "2026-07-01", updated: "2026-11-20"};\n'
+        '}\n'
+    )
+    observed_calls = []
+    original = pipeline._run_registry_node_script
+
+    def observe(repo_root, script):
+        result = original(repo_root, script)
+        observed_calls.append(json.loads(result.stderr))
+        return result
+
+    monkeypatch.setattr(pipeline, "_run_registry_node_script", observe)
+    full = pipeline._existing_rewrite_inventory(tmp_path)
+    all_ids = [record["id"] for record in records]
+    assert observed_calls == [all_ids]
+    assert list(full) == all_ids
+    if selected is not None:
+        result = pipeline._existing_rewrite_inventory(tmp_path, article_ids=selected)
+        expected_ids = [article_id for article_id in all_ids if article_id in selected]
+        assert observed_calls == [all_ids, expected_ids]
+        assert result == {article_id: full[article_id] for article_id in expected_ids}
+
+
+def test_prepare_rewrite_batch_reads_exact_audit_order_and_current_bodies(tmp_path: Path, monkeypatch) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     source_commit = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, capture_output=True, text=True
     ).stdout.strip()
     queue = repo_root / "artifacts/fortune_council/content_rewrite_execution/evidence/gemini_rewrite_audit_001/gemini_queue.md"
-
-    brief_path = prepare_rewrite_batch(repo_root, queue, 1, tmp_path, source_commit)
-    brief = json.loads(brief_path.read_text(encoding="utf-8"))
-    public = json.loads((tmp_path / "public-brief.json").read_text(encoding="utf-8"))
-
-    assert [item["article_id"] for item in brief["articles"]] == [
+    expected_ids = [
         "MBTI-BASE-01",
         "THEME-LIFE-03",
         "THEME-INTERPERSONAL-03",
         "THEME-LIFE-04",
         "THEME-WEALTH-04",
     ]
+    original_inventory = pipeline._existing_rewrite_inventory
+
+    def selected_inventory(root, *, article_ids=None):
+        assert article_ids == expected_ids
+        return original_inventory(root, article_ids=article_ids)
+
+    monkeypatch.setattr(pipeline, "_existing_rewrite_inventory", selected_inventory)
+    brief_path = prepare_rewrite_batch(repo_root, queue, 1, tmp_path, source_commit)
+    brief = json.loads(brief_path.read_text(encoding="utf-8"))
+    public = json.loads((tmp_path / "public-brief.json").read_text(encoding="utf-8"))
+
+    assert [item["article_id"] for item in brief["articles"]] == expected_ids
     assert all(item["current_body"] for item in brief["articles"])
     assert all(item["current_body_sha256"] == body_sha256(item["current_body"]) for item in brief["articles"])
     encoded_public = json.dumps(public, ensure_ascii=False)

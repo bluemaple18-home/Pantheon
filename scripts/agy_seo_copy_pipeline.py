@@ -2460,12 +2460,16 @@ def _batch_variation_contracts(queue: dict[str, Any], batch_number: int) -> dict
     return contracts
 
 
-def _existing_rewrite_inventory(repo_root: Path) -> dict[str, dict[str, Any]]:
-    script = """
+def _existing_rewrite_inventory(
+    repo_root: Path, *, article_ids: list[str] | None = None,
+) -> dict[str, dict[str, Any]]:
+    script = "const selectedIds = " + json.dumps(article_ids) + ";\n" + """
 import { getArticlePath, listArticleRecords } from './app/web/static/article-registry.js';
 import { buildArticleContent } from './app/web/static/article-meta.js';
 const origin = 'https://www.mysticpantheon.com';
-console.log(JSON.stringify(listArticleRecords().map((record) => {
+console.log(JSON.stringify(listArticleRecords()
+  .filter((record) => selectedIds === null || selectedIds.includes(String(record.id)))
+  .map((record) => {
   const canonicalPath = getArticlePath(record);
   const content = buildArticleContent(canonicalPath, origin);
   return { id: record.id, record, canonicalPath, currentBody: content.bodySections,
@@ -2511,7 +2515,9 @@ def prepare_rewrite_batch(
     queue = _rewrite_batch_payload(queue_path.read_text(encoding="utf-8"), batch_number)
     if batch_number >= 2:
         _validate_rewrite_queue(queue, batch_number)
-    inventory = _existing_rewrite_inventory(repo_root)
+    inventory = _existing_rewrite_inventory(
+        repo_root, article_ids=[str(item.get("article_id") or "") for item in queue.get("articles") or []],
+    )
     articles: list[dict[str, Any]] = []
     for index, queued in enumerate(queue.get("articles") or []):
         article_id = str(queued.get("article_id") or "")
