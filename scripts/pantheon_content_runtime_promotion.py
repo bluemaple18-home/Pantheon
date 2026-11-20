@@ -2362,7 +2362,10 @@ def plan_publisher_guard(request: PublisherGuardRequest, *, runner=None) -> dict
     plan["old_plists"] = {label: _pg_activation().capture_file_identity(
                             request.launch_agents_dir / f"{label}.plist") for label in labels}
     if labels != PUBGUARD_LABELS:
-        _pg_require(all(previous[label]["topology"] == ("LOADED" if label in PUBGUARD_LABELS else "ABSENT")
+        # 接受已停止但權威完整的 publisher；ABSENT 不取代後續 EX／後代程序檢查。
+        _pg_require(all(previous[label]["topology"] in (
+                        {"LOADED", "ABSENT"} if label == PUBGUARD_LABELS[0] else
+                        {"LOADED"} if label == PUBGUARD_LABELS[1] else {"ABSENT"})
                         for label in labels), "mixed previous topology mismatch")
         current = _pg_load_manifest(request.old_manifest_path, commands)
         plan["previous_authorities"] = _pg_previous_authorities(request, commands, current)

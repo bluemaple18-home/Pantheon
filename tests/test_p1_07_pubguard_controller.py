@@ -1250,6 +1250,59 @@ class PublisherGuardControllerUnit(unittest.TestCase):
         finally:
             case.doCleanups()
 
+    def test_full_generation_accepts_stopped_publisher_without_fabricated_bootout(self):
+        self._mixed_previous_full_target_fixture()
+        self.runner.loaded[PAIR[0]] = False
+        self.prepare(push_source=True)
+        self.assertEqual(self.receipt()["plan"]["initial_services"][PAIR[0]]["topology"], "ABSENT")
+        self.assertEqual(self.apply()["status"], "HEALTHY")
+        self.assertTrue(all(self.runner.loaded.values()))
+        self.assertFalse(any(event["action"] == "bootout" and event.get("label") == PAIR[0]
+                             for event in self.receipt()["events"]))
+        mutations = list(self.runner.mutations())
+        self.assertEqual(self.recover()["status"], "HEALTHY")
+        self.assertEqual(self.runner.mutations(), mutations)
+        self.assert_released()
+
+    def test_stopped_publisher_preserves_other_previous_authority_gates(self):
+        for variant in ("guard-absent", "publisher-unknown", "disabled", "manifest"):
+            with self.subTest(variant=variant), self._isolated_full_generation_case() as case:
+                case.runner.loaded[PAIR[0]] = False
+                if variant == "guard-absent":
+                    case.runner.loaded[PAIR[1]] = False
+                elif variant == "disabled":
+                    case.runner.disabled.add(PAIR[0])
+                elif variant == "manifest":
+                    case.request = replace(case.request, old_manifest_path=case.new_path)
+
+                def observed(argv, *, timeout):
+                    if variant == "publisher-unknown" and argv[:2] == ["/bin/launchctl", "print"] \
+                            and argv[2].endswith("/" + PAIR[0]):
+                        return subprocess.CompletedProcess(argv, 1, "", "unit unknown service")
+                    return case.runner(argv, timeout=timeout)
+
+                with case.assertRaises(controller.PromotionError):
+                    controller.plan_publisher_guard(case.request, runner=observed)
+                case.assertFalse(case.runner.mutations())
+                case.assertFalse(any("push" in argv for argv in case.runner.commands))
+                case.assertFalse(case.request.transaction_root.exists())
+
+    def test_stopped_publisher_failure_recovers_forward_without_post_admission_restart(self):
+        self._mixed_previous_full_target_fixture()
+        self.runner.loaded[PAIR[0]] = False
+        self.prepare(push_source=True)
+        self.runner.bootstrap_failure = PAIR[0]
+        with self.assertRaisesRegex(controller.PromotionError, "bootstrap outcome UNKNOWN"):
+            self.apply()
+        self.assertFalse(self.barrier.exists())
+        self.assertEqual(self.receipt()["status"], "RECOVERY_REQUIRED")
+        self.assertEqual(self.runner.remote, TARGET)
+        self.assertEqual(self.recover()["status"], "HEALTHY")
+        mutations = list(self.runner.mutations())
+        self.assertEqual(self.recover()["status"], "HEALTHY")
+        self.assertEqual(self.runner.mutations(), mutations)
+        self.assert_released()
+
     def test_full_generation_each_bootstrap_failure_recovers_forward(self):
         for label in manifest.SERVICE_LABELS:
             with self.subTest(label=label), self._isolated_full_generation_case() as case:
