@@ -1831,7 +1831,13 @@ class _PublisherGuardCommands:
         argv = list(map(str, argv))
         if argv[0] == "launchctl":
             argv[0] = "/bin/launchctl"
-        timeout = min(self.request.command_timeout_seconds, self.deadline - time.monotonic())
+        command_budget = self.request.command_timeout_seconds
+        # 完整歷史的唯讀完整性檢查實測需約58秒；其他控制命令維持原預算。
+        if (len(argv) == 12 and argv[:8] == ["/usr/bin/git", "-c", "core.hooksPath=/dev/null",
+                "-c", "core.fsmonitor=false", "-c", "credential.helper=", "-C"]
+                and argv[9:] == ["fsck", "--full", "--no-reflogs"]):
+            command_budget = 120
+        timeout = min(command_budget, self.deadline - time.monotonic())
         _pg_require(timeout > 0, "controller deadline exceeded")
         event = None
         if self.receipt is not None:

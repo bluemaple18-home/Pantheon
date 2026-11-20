@@ -975,6 +975,54 @@ class PublisherGuardControllerUnit(unittest.TestCase):
         with self.assertRaisesRegex(controller.PromotionError, "command output exceeded bound"):
             self._unit_metadata_child(stdout_size=100, stderr_size=65537)
 
+    def test_full_history_fsck_plan_uses_bounded_read_budget(self):
+        observed = []
+        def runner(argv, *, timeout):
+            observed.append((list(argv), timeout))
+            if argv[-3:] == ["fsck", "--full", "--no-reflogs"] and timeout < 58:
+                raise subprocess.TimeoutExpired(argv, timeout)
+            return self.runner(argv, timeout=timeout)
+        result = controller.plan_publisher_guard(self.request, runner=runner)
+        self.assertEqual(result["status"], "PLANNED")
+        integrity = [timeout for argv, timeout in observed
+                     if argv[-3:] == ["fsck", "--full", "--no-reflogs"]]
+        self.assertEqual(integrity, [120])
+        self.assertTrue(all(timeout <= self.request.command_timeout_seconds
+                            for argv, timeout in observed
+                            if argv[-3:] != ["fsck", "--full", "--no-reflogs"]))
+        self.assertEqual(self.runner.mutations(), [])
+
+    def test_full_history_fsck_still_obeys_total_deadline(self):
+        observed = []
+        def runner(argv, *, timeout):
+            observed.append(timeout)
+            return subprocess.CompletedProcess(argv, 0, "", "")
+        commands = controller._PublisherGuardCommands(self.request, runner=runner)
+        commands.deadline = time.monotonic() + 0.2
+        controller._pg_git(commands, self.actor, "fsck", "--full", "--no-reflogs")
+        self.assertTrue(0 < observed[0] <= 0.2)
+        commands.deadline = time.monotonic() - 1
+        with self.assertRaisesRegex(controller.PromotionError, "deadline exceeded"):
+            controller._pg_git(commands, self.actor, "fsck", "--full", "--no-reflogs")
+        self.assertEqual(len(observed), 1)
+
+    def test_nearby_fsck_commands_keep_control_budget(self):
+        observed = []
+        def runner(argv, *, timeout):
+            observed.append((list(argv), timeout))
+            return subprocess.CompletedProcess(argv, 0, "", "")
+        commands = controller._PublisherGuardCommands(self.request, runner=runner)
+        controller._pg_git(commands, self.actor, "fsck", "--full", "--no-reflogs")
+        exact = observed[0][0]
+        variants = [exact + ["--connectivity-only"], exact[:-1], ["/usr/local/bin/git", *exact[1:]]]
+        for index in (2, 4, 6):
+            changed = exact.copy()
+            changed[index] += "changed"
+            variants.append(changed)
+        for argv in variants:
+            commands(argv)
+        self.assertTrue(all(timeout <= self.request.command_timeout_seconds for _, timeout in observed[1:]))
+
     def test_real_local_child_timeout_has_terminal_receipt(self):
         self.prepare()
         receipt = self.receipt()
