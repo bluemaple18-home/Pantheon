@@ -15,6 +15,70 @@ from scripts import agy_gemini_coordinator as coordinator
 from scripts import pantheon_runtime_activation as activation
 
 
+def _launchctl_lwcr_output() -> str:
+    """保留實測 LWCR 巢狀語法，內層同名欄位不得成為服務身份。"""
+    return '''gui/502/com.pantheon.test = {
+    path = /example/test.plist
+    state = running
+    pid = 123
+    runs = 26
+    last exit code = 0
+    LWCR = {
+        "reqs" => {
+            "cdhash" => {
+                path = /wrong.plist
+                state = dormant
+                pid = 999
+                runs = 999
+                last exit code = 99
+            }
+        }
+    }
+}
+'''
+
+
+def test_launchctl_lwcr_preserves_root_identity() -> None:
+    assert activation.parse_launchctl_service_identity(
+        _launchctl_lwcr_output(), expected_target="gui/502/com.pantheon.test",
+    ) == {
+        "states": ["running"], "paths": ["/example/test.plist"],
+        "pids": [123], "runs": [26], "last_exit_codes": [0],
+    }
+
+
+@pytest.mark.parametrize("fault", [
+    "wrong_root", "root_arrow", "missing_close", "extra_close", "trailing", "bad_arrow",
+])
+def test_launchctl_lwcr_rejects_malformed_identity(fault: str) -> None:
+    body = _launchctl_lwcr_output()
+    if fault == "wrong_root":
+        body = body.replace("gui/502/com.pantheon.test", "gui/502/com.pantheon.other")
+    elif fault == "root_arrow":
+        body = body.replace("test = {", "test => {")
+    elif fault == "missing_close":
+        body = body.rsplit("}", 1)[0]
+    elif fault == "extra_close":
+        body += "}\n"
+    elif fault == "trailing":
+        body += "state = running\n"
+    elif fault == "bad_arrow":
+        body = body.replace('"reqs" => {', '"reqs" ==> {')
+    assert activation.parse_launchctl_service_identity(
+        body, expected_target="gui/502/com.pantheon.test",
+    ) is None
+
+
+@pytest.mark.parametrize("duplicate", ["state = running", "path = /example/test.plist", "pid = 123", "runs = 26", "last exit code = 0"])
+def test_launchctl_lwcr_duplicate_root_still_unknown(duplicate: str) -> None:
+    body = _launchctl_lwcr_output().replace("    LWCR = {", f"    {duplicate}\n    LWCR = {{")
+    result = activation.observe_launchctl_service(
+        "com.pantheon.test", Path("/example/test.plist"), domain="gui/502",
+        runner=lambda command: subprocess.CompletedProcess(command, 0, body, ""),
+    )
+    assert result["topology"] == "UNKNOWN"
+
+
 def test_print_disabled_accepts_observed_macos_output() -> None:
     """使用 QA 主機原始輸出，foreign 停用項目不得阻擋 Pantheon。"""
     stdout = (Path(__file__).parent / "fixtures/launchctl_print_disabled_macos.txt").read_text()

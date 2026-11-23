@@ -1871,8 +1871,8 @@ def test_article_breadcrumb_uses_product_and_slug_from_url() -> None:
     motion_visual_js = Path("app/web/static/pantheon-motion-visual.js").read_text()
     styles_css = Path("app/web/static/styles.css").read_text()
     redirects = Path("app/web/_redirects").read_text()
-    assert "buildArticleContent(window.location.pathname, window.location.origin" in article_js
-    assert "if (content.redirectTo)" in article_js
+    assert "await loadArticleContent(window.location.pathname, window.location.origin" in article_js
+    assert "if (content?.redirectTo)" in article_js
     assert "window.location.replace(content.redirectTo)" in article_js
     assert "applyArticleSeo(content, dom, window.location.origin)" in article_js
     assert "document.body.dataset.locale = content.locale || \"zh-Hant\"" in article_js

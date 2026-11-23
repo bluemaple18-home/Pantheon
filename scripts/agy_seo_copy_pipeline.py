@@ -6528,7 +6528,10 @@ def _bump_article_cache_queries(
 ) -> list[Path]:
     web = repo_root / "app/web"
     replacements = {
-        web / "static/article-meta.js": [(r'article-registry\.js\?v=[^"\']+', f"article-registry.js?v={token}")],
+        web / "static/article-meta.js": [
+            (r'article-registry\.js\?v=[^"\']+', f"article-registry.js?v={token}"),
+            (r'article-locales\.js\?v=[^"\']+', f"article-locales.js?v={token}"),
+        ],
         web / "static/article-admin.js": [(r'article-registry\.js\?v=[^"\']+', f"article-registry.js?v={token}")],
         web / "static/app.js": [(r'article-registry\.js\?v=[^"\']+', f"article-registry.js?v={token}")],
         web / "static/articles.js": [(r'article-registry\.js\?v=[^"\']+', f"article-registry.js?v={token}")],

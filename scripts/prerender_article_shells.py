@@ -70,6 +70,7 @@ const records = listArticleRecords().map((article) => {
     answer: content.answer || article.answer || '',
     faq: content.faq || article.faq || [],
     bodySections: content.bodySections || [],
+    content,
     publicationPolicy: article.publicationPolicy || null,
     productLabel: getArticleSectionRecord(article.section)?.label || article.articleCategory || article.product || '文章',
     productHub: getArticleSectionRecord(article.section)?.product || article.product || article.articleCategory || 'fortune',
@@ -253,6 +254,7 @@ def build_prerender_articles() -> list[dict[str, Any]]:
                 "answer": record["answer"],
                 "faq": record["faq"],
                 "bodySections": record["bodySections"],
+                "content": record["content"],
                 "publicationPolicy": record["publicationPolicy"],
                 "published": record["published"],
                 "updated": record["updated"],
@@ -567,6 +569,26 @@ def render_article_specific_shell(article: dict[str, Any]) -> str:
             "",
             markup,
             count=1,
+        )
+    if article.get("content"):
+        # 只攜帶本輪既有 builder 結果，不重啟 Node 或另建全站 cache。
+        content = {
+            **article["content"],
+            "author": identity["author_name"],
+            "answer": article["answer"],
+            "bodySections": article["bodySections"],
+            "faq": article["faq"],
+        }
+        for field in ("published", "updated"):
+            if article.get(field):
+                content[field] = article[field]
+            else:
+                content.pop(field, None)
+        payload = _json_script({"path": article["path"], "content": content}).replace("<", "\\u003c")
+        markup = markup.replace(
+            "</body>",
+            f'<script type="application/json" id="article-content-payload">{payload}</script>\n</body>',
+            1,
         )
     return markup
 

@@ -38,6 +38,8 @@ class LaunchdUnitRunner:
     """只模擬 injected runner 邊界；所有可寫路徑皆是本測試的暫存 fixture。"""
     def __init__(self, case):
         self.case = case
+        self.target_labels = PAIR
+        self.disabled = set()
         self.remote = OLD
         self.loaded = {label: label in PAIR for label in manifest.SERVICE_LABELS}
         self.commands = []
@@ -91,6 +93,16 @@ class LaunchdUnitRunner:
                 output = f"{self.remote}\t{self.case.request.remote_ref}\n" if self.remote else ""
             elif operation[0] not in {"status", "ls-files", "fsck"}:
                 raise AssertionError(operation)
+        elif argv[:2] in (["/bin/launchctl", "enable"], ["/bin/launchctl", "disable"]):
+            label = argv[2].split("/", 2)[2]
+            assert label in self.target_labels and label not in PAIR
+            if argv[1] == "enable":
+                self.disabled.discard(label)
+            else:
+                self.disabled.add(label)
+        elif argv[:2] == ["/bin/launchctl", "print-disabled"]:
+            output = "disabled services = {\n" + "".join(
+                f'    "{label}" => true\n' for label in sorted(self.disabled)) + "}\n"
         elif argv[:2] == ["/bin/launchctl", "print"]:
             label = argv[2].split("/", 2)[2]
             if not self.loaded[label]:
@@ -107,12 +119,12 @@ class LaunchdUnitRunner:
                     self.health_under_ex.append(manifest._SHUTDOWN_LEASE.get() is not None)
         elif argv[:2] == ["/bin/launchctl", "bootout"]:
             label = argv[2].split("/", 2)[2]
-            assert label in PAIR
+            assert label in self.target_labels
             self.loaded[label] = False
         elif argv[:2] == ["/bin/launchctl", "bootstrap"]:
             plist = plistlib.loads(Path(argv[3]).read_bytes())
             label = plist["Label"]
-            assert label in PAIR
+            assert label in self.target_labels
             if self.bootstrap_failure == label:
                 self.bootstrap_failure = None
                 code = 1
@@ -1016,6 +1028,366 @@ class PublisherGuardControllerUnit(unittest.TestCase):
                                                         runner=waiting_wrapper)
         self.assertEqual(result["status"], "HEALTHY")
         self.assert_preserved()
+
+    def _mixed_previous_full_target_fixture(self):
+        """合成 current pair 與 dormant five 的不同 authority；不讀寫 live。"""
+        common = dict(queue_root=self.queue, publisher_state_root=self.state, log_root=self.log,
+                      python_executable=Path(sys.executable).resolve())
+        dormant_actor = self.root / "dormant-actor"
+        dormant_actor.mkdir()
+        dormant = manifest.build_manifest(actor_root=dormant_actor, actor_head="3" * 40,
+                                          identity="unit-dormant", generation="dormant-five", **common)
+        dormant_path = self.root / "dormant-manifest.json"
+        manifest.write_manifest(dormant_path, dormant)
+        self.old = manifest.build_manifest(actor_root=self.old_actor, actor_head=OLD,
+                                           identity="unit-current", generation="current-pair",
+                                           activation_scope="publisher_guard", **common)
+        self.new = manifest.build_manifest(actor_root=self.actor, actor_head=TARGET,
+                                           identity="unit-target", generation="new", **common)
+        manifest.write_manifest(self.old_path, self.old)
+        manifest.write_manifest(self.new_path, self.new)
+        self.old_manifest_bytes = self.old_path.read_bytes()
+
+        def write_plist(runtime, manifest_path, label, path, *, activation_only=False):
+            # 使用正式 template 的各自 child，不將 producer 假扮成 Guard。
+            lane = label.removeprefix("com.pantheon.agy-gemini-")
+            if label in PAIR or lane == "coordinator":
+                template_name = label
+            else:
+                template_name = "com.pantheon.agy-gemini-lane"
+            template = plistlib.loads((ROOT / "ops/launchd" / (template_name + ".plist.example")).read_bytes())
+            barrier = self.state / ("four-lane-activation-" + runtime["generation"] + ".barrier")
+            ready = self.ready if runtime is self.new else self.root / (runtime["generation"] + "-readiness")
+            values = {
+                "PYTHON": runtime["python_executable"], "REPO_ROOT": runtime["actor_root"],
+                "QUEUE_ROOT": runtime["queue_root"], "PUBLISHER_STATE_ROOT": runtime["publisher_state_root"],
+                "PUBLISHER_ROOT": runtime["publisher_state_root"], "LOG_ROOT": runtime["log_root"],
+                "LOG_DIR": runtime["log_root"], "RUNTIME_MANIFEST": str(manifest_path),
+                "RUNTIME_MANIFEST_DIGEST": runtime["manifest_digest"],
+                "RUNTIME_IDENTITY_DIGEST": runtime["runtime_identity_digest"],
+                "RUNTIME_CODE_DIGEST": runtime["runtime_digest"], "RUNTIME_DIGEST": runtime["runtime_digest"],
+                "RUNTIME_CONFIG_VERSION": runtime["config_version"], "RUNTIME_GENERATION": runtime["generation"],
+                "RUNTIME_IDENTITY": runtime["identity"], "RUNTIME_SHA": runtime["actor_head"],
+                "ACTIVATION_BARRIER": str(barrier), "READY_ROOT": str(ready),
+                "LABEL": label, "LANE": lane, "MAX_RUNS": "1",
+                "STATE_FILE": str(self.queue / "capacity-guard-state.json"),
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "AGY_GEMINI_CLI": "/usr/bin/false",
+                "STDOUT": str(self.log / (label + ".stdout.log")),
+                "STDERR": str(self.log / (label + ".stderr.log")),
+                "STDOUT_LOG": str(self.log / (label + ".stdout.log")),
+                "STDERR_LOG": str(self.log / (label + ".stderr.log")),
+            }
+
+            def render(value):
+                if isinstance(value, str):
+                    for key, replacement in values.items():
+                        value = value.replace("__" + key + "__", replacement)
+                    return value
+                if isinstance(value, list):
+                    return [render(item) for item in value]
+                if isinstance(value, dict):
+                    return {key: render(item) for key, item in value.items()}
+                return value
+
+            payload = render(template)
+            self.assertNotRegex(json.dumps(payload), r"__[A-Z_]+__")
+            environment = payload["EnvironmentVariables"]
+            environment.update(PANTHEON_RUNTIME_ACTOR_HEAD=runtime["actor_head"],
+                               PANTHEON_RUNTIME_PYTHON_EXECUTABLE=runtime["python_executable"])
+            args = payload["ProgramArguments"]
+            # 對齊既有 pair 的正式 continuous CLI；template 的預設 state 路徑不能冒充共用 root。
+            if label == PAIR[0]:
+                for flag in ("--state-root", "--expected-state-root"):
+                    args[args.index(flag) + 1] = runtime["publisher_state_root"]
+                args.extend(["--continuous-tick", "--prefer-new-batch-size", "2"])
+                if runtime is self.old:
+                    payload["RunAtLoad"] = False
+            elif lane == "coordinator":
+                args[args.index("--queue-root") + 1] = runtime["queue_root"]
+                args[args.index("--legacy-state-root") + 1] = runtime["publisher_state_root"]
+            if activation_only:
+                args.insert(args.index("--"), "--activation-only")
+            self.write_private(path, plistlib.dumps(payload))
+            receipt = manifest.plist_receipt(
+                path, expected_activation_mode="activation-only" if activation_only else "normal")
+            for field, expected in manifest.receipt_for_label(runtime, label).items():
+                self.assertEqual(receipt[field], expected, (label, field))
+            self.assertEqual(environment["PANTHEON_RUNTIME_MANIFEST"], str(manifest_path))
+            self.assertEqual(args[args.index("--manifest") + 1], str(manifest_path))
+            return path
+
+        self.plists = []
+        for label in manifest.SERVICE_LABELS:
+            runtime, path = (self.old, self.old_path) if label in PAIR else (dormant, dormant_path)
+            write_plist(runtime, path, label, self.launch / (label + ".plist"),
+                        activation_only=label not in PAIR)
+            self.plists.append(write_plist(self.new, self.new_path, label, self.stage / (label + ".plist")))
+        # 模擬實測舊 pathname 已被另一代 manifest 覆寫；舊五份 metadata 保留原宣告。
+        overwritten = manifest.build_manifest(actor_root=dormant_actor, actor_head="3" * 40,
+            identity="unit-overwritten-reference", generation="overwritten-dormant-path", **common)
+        manifest.write_manifest(dormant_path, overwritten)
+        self.runner.disabled = set(manifest.SERVICE_LABELS) - set(PAIR)
+        self.request = replace(self.request, staged_plists=tuple(self.plists), lock_budget_seconds=30)
+        self.runner.target_labels = manifest.activation_service_labels(self.new)
+        self.preserved = {path: path.read_bytes() for path in self.launch.iterdir() if path.stem not in PAIR}
+        for path in (self.old_path, dormant_path, self.new_path):
+            manifest.load_manifest(path)
+        self.assertEqual(manifest.activation_service_labels(self.old), PAIR)
+        self.assertNotIn("activation_scope", self.new)
+        self.assertEqual(manifest.activation_service_labels(self.new), manifest.SERVICE_LABELS)
+        self.assertNotEqual(self.old["manifest_digest"], dormant["manifest_digest"])
+        current = manifest.aggregate_plist_preflight(
+            self.old, [self.launch / (label + ".plist") for label in PAIR], expected_activation_mode="normal")
+        self.assertEqual(current["status"], "PASS")
+        target = manifest.aggregate_plist_preflight(self.new, self.plists, expected_activation_mode="normal")
+        self.assertEqual(target["status"], "PASS")
+        self.assertEqual({item["label"] for item in target["receipts"]}, set(manifest.SERVICE_LABELS))
+        self.assertEqual(len(target["receipts"]), 7)
+        self.assertTrue(all(item["activation_mode"] == "normal" for item in target["receipts"]))
+        self.assertEqual({label for label, loaded in self.runner.loaded.items() if loaded}, set(PAIR))
+        # 只有 current pair 的既有 barrier 已 OPEN；target 沒有預造 ack 或 admission。
+        current_ready = self.root / (self.old["generation"] + "-readiness")
+        for label in PAIR:
+            manifest.write_readiness_ack(current_ready, self.old, label)
+        manifest.activate_barrier(
+            self.state / ("four-lane-activation-" + self.old["generation"] + ".barrier"), current_ready, self.old)
+        return target
+
+    def test_mixed_previous_full_target_aggregate_fixture_is_valid(self):
+        self._mixed_previous_full_target_fixture()
+        self.assertFalse(self.runner.commands)
+
+    def test_pair_to_full_generation_preserves_current_authority(self):
+        self._mixed_previous_full_target_fixture()
+        originals = {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+        loaded = dict(self.runner.loaded)
+        try:
+            # 不吞 PromotionError；現產品必須在 scope gate 呈現目標 RED。
+            result = controller.plan_publisher_guard(self.request, runner=self.runner)
+            self.assertEqual(result["status"], "PLANNED")
+            self.assertEqual(result["plan"]["old_manifest"]["sha256"], controller.file_sha256(self.old_path))
+            self.assertEqual(set(result["plan"]["staged_plists"]), set(manifest.SERVICE_LABELS))
+            self.assertEqual(set(result["plan"]["previous_disabled"]), set(manifest.SERVICE_LABELS) - set(PAIR))
+            for label, previous in result["plan"]["previous_authorities"].items():
+                if label not in PAIR:
+                    reference = json.loads(Path(previous["manifest"]["path"]).read_text())
+                    self.assertNotEqual(previous["declared_receipt"]["manifest_digest"], reference["manifest_digest"])
+                    self.assertEqual(result["plan"]["initial_services"][label]["topology"], "ABSENT")
+            semantics = result["plan"]["startup_semantics"][PAIR[0]]
+            self.assertEqual(semantics["previous"], {
+                "RunAtLoad": False, "StartInterval": 60, "prefer_new_batch_size": "2"})
+            self.assertEqual(semantics["target"], {
+                "RunAtLoad": True, "StartInterval": 60, "prefer_new_batch_size": "2"})
+            for label in PAIR:
+                path = self.launch / (label + ".plist")
+                self.assertEqual(result["plan"]["old_plists"][label]["sha256"], controller.file_sha256(path))
+        finally:
+            for path, data in originals.items():
+                self.assertEqual(path.read_bytes(), data, str(path))
+            self.assertEqual(self.runner.loaded, loaded)
+            self.assertFalse(self.runner.mutations())
+            self.assertFalse(any("push" in command for command in self.runner.commands))
+            self.assertFalse(self.request.transaction_root.exists())
+            self.assertFalse(self.barrier.exists())
+            self.assertFalse(self.ready.exists())
+
+    @contextmanager
+    def _isolated_full_generation_case(self):
+        # 每個故障點有獨立 fixture／transaction，不借用前一輪 admission。
+        case = PublisherGuardControllerUnit()
+        case.setUp()
+        try:
+            case._mixed_previous_full_target_fixture()
+            yield case
+        finally:
+            case.doCleanups()
+
+    def test_full_generation_each_bootstrap_failure_recovers_forward(self):
+        for label in manifest.SERVICE_LABELS:
+            with self.subTest(label=label), self._isolated_full_generation_case() as case:
+                previous = {path: path.read_bytes() for path in case.launch.iterdir()}
+                case.prepare()
+                case.runner.bootstrap_failure = label
+                with case.assertRaisesRegex(controller.PromotionError, "bootstrap outcome UNKNOWN"):
+                    case.apply()
+                failed = case.receipt()
+                case.assertEqual(failed["status"], "RECOVERY_REQUIRED")
+                case.assertFalse(case.barrier.exists())
+                case.assertEqual(case.runner.disabled, set(manifest.SERVICE_LABELS) - set(PAIR))
+                for path, data in previous.items():
+                    case.assertEqual((case.request.transaction_root / (path.stem + ".previous.plist")).read_bytes(), data)
+                result = case.recover()
+                case.assertEqual(result["status"], "HEALTHY")
+                case.assertEqual(set(result["health"]["services"]), set(manifest.SERVICE_LABELS))
+                case.assertTrue(all(case.runner.loaded.values()))
+                for path in case.plists:
+                    case.assertEqual(path.read_bytes(), (case.launch / path.name).read_bytes())
+                case.assertEqual(case.old_path.read_bytes(), case.old_manifest_bytes)
+                case.assert_released()
+
+    def test_full_generation_side_effect_failures_recover_without_post_admission_restart(self):
+        actions = ("bootout", "create-permit", "install-plist", "enable-service", "bootstrap", "activate-barrier", "revoke-permit", "restore-disabled")
+        for action in actions:
+            for boundary in ("before", "after"):
+                with self.subTest(action=action, boundary=boundary), self._isolated_full_generation_case() as case:
+                    case.prepare()
+                    if action == "restore-disabled":
+                        case.runner.bootstrap_failure = "com.pantheon.agy-gemini-coordinator"
+                    name = "_pg_event" if boundary == "before" else "_pg_finish"
+                    original = getattr(controller, name)
+                    fired = []
+
+                    def fault(*args, **kwargs):
+                        event_action = args[2] if boundary == "before" else args[2]["action"]
+                        result = original(*args, **kwargs)
+                        if event_action == action and not fired:
+                            fired.append(True)
+                            raise OSError("unit full-generation " + action + " " + boundary)
+                        return result
+
+                    with patch.object(controller, name, new=fault):
+                        with case.assertRaisesRegex(controller.PromotionError, "unit full-generation"):
+                            case.apply()
+                    case.assertEqual(fired, [True])
+                    published = case.barrier.exists()
+                    mutations = list(case.runner.mutations())
+                    failed = case.receipt()
+                    case.assertEqual(failed["status"], "RECOVERY_REQUIRED")
+                    result = case.recover()
+                    case.assertEqual(result["status"], "HEALTHY")
+                    if published:
+                        case.assertEqual(case.runner.mutations(), mutations)
+                    case.assertFalse(case.runner.disabled)
+                    case.assert_released()
+                    for label in manifest.SERVICE_LABELS:
+                        backup = case.request.transaction_root / (label + ".previous.manifest.json")
+                        case.assertTrue(backup.is_file())
+                        case.assertEqual(controller.file_sha256(backup),
+                            result["plan"]["previous_authorities"][label]["manifest"]["sha256"])
+
+    def test_full_generation_enable_command_failures_restore_original_disabled(self):
+        for outcome in ("nonzero-before", "nonzero-after", "timeout-after"):
+            with self.subTest(outcome=outcome), self._isolated_full_generation_case() as case:
+                case.prepare()
+                fired = []
+
+                def fault(argv, *, timeout):
+                    if argv[:2] == ["/bin/launchctl", "enable"] and not fired:
+                        fired.append(True)
+                        if outcome != "nonzero-before":
+                            case.runner(argv, timeout=timeout)
+                        if outcome == "timeout-after":
+                            raise subprocess.TimeoutExpired(argv, timeout)
+                        return subprocess.CompletedProcess(argv, 1, "", "unit enable failure")
+                    return case.runner(argv, timeout=timeout)
+
+                with case.assertRaises(controller.PromotionError):
+                    controller.apply_publisher_guard(case.request, expected_plan_digest=case.digest, runner=fault)
+                case.assertEqual(fired, [True])
+                case.assertFalse(case.barrier.exists())
+                case.assertEqual(case.runner.disabled, set(manifest.SERVICE_LABELS) - set(PAIR))
+                case.assertEqual(case.receipt()["status"], "RECOVERY_REQUIRED")
+                case.assertEqual(case.recover()["status"], "HEALTHY")
+                case.assertFalse(case.runner.disabled)
+
+    def test_full_generation_previous_drift_and_foreign_dormant_load_fail_closed(self):
+        for drift in ("manifest", "barrier", "backup", "destination", "loaded", "disabled"):
+            with self.subTest(drift=drift), self._isolated_full_generation_case() as case:
+                case.prepare()
+                label = "com.pantheon.agy-gemini-rewrite"
+                previous = case.receipt()["plan"]["previous_authorities"][label]
+                if drift == "manifest":
+                    path = Path(previous["manifest"]["path"])
+                    path.write_bytes(path.read_bytes() + b"\\n")
+                elif drift == "barrier":
+                    activation._write_private_json(Path(previous["barrier_path"]), {"foreign": True})
+                elif drift == "backup":
+                    path = case.request.transaction_root / (label + ".previous.plist")
+                    path.write_bytes(b"foreign")
+                elif drift == "destination":
+                    (case.launch / (label + ".plist")).write_bytes(b"foreign")
+                elif drift == "loaded":
+                    case.runner.loaded[label] = True
+                else:
+                    case.runner.disabled.discard(label)
+                with case.assertRaises(controller.PromotionError):
+                    case.apply()
+                case.assertFalse(case.runner.mutations())
+                case.assertFalse(case.barrier.exists())
+
+    def test_full_generation_prepare_backup_failure_never_admits_or_pushes(self):
+        self._mixed_previous_full_target_fixture()
+        plan = controller.plan_publisher_guard(self.request, runner=self.runner)
+        original = activation.maintenance_atomic
+
+        def fail_backup(path, body):
+            if str(path).endswith(".previous.plist"):
+                raise OSError("unit previous backup failure")
+            return original(path, body)
+
+        with patch.object(activation, "maintenance_atomic", new=fail_backup):
+            with self.assertRaisesRegex(OSError, "unit previous backup"):
+                controller.prepare_publisher_guard(
+                    self.request, expected_plan_digest=plan["plan_digest"], runner=self.runner)
+        self.assertEqual(self.receipt()["status"], "PREPARING")
+        with self.assertRaisesRegex(controller.PromotionError, "not durably prepared"):
+            controller.recover_publisher_guard(
+                self.request, expected_plan_digest=plan["plan_digest"], runner=self.runner)
+        self.assertFalse(self.runner.mutations())
+        self.assertFalse(any("push" in command for command in self.runner.commands))
+
+    def test_full_generation_running_new_readback_never_restarts(self):
+        self._mixed_previous_full_target_fixture()
+        self.prepare()
+        self.runner.publisher_running = True
+        result = self.apply()
+        self.assertEqual(result["status"], "POSTCHECK_PENDING")
+        mutations = list(self.runner.mutations())
+        for unused in range(2):
+            self.assertEqual(self.recover()["status"], "POSTCHECK_PENDING")
+            self.assertEqual(self.runner.mutations(), mutations)
+        self.runner.publisher_exit = 2
+        with self.assertRaisesRegex(controller.PromotionError, "last exit nonzero"):
+            self.recover()
+        self.assertEqual(self.runner.mutations(), mutations)
+
+    def test_full_generation_rejects_disabled_wrong_child_and_unknown_scope(self):
+        for variant in ("disabled", "child", "new-only", "scope", "missing"):
+            with self.subTest(variant=variant), self._isolated_full_generation_case() as case:
+                label = "com.pantheon.agy-gemini-rewrite"
+                if variant == "disabled":
+                    case.runner.disabled.add(PAIR[0])
+                elif variant in ("child", "new-only"):
+                    path = case.stage / (label + ".plist")
+                    payload = plistlib.loads(path.read_bytes())
+                    if variant == "child":
+                        payload["ProgramArguments"][19] = "scripts.pantheon_content_capacity_guard"
+                    else:
+                        payload["EnvironmentVariables"]["AGY_GEMINI_NEW_ONLY"] = "1"
+                    case.write_private(path, plistlib.dumps(payload))
+                elif variant == "scope":
+                    case.new["activation_scope"] = "unknown"
+                    manifest.write_manifest(case.new_path, case.new)
+                else:
+                    case.request = replace(case.request, staged_plists=case.request.staged_plists[:-1])
+                with case.assertRaises((controller.PromotionError, manifest.RuntimeManifestError)):
+                    controller.plan_publisher_guard(case.request, runner=case.runner)
+                case.assertFalse(case.runner.mutations())
+                case.assertFalse(case.request.transaction_root.exists())
+
+    def test_full_generation_source_rejection_never_touches_services(self):
+        self._mixed_previous_full_target_fixture()
+        self.prepare(push_source=True)
+        self.runner.push_behavior = "rejected"
+        with self.assertRaisesRegex(controller.PromotionError, "remote OLD/UNKNOWN"):
+            self.apply()
+        self.assertEqual(self.runner.remote, OLD)
+        self.assertFalse(self.runner.mutations())
+        self.assertFalse(self.barrier.exists())
+        count = len(self.runner.push_under_ex)
+        with self.assertRaisesRegex(controller.PromotionError, "remote OLD/UNKNOWN"):
+            self.recover()
+        self.assertEqual(len(self.runner.push_under_ex), count)
 
     def test_scoped_receipts_and_legacy_cli_unchanged(self):
         self.assertEqual(manifest.activation_service_labels(self.new), PAIR)

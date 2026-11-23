@@ -578,6 +578,8 @@ def test_formal_capacity_guard_rejects_manifest_drift_before_state_write(
     )
     manifest_path.write_text("{}\n", encoding="utf-8")
     state_file = tmp_path / "capacity-state.json"
+    # 本例驗 manifest 拒絕與零寫入；使用既有容量 fixture，不查操作者的真 launchd／ps。
+    monkeypatch.setattr(guard, "_snapshot", lambda *args, **kwargs: _available_snapshot())
 
     with pytest.raises(runtime_manifest.RuntimeManifestError):
         guard.check_once(queue, state, logs, state_file)
@@ -602,9 +604,10 @@ def test_measure_tree_ignores_directory_that_disappears_during_scan(
             disappearing.rmdir()
         return real_scandir(path)
 
-    monkeypatch.setattr(guard.os, "scandir", disappearing_scandir)
-
-    assert guard._measure_tree(tmp_path) == (len(b"stable"), 1)
+    # os 模組共用；在 pytest 回收 tmp_path 前還原，避免測試替身攔到 dirfd 掃描。
+    with monkeypatch.context() as scoped:
+        scoped.setattr(guard.os, "scandir", disappearing_scandir)
+        assert guard._measure_tree(tmp_path) == (len(b"stable"), 1)
 
 
 def test_preflight_rejects_low_disk_without_mutation(tmp_path: Path, monkeypatch) -> None:
@@ -3067,6 +3070,11 @@ def test_capacity_installer_preflight_has_no_target_or_control_plane_mutation(
     queue_root.mkdir()
     publisher_root.mkdir()
     log_root.mkdir()
+    # 現行 preflight 共用既有 runtime lease；先建立 fixture，再驗 inode／內容皆不變。
+    with runtime_manifest.runtime_work_lease(publisher_root):
+        pass
+    lease_path = publisher_root / "runtime-work.lock"
+    lease_before = lease_path.stat()
     actor_head = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         cwd=repo,
@@ -3142,7 +3150,11 @@ def test_capacity_installer_preflight_has_no_target_or_control_plane_mutation(
 
     assert completed.returncode == 0, f"{completed.stdout}\n{completed.stderr}"
     assert '"status": "PASS"' in completed.stdout
-    assert list(publisher_root.iterdir()) == []
+    assert list(publisher_root.iterdir()) == [lease_path]
+    lease_after = lease_path.stat()
+    assert (lease_after.st_dev, lease_after.st_ino, lease_after.st_mode, lease_after.st_mtime_ns) == (
+        lease_before.st_dev, lease_before.st_ino, lease_before.st_mode, lease_before.st_mtime_ns)
+    assert lease_path.read_bytes() == b""
     assert list(log_root.iterdir()) == []
     assert not fake_home.exists()
     assert not mutation_log.exists()
@@ -4904,6 +4916,8 @@ def test_capacity_installer_canonicalizes_var_tmp_plist_for_preactivation_transi
         _capacity_transition_installer_env(tmp_path)
     )
     private_tmp = tmp_path.resolve(strict=True)
+    if not private_tmp.is_relative_to("/private/var"):
+        pytest.skip("此受管 tmp 位於外接卷，不具備 /var → /private/var 別名條件")
     alias_tmp = Path("/var") / private_tmp.relative_to("/private/var")
 
     assert alias_tmp.samefile(private_tmp)
@@ -6091,3 +6105,65 @@ def test_real_guard_rollback_retains_trusted_orphan_until_quiescent(
     assert target["status"] == "UNKNOWN_OR_FAILED" and "deadline exceeded" in target["error"]
     assert target["processes"]["100"]["birth"] == [1, 100] and target["groups"] == [100, 9001]
     assert clock[0] == guard.RECOVERY_SHUTDOWN_TIMEOUT_SECONDS
+
+def _target_only_guard_fixture(tmp_path):
+    # 沿既有有限 fixture；不建立完整 repo，也不取正式 service／credential。
+    env, home, mutation_log, previous, unused = _capacity_transition_installer_env(tmp_path)
+    repo = Path(__file__).resolve().parents[1]
+    target = runtime_manifest.build_manifest(
+        actor_root=repo, queue_root=Path(previous["queue_root"]),
+        publisher_state_root=Path(previous["publisher_state_root"]), log_root=Path(previous["log_root"]),
+        identity="target-only-normal", generation="target-only-private",
+        python_executable=Path(sys.executable).resolve(), uv_executable=Path(sys.executable).resolve())
+    manifest_path = tmp_path / "target-manifest.json"
+    runtime_manifest.write_manifest(manifest_path, target)
+    env.update(PANTHEON_RUNTIME_MANIFEST_FILE=str(manifest_path),
+               PANTHEON_EXPECTED_RUNTIME_MANIFEST_DIGEST=target["manifest_digest"],
+               PANTHEON_CAPACITY_GUARD_STATE_FILE=str(Path(target["queue_root"]) / "capacity-guard-state.json"))
+    output_root = tmp_path / "target-only"
+    output_root.mkdir(mode=0o700)
+    return repo, env, home, mutation_log, target, output_root
+
+
+def test_capacity_installer_target_only_keeps_mixed_live_untouched(tmp_path):
+    repo, env, home, mutation_log, target, output_root = _target_only_guard_fixture(tmp_path)
+    live = home / "Library/LaunchAgents/com.pantheon.agy-gemini-rewrite.plist"
+    live.write_bytes(b"opaque stale dormant bytes")
+    before = {path: path.read_bytes() for path in home.rglob("*") if path.is_file()}
+    roots = [Path(target[field]) for field in ("queue_root", "publisher_state_root", "log_root")]
+    state = {path: path.read_bytes() for root in roots for path in root.rglob("*") if path.is_file()}
+    output = output_root / "com.pantheon.content-capacity-guard.plist"
+    result = subprocess.run(
+        ["/bin/bash", str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+         "--stage-target-only", str(output)], cwd=tmp_path, env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "TARGET_STAGED_NOT_ACTIVATED" in result.stdout
+    receipt = runtime_manifest.plist_receipt(output, expected_activation_mode="normal")
+    for key, value in runtime_manifest.receipt_for_label(target, "com.pantheon.content-capacity-guard").items():
+        assert receipt[key] == value
+    assert {path: path.read_bytes() for path in home.rglob("*") if path.is_file()} == before
+    assert {path: path.read_bytes() for root in roots for path in root.rglob("*") if path.is_file()} == state
+    assert not mutation_log.exists()
+
+
+@pytest.mark.parametrize("variant", ["live", "existing", "admitted", "symlink"])
+def test_capacity_installer_target_only_rejects_unsafe_output(tmp_path, variant):
+    repo, env, home, mutation_log, target, output_root = _target_only_guard_fixture(tmp_path)
+    output = output_root / "com.pantheon.content-capacity-guard.plist"
+    if variant == "live":
+        output = home / "Library/LaunchAgents/com.pantheon.content-capacity-guard.plist"
+    elif variant == "existing":
+        output.write_bytes(b"preserve existing")
+    elif variant == "admitted":
+        _write_capacity_transition_barrier(Path(target["publisher_state_root"]), target)
+    else:
+        link = tmp_path / "linked-output"
+        link.symlink_to(output_root, target_is_directory=True)
+        output = link / output.name
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    result = subprocess.run(
+        ["/bin/bash", str(repo / "scripts/install_pantheon_content_capacity_guard_launchd.sh"),
+         "--stage-target-only", str(output)], cwd=tmp_path, env=env, capture_output=True, text=True)
+    assert result.returncode != 0
+    assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
+    assert not mutation_log.exists()
