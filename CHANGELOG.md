@@ -2,6 +2,22 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.1238] - 2026-11-23
+
+- Release tag：`v0.3.1238`
+- 公開文章總數：1109（舊文重寫，不新增 registry 條目）
+- 發布範圍：套用 Gemini Reviewer APPROVE 且 deterministic gate 通過的舊文 body override 1 篇；run_id：legacy-auto-sweep-v1-interpersonal-0011-theme-interpersonal-11。
+- 驗證：publisher clean-origin gate、Reviewer hash gate、rewrite deterministic gate、source body drift gate、focused article pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/rewrite-0.3.1238`
+
+## [0.3.1237] - 2026-11-23
+
+- Release tag：`v0.3.1237`
+- 公開文章總數：1109（新增多語版本，不新增繁中 registry 條目）
+- 發布範圍：發布通過母語品質、Reviewer 與 deterministic gate 的多語文章 1 個 run；語系：ja；run_id：auto-i18n-ja-400ee69542f9d31784c3。
+- 驗證：publisher clean-origin gate、來源漂移 gate、多語 deterministic gate、focused multilingual pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/translation-0.3.1237`
+
 ## [0.3.1236] - 2026-11-23
 
 - Release tag：`v0.3.1236`
