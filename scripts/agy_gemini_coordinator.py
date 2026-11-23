@@ -6276,7 +6276,6 @@ def seed_legacy_rewrite_runs(
         return {"status": status, "created": 0, "created_run_ids": [], "backlog": _compact_legacy_backlog(backlog)}
 
     registered_article_ids = _registered_rewrite_article_ids(queue_root)
-    inventory = pipeline._existing_rewrite_inventory(repo_root)
     head = source_commit or _head_sha(repo_root)
     capacity = max(0, min(max_new_runs, max_active_runs - buffered_rewrite_work))
     created: list[str] = []
@@ -6286,7 +6285,10 @@ def seed_legacy_rewrite_runs(
         article_id = str(record.get("id") or "")
         if not article_id or article_id in registered_article_ids:
             continue
-        inventory_item = inventory.get(article_id)
+        # 沿原排序逐篇讀取將嘗試的正文；缺來源時照原規則往下找。
+        inventory_item = pipeline._existing_rewrite_inventory(
+            repo_root, article_ids=[article_id],
+        ).get(article_id)
         if not inventory_item:
             continue
         base_run_id = f"legacy-auto-sweep-v1-{publisher._record_serial(record)}-{_slug_part(article_id)}"

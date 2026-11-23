@@ -3638,7 +3638,7 @@ def _continuous_daily_usage(
     if date.fromisoformat(day).isoformat() != day:
         raise PublishBlocked("continuous publisher day is invalid")
     ledger = _load_ledger(state_root)
-    records: list[tuple[datetime, tuple[int, ...], str, str]] = []
+    records: list[tuple[datetime, tuple[int, ...], str, str, dict[str, Any]]] = []
     for bucket in ("published_runs", "rewrite_released_runs", "translation_published_runs"):
         for entry in ledger[bucket]:
             if not isinstance(entry, dict):
@@ -3651,7 +3651,7 @@ def _continuous_daily_usage(
                 raise PublishBlocked("continuous publisher ledger identity is incomplete") from error
             if stamped.tzinfo is None or not entry.get("commit_sha") or not run_id:
                 raise PublishBlocked("continuous publisher ledger push identity is incomplete")
-            records.append((stamped.astimezone(CONTINUOUS_TIMEZONE), version, run_id, bucket))
+            records.append((stamped.astimezone(CONTINUOUS_TIMEZONE), version, run_id, bucket, entry))
     if not records:
         return 0, None
     recent = max(records, key=lambda item: (item[0], item[1]))
@@ -3671,7 +3671,7 @@ def _continuous_daily_usage(
     if set(paths) != needed:
         raise PublishBlocked("continuous publisher published run source is missing")
 
-    def source(run_id: str, bucket: str) -> tuple[str, int]:
+    def source(run_id: str, bucket: str, entry: dict[str, Any]) -> tuple[str, int]:
         state = _read_json(paths[run_id])
         lane = state.get("lane")
         expected = {
@@ -3684,18 +3684,58 @@ def _continuous_daily_usage(
         run_dir = Path(str(state.get("run_dir") or ""))
         result = state.get("result") if isinstance(state.get("result"), dict) else {}
         candidate_path = Path(str(result.get("candidate") or run_dir / "candidate.json"))
-        if not candidate_path.resolve().is_relative_to(queue_root.resolve()):
-            raise PublishBlocked("continuous publisher candidate is outside queue")
+        # 已發布舊稿仍沿登記身分讀取，不把新稿的 queue 位置回套歷史來源。
+        if (
+            state.get("run_id") != run_id
+            or not run_dir.is_absolute()
+            or run_dir.resolve() != run_dir
+            or candidate_path != run_dir / "candidate.json"
+            or candidate_path.resolve() != candidate_path
+        ):
+            raise PublishBlocked("continuous publisher candidate differs from registered run")
         candidate = _read_json(candidate_path)
         articles = candidate.get("articles")
         if candidate.get("run_id") != run_id or not isinstance(articles, list) or not articles:
             raise PublishBlocked("continuous publisher candidate article identity is incomplete")
+        mode = {"new": "create", "rewrite": "rewrite_existing_body"}.get(lane, "translate_existing")
+        if candidate.get("mode") != mode or any(not isinstance(article, dict) for article in articles):
+            raise PublishBlocked("continuous publisher candidate mode differs from lane")
         if lane.startswith("i18n-") and len(articles) != 1:
             raise PublishBlocked("continuous publisher translation is not single article")
+        if lane.startswith("i18n-"):
+            article = articles[0]
+            if (
+                not entry.get("article_id")
+                or article.get("source_article_id") != entry["article_id"]
+                or article.get("locale") != entry.get("locale")
+                or article.get("article_id") != f"{entry['article_id']}:{entry.get('locale')}"
+            ):
+                raise PublishBlocked("continuous publisher translation differs from ledger")
+            identities = [entry["article_id"]]
+        else:
+            key = "id" if lane == "new" else "article_id"
+            identities = [article.get(key) for article in articles]
+            published_ids = entry.get("article_ids")
+            if (
+                any(type(value) is not str or not value for value in identities)
+                or not isinstance(published_ids, list)
+                or any(type(value) is not str or not value for value in published_ids)
+                or len(set(published_ids)) != len(published_ids)
+                or sorted(identities) != sorted(published_ids)
+            ):
+                raise PublishBlocked("continuous publisher candidate differs from ledger")
+        identity = state.get("identity_envelope")
+        if identity is not None and (
+            not isinstance(identity, dict)
+            or identity.get("lane") != lane
+            or identity.get("mode") != mode
+            or identity.get("article_ids") != sorted(identities)
+        ):
+            raise PublishBlocked("continuous publisher registered identity differs from candidate")
         return lane, len(articles)
 
-    last_lane, _ = source(recent[2], recent[3])
-    count = sum(source(run_id, bucket)[1] for _, _, run_id, bucket in today)
+    last_lane, _ = source(recent[2], recent[3], recent[4])
+    count = sum(source(run_id, bucket, entry)[1] for _, _, run_id, bucket, entry in today)
     return count, last_lane
 
 
@@ -6288,7 +6328,10 @@ def _continuous_preferred_new_batch(
             or len(set(article_ids)) != 2):
         return _continuous_blocker(state_root, "publication_readback_mismatch", day, alert_sender)
     end_day = datetime.now(CONTINUOUS_TIMEZONE).date().isoformat()
-    after, observed_lane = _continuous_daily_usage(queue_root, state_root, end_day)
+    try:
+        after, observed_lane = _continuous_daily_usage(queue_root, state_root, end_day)
+    except (PublishBlocked, OSError, ValueError):
+        return _continuous_blocker(state_root, "publication_readback_mismatch", day, alert_sender)
     matching = [entry for entry in _load_ledger(state_root)["published_runs"]
                 if entry.get("run_id") in run_ids]
     # 原生 article_ids 另有排序；依實際完成的run讀回既有queue來源，不zip或保留peek。
@@ -6305,9 +6348,12 @@ def _continuous_preferred_new_batch(
             if rid in source_articles or state.get("lane") != "new":
                 raise ValueError("batch owner source is duplicated or differs")
             state_result = state.get("result") if isinstance(state.get("result"), dict) else {}
-            candidate_path = Path(str(state_result.get("candidate") or Path(str(state.get("run_dir") or "")) / "candidate.json"))
-            if not candidate_path.resolve().is_relative_to(queue_root.resolve()):
-                raise ValueError("batch owner source is outside queue")
+            run_dir = Path(str(state.get("run_dir") or ""))
+            candidate_path = Path(str(state_result.get("candidate") or run_dir / "candidate.json"))
+            if (not run_dir.is_absolute() or run_dir.resolve() != run_dir
+                    or candidate_path != run_dir / "candidate.json"
+                    or candidate_path.resolve() != candidate_path):
+                raise ValueError("batch owner source differs from registered run")
             candidate = _read_json(candidate_path)
             if (not isinstance(candidate, dict) or candidate.get("run_id") != rid
                     or not isinstance(candidate.get("articles"), list) or len(candidate["articles"]) != 1):

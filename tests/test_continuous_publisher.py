@@ -32,6 +32,8 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         run_dir.mkdir(parents=True)
         mode = {"new": "create", "rewrite": "rewrite_existing_body"}.get(lane, "translate_existing")
         article = {"id": run_id, "article_id": run_id, "locale": "ja"}
+        if lane.startswith("i18n-"):
+            article.update(source_article_id=run_id, article_id=f"{run_id}:ja")
         candidate = {"run_id": run_id, "mode": mode, "articles": [article]}
         (run_dir / "candidate.json").write_text(json.dumps(candidate))
         run_state = {"run_id": run_id, "lane": lane, "run_dir": str(run_dir),
@@ -85,6 +87,9 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         ledger[bucket].append({
             "run_id": run_id, "published_at": "2026-10-25T12:00:00+08:00",
             "version": f"0.3.{len(calls)}", "commit_sha": commit,
+            **({"article_id": run_id, "locale": "ja"} if phase == "translation" else
+               {"article_ids": [article["id" if phase == "create" else "article_id"]
+                                for article in runs[lane][1]["articles"]]}),
         })
         publisher._atomic_write_json(publisher._ledger_path(state_root), ledger)
         status = {"create": "PUBLISHED", "rewrite": "PUBLISHED_REWRITE",
@@ -104,6 +109,28 @@ def _tick(fixture):
     return publisher.publish_continuous_tick.__wrapped__(
         repo, queue, state_root, max_runs=1, push=True,
     )
+
+
+def test_continuous_resumes_after_publishing_registered_legacy_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """舊稿發布後仍可計數、隔日讀取最後線別並由原排程輪轉。"""
+    fixture = _fixture(tmp_path, monkeypatch)
+    _repo, queue, state_root, runs, calls, _behavior = fixture
+    state, _candidate = runs["new"]
+    old = Path(state["run_dir"])
+    legacy = tmp_path / "gsc-copy" / state["run_id"]
+    legacy.parent.mkdir()
+    old.rename(legacy)
+    state["run_dir"] = str(legacy)
+    state["result"]["candidate"] = str(legacy / "candidate.json")
+    (queue / "runs" / f"{state['run_id']}.json").write_text(json.dumps(state))
+
+    assert _tick(fixture)["status"] == "PUBLISHED"
+    assert publisher._continuous_daily_usage(queue, state_root, "2026-10-25") == (1, "new")
+    assert publisher._continuous_daily_usage(queue, state_root, "2026-10-26") == (0, "new")
+    assert _tick(fixture)["status"] == "PUBLISHED_TRANSLATION"
+    assert [call[0] for call in calls] == ["new", "i18n-new"]
 
 
 def _batch_fixture(tmp_path, monkeypatch):
@@ -252,7 +279,7 @@ def test_preferred_batch_readback_uses_completed_runs_not_peek_reservation(tmp_p
             rid = entry['run_id'] + '-reselected'
             directory = fixture[1] / 'new' / rid
             directory.mkdir()
-            (directory / 'candidate.json').write_text(json.dumps({'run_id': rid, 'articles': [{'id': entry['article_ids'][0]}]}))
+            (directory / 'candidate.json').write_text(json.dumps({'run_id': rid, 'mode': 'create', 'articles': [{'id': entry['article_ids'][0]}]}))
             (fixture[1] / 'runs' / (rid + '.json')).write_text(json.dumps({'run_id': rid, 'lane': 'new', 'run_dir': str(directory)}))
             entry['run_id'] = rid
             actual_ids.append(rid)
@@ -354,7 +381,8 @@ def test_continuous_repeated_lane_failure_does_not_starve_other_lanes(
         run_dir.mkdir()
         run_state, candidate = runs[lane]
         candidate = {**candidate, "run_id": run_id,
-                     "articles": [{"id": run_id, "article_id": run_id, "locale": "ja"}]}
+                     "articles": [{"id": run_id, "article_id": f"{run_id}:ja" if lane.startswith("i18n-") else run_id,
+                                   "source_article_id": run_id, "locale": "ja"}]}
         run_state = {**run_state, "run_id": run_id, "run_dir": str(run_dir),
                      "result": {"candidate": str(run_dir / "candidate.json")}}
         (run_dir / "candidate.json").write_text(json.dumps(candidate))
@@ -523,7 +551,7 @@ def test_continuous_daily_limit_blocks_and_uses_operator_alert(
         }))
         ledger["published_runs"].append({
             "run_id": run_id, "published_at": "2026-10-25T12:00:00+08:00",
-            "version": f"0.3.{index + 1}", "commit_sha": f"{index:040x}",
+            "version": f"0.3.{index + 1}", "commit_sha": f"{index:040x}", "article_ids": [run_id],
         })
     publisher._atomic_write_json(publisher._ledger_path(state_root), ledger)
     assert publisher._continuous_daily_usage(queue, state_root, "2026-10-25") == (300, "new")
@@ -595,7 +623,7 @@ def test_continuous_reconstructs_actual_article_count_from_saved_candidates(
     ledger = publisher._load_ledger(state_root)
     ledger["published_runs"].append({
         "run_id": run_state["run_id"], "published_at": "2026-10-25T12:00:00+08:00",
-        "version": "0.3.1", "commit_sha": "a" * 40,
+        "version": "0.3.1", "commit_sha": "a" * 40, "article_ids": [run_state["run_id"], "second"],
     })
     publisher._atomic_write_json(publisher._ledger_path(state_root), ledger)
     assert publisher._continuous_daily_usage(queue, state_root, "2026-10-25") == (2, "new")
@@ -612,3 +640,68 @@ def test_continuous_cli_rejects_unbounded_or_non_push_mode(
     monkeypatch.setattr(sys, "argv", ["publisher", *arguments])
     with pytest.raises(SystemExit, match="continuous tick"):
         publisher.main.__wrapped__()
+
+
+@pytest.mark.parametrize("fault", ["outside", "symlink", "run_id", "article_id", "mode", "lane"])
+def test_continuous_rejects_registered_candidate_or_ledger_drift(tmp_path, monkeypatch, fault):
+    """相容舊目錄不能讓任意候選、symlink或稿件身分漂移通過。"""
+    fixture = _fixture(tmp_path, monkeypatch)
+    _repo, queue, state_root, runs, *_ = fixture
+    assert _tick(fixture)["status"] == "PUBLISHED"
+    state, candidate = runs["new"]
+    path = Path(state["result"]["candidate"])
+    if fault in {"outside", "symlink"}:
+        other = tmp_path / "unregistered-candidate.json"
+        other.write_text(path.read_text())
+        if fault == "outside":
+            state["result"]["candidate"] = str(other)
+        else:
+            path.unlink()
+            path.symlink_to(other)
+    elif fault == "run_id":
+        candidate["run_id"] = "wrong-run"
+    elif fault == "article_id":
+        candidate["articles"][0]["id"] = "wrong-article"
+    elif fault == "mode":
+        candidate["mode"] = "rewrite_existing_body"
+    else:
+        state["lane"] = "rewrite"
+    if fault not in {"outside", "symlink"}:
+        path.write_text(json.dumps(candidate))
+    (queue / "runs" / f"{state['run_id']}.json").write_text(json.dumps(state))
+    with pytest.raises(publisher.PublishBlocked):
+        publisher._continuous_daily_usage(queue, state_root, "2026-10-25")
+
+
+def test_continuous_accepts_published_article_order_and_preserves_count(tmp_path, monkeypatch):
+    """既有發布紀錄保留稿件順序，不能要求歷史資料重新排序。"""
+    fixture = _fixture(tmp_path, monkeypatch)
+    _repo, queue, state_root, runs, *_ = fixture
+    state, candidate = runs["new"]
+    candidate["articles"].append({"id": "a-first-alphabetically"})
+    Path(state["result"]["candidate"]).write_text(json.dumps(candidate))
+    entries, _evidence = publisher._publication_records(
+        "create", [candidate], version="0.3.1", commit_sha="a" * 40,
+        base_sha="b" * 40, changed=[], article_count=2,
+        published_at="2026-10-25T12:00:00+08:00", pushed=True,
+    )
+    ledger = publisher._load_ledger(state_root)
+    ledger["published_runs"] = entries
+    publisher._atomic_write_json(publisher._ledger_path(state_root), ledger)
+    assert publisher._continuous_daily_usage(queue, state_root, "2026-10-26") == (0, "new")
+    assert publisher._continuous_daily_usage(queue, state_root, "2026-10-25") == (2, "new")
+
+
+def test_continuous_rejects_translation_lane_drift_from_registered_identity(tmp_path, monkeypatch):
+    """外文新舊線共用mode，仍須符合原有登記的lane。"""
+    from scripts.agy_gemini_coordinator import _build_identity_envelope
+    fixture = _fixture(tmp_path, monkeypatch)
+    _repo, queue, state_root, runs, *_ = fixture
+    assert _tick(fixture)["status"] == "PUBLISHED"
+    assert _tick(fixture)["status"] == "PUBLISHED_TRANSLATION"
+    state, _candidate = runs["i18n-new"]
+    state["identity_envelope"] = _build_identity_envelope("translate_existing", "i18n-new", [state["run_id"]])
+    state["lane"] = "i18n-rewrite"
+    (queue / "runs" / f"{state['run_id']}.json").write_text(json.dumps(state))
+    with pytest.raises(publisher.PublishBlocked, match="registered identity"):
+        publisher._continuous_daily_usage(queue, state_root, "2026-10-25")

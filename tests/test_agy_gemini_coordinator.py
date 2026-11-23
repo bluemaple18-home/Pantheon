@@ -3841,7 +3841,7 @@ def test_campaign_dry_run_workset_is_stable_and_side_effect_free(tmp_path: Path,
         ],
     )
     monkeypatch.setattr(coordinator.publisher, "legacy_article_records", lambda _repo: records)
-    monkeypatch.setattr(coordinator.pipeline, "_existing_rewrite_inventory", lambda _repo: inventory)
+    monkeypatch.setattr(coordinator.pipeline, "_existing_rewrite_inventory", lambda _repo, *, article_ids=None: {key: value for key, value in inventory.items() if article_ids is None or key in article_ids})
     monkeypatch.setattr(
         coordinator.publisher,
         "summarize_legacy_rewrite_backlog",
@@ -4001,7 +4001,8 @@ def test_campaign_dry_run_dedupes_rewrite_and_translation_by_campaign_version(tm
         build_campaign_dry_run_workset(repo_root, queue_root, state_root, campaign_version="rewrite-v1\nnext")
 
 
-def test_seed_legacy_rewrite_runs_registers_oldest_unattempted_article(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize("missing_first", [False, True])
+def test_seed_legacy_rewrite_runs_registers_oldest_unattempted_article(tmp_path: Path, monkeypatch, missing_first) -> None:
     repo_root = tmp_path / "repo"
     queue_root = tmp_path / "queue"
     state_root = tmp_path / "state"
@@ -4039,7 +4040,20 @@ def test_seed_legacy_rewrite_runs_registers_oldest_unattempted_article(tmp_path:
     }
 
     monkeypatch.setattr(coordinator.publisher, "legacy_article_records", lambda _repo: [first_record, second_record])
-    monkeypatch.setattr(coordinator.pipeline, "_existing_rewrite_inventory", lambda _repo: inventory)
+    reads = []
+    def selected_inventory(_repo, *, article_ids=None):
+        expected = "LEGACY-001" if not reads else "LEGACY-002"
+        assert article_ids == [expected], "只能沿原排序讀本次將嘗試的來源，不能展開全站正文"
+        reads.append(article_ids)
+        return real_inventory(_repo, article_ids=article_ids)
+    real_inventory = coordinator.pipeline._existing_rewrite_inventory
+    def selected_node(_repo, script):
+        selected_ids = json.loads(script.split(";", 1)[0].removeprefix("const selectedIds = "))
+        values = [value for key, value in inventory.items()
+                  if key in selected_ids and not (missing_first and key == "LEGACY-001")]
+        return subprocess.CompletedProcess([], 0, json.dumps(values), "")
+    monkeypatch.setattr(coordinator.pipeline, "_run_registry_node_script", selected_node)
+    monkeypatch.setattr(coordinator.pipeline, "_existing_rewrite_inventory", selected_inventory)
 
     summary = seed_legacy_rewrite_runs(
         repo_root,
@@ -4050,15 +4064,18 @@ def test_seed_legacy_rewrite_runs_registers_oldest_unattempted_article(tmp_path:
         source_commit="a" * 40,
     )
 
+    selected = second_record if missing_first else first_record
+    run_id = "legacy-auto-sweep-v1-tarot-002-legacy-002" if missing_first else "legacy-auto-sweep-v1-tarot-001-legacy-001"
+    assert reads == ([["LEGACY-001"], ["LEGACY-002"]] if missing_first else [["LEGACY-001"]])
     assert summary["status"] == "seeded"
     assert summary["created"] == 1
-    assert summary["created_run_ids"] == ["legacy-auto-sweep-v1-tarot-001-legacy-001"]
-    brief = json.loads((run_root / "legacy-auto-sweep-v1-tarot-001-legacy-001" / "brief.json").read_text(encoding="utf-8"))
+    assert summary["created_run_ids"] == [run_id]
+    brief = json.loads((run_root / run_id / "brief.json").read_text(encoding="utf-8"))
     assert brief["mode"] == "rewrite_existing_body"
-    assert brief["articles"][0]["article_id"] == "LEGACY-001"
-    assert brief["articles"][0]["identity"]["serial"] == "tarot-001"
-    assert brief["articles"][0]["identity"]["slug"] == "fortune-0039"
-    assert brief["articles"][0]["immutable_fields"]["slug"] == "yongshen-meaning"
+    assert brief["articles"][0]["article_id"] == selected["id"]
+    assert brief["articles"][0]["identity"]["serial"] == selected["serial"]
+    assert brief["articles"][0]["identity"]["slug"] == selected["urlSlug"]
+    assert brief["articles"][0]["immutable_fields"]["slug"] == selected["slug"]
     assert len(list((queue_root / "runs").glob("*.json"))) == 1
 
 
@@ -4156,7 +4173,7 @@ def test_seed_legacy_rewrite_runs_keeps_bounded_buffer_with_publish_ready(
         "_registered_rewrite_article_ids",
         lambda queue: {"LEGACY-001"} | registered_rewrite_article_ids(queue),
     )
-    monkeypatch.setattr(coordinator.pipeline, "_existing_rewrite_inventory", lambda _repo: inventory)
+    monkeypatch.setattr(coordinator.pipeline, "_existing_rewrite_inventory", lambda _repo, *, article_ids=None: {key: value for key, value in inventory.items() if article_ids is None or key in article_ids})
 
     result = seed_legacy_rewrite_runs(
         repo_root,
@@ -4304,7 +4321,7 @@ def test_seed_legacy_rewrite_runs_preserves_orphan_identity_without_reseeding(
     preserved_marker.write_text("failed historical seed", encoding="utf-8")
 
     monkeypatch.setattr(coordinator.publisher, "legacy_article_records", lambda _repo: [record])
-    monkeypatch.setattr(coordinator.pipeline, "_existing_rewrite_inventory", lambda _repo: inventory)
+    monkeypatch.setattr(coordinator.pipeline, "_existing_rewrite_inventory", lambda _repo, *, article_ids=None: {key: value for key, value in inventory.items() if article_ids is None or key in article_ids})
 
     summary = seed_legacy_rewrite_runs(
         repo_root,
@@ -4479,7 +4496,7 @@ def test_seed_legacy_rewrite_runs_advances_past_exhausted_clean_approvals(
     monkeypatch.setattr(
         coordinator.pipeline,
         "_existing_rewrite_inventory",
-        lambda _repo: inventory,
+        lambda _repo, *, article_ids=None: {key: value for key, value in inventory.items() if article_ids is None or key in article_ids},
     )
 
     allowed_article_ids = {str(record["id"]) for record in records}
@@ -6550,13 +6567,10 @@ def test_seed_legacy_rewrite_runs_ignores_non_rewrite_active_runs_for_capacity(t
         "path": "articles/tarot/tarot-003",
     }
     current_body = [{"heading": "現況", "paragraphs": ["這是一段舊文內容，等待改得更貼近讀者生活。"]}]
+    from test_agy_multilingual_pipeline import legacy_rewrite_translation_brief
     active_briefs = {
         "create-active": {"mode": "create", "articles": []},
-        "translate-active": {
-            "mode": "translate_existing",
-            "lane": "i18n-new",
-            "articles": [{"source_article_id": "V2-NEW-001", "locale": "en"}],
-        },
+        "translate-active": legacy_rewrite_translation_brief("en"),
         "rewrite-active": {
             "mode": "rewrite_existing_body",
             "articles": [{"article_id": "LEGACY-OTHER"}],
@@ -6566,7 +6580,7 @@ def test_seed_legacy_rewrite_runs_ignores_non_rewrite_active_runs_for_capacity(t
         active_run_dir = tmp_path / "active-runs" / run_id
         active_run_dir.mkdir(parents=True)
         (active_run_dir / "brief.json").write_text(
-            json.dumps({"schema_version": 1, "run_id": run_id, **payload}),
+            json.dumps({**payload, "schema_version": 1, "run_id": run_id}),
             encoding="utf-8",
         )
         register_run(active_run_dir, queue_root)
@@ -6575,7 +6589,7 @@ def test_seed_legacy_rewrite_runs_ignores_non_rewrite_active_runs_for_capacity(t
     monkeypatch.setattr(
         coordinator.pipeline,
         "_existing_rewrite_inventory",
-        lambda _repo: {
+        lambda _repo, *, article_ids=None: {
             "LEGACY-003": {
                 "id": "LEGACY-003",
                 "record": record,
