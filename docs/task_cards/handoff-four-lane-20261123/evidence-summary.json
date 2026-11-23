@@ -1,0 +1,83 @@
+{
+  "snapshot_at": "2026-11-23T19:15:02.358705+08:00",
+  "published_base_sha": "e61fb62bfc7e9fd25134f387bb16d521c1b283f0",
+  "published_version": "0.3.1241",
+  "active_actor_sha": "123ee9a682578ea37b8f4581f494e57479d8bcc1",
+  "active_manifest_digest": "e98f338645d96f2a87b96d3ea29ddfbd453bba2bf2632edab9d9f9c4a36d70d5",
+  "active_generation": "translation-handoff-123ee9a68257-20261123",
+  "handoff_status": "兩張卡已結案；等待Owner選下一個產品問題，不自動修清單",
+  "translation_handoff": {
+    "status": "ACCEPTED_CLOSED",
+    "code_commit": "45a5dd8f9feb5fab8cb4b8129bbc585ed5e63871",
+    "original_source_count": 7,
+    "original_task_count": 21,
+    "additional_source_count": 1,
+    "total_task_count": 24,
+    "real_native_queue_and_brief_verified": true,
+    "native_writer_response_verified": true,
+    "two_p2": "延後；不得為此另開修復／review"
+  },
+  "foreign_old_timeout": {
+    "status": "ACCEPTED_CLOSED_NO_CODE_CHANGE",
+    "run_id": "auto-i18n-en-fcf894e798c78f9be256",
+    "candidate_sha256": "91a3b40599ec086b24805d83a2566b76ff72b653c33e001c0e41dd5bcd0fa1d2",
+    "publication": {
+      "run_id": "auto-i18n-en-fcf894e798c78f9be256",
+      "locale": "en",
+      "article_id": "EXPANSION-50D-FORTUNE-0030",
+      "version": "0.3.1241",
+      "commit_sha": "e61fb62bfc7e9fd25134f387bb16d521c1b283f0",
+      "published_at": "2026-11-23T18:45:24+08:00"
+    },
+    "public_url": "https://www.mysticpantheon.com/en/articles/fortune/fortune-0030",
+    "prerender_timeout_seconds": 300,
+    "unmodified_prerender_observed_seconds": 52.988,
+    "unmodified_uv_install_seconds": 1.17,
+    "tests_passed": {
+      "focused": 3,
+      "release_regression": 777
+    },
+    "http_status": 200,
+    "mainline_chrome_visible_body_paragraphs": 12,
+    "expected_body_paragraphs": 12,
+    "cc_independent_http_200": true,
+    "cc_independent_chrome_recheck": false,
+    "root_cause_proven": false,
+    "reopen_threshold": "下次有已過審、hash一致、純逾時且可重現的同類個案，再評估控制對照修復"
+  },
+  "unaccepted_draft": {
+    "branch": "codex/fix-article-resource-fanout-20261118",
+    "commit": "a248538ad108388c5629a06fbf1c1527530abbc2",
+    "base_commit": "6aa7eb0764f2d845ba0a3ece90cb3af18a17c653",
+    "file_count": 17,
+    "all_working_file_bytes_preserved": true,
+    "status": "僅封存，未驗收，不可直接合併或部署",
+    "remote_readback_verified": true
+  },
+  "not_scheduled": [
+    "15筆舊文失敗：先辨識使用者可見症狀與修復價值",
+    "資源載入／HTTPS與導覽標記差異：先查現況與影響，不能只稱抽樣"
+  ],
+  "evidence_refs": {
+    "translation_acceptance": {
+      "local_reference": "<translation-operations>/evidence/translation-handoff-production-acceptance.json",
+      "sha256": "fedb349e562860655ce05913070c9fd23fd4b077290855640dc930e73ce72f48"
+    },
+    "translation_cc_review": {
+      "local_reference": "<recovery-operations>/cc-review-translation-handoff-20261123.md",
+      "sha256": "5f7a6269f12297fd728cdc67425068dff5c77b1fe0e78fa086b01d026dbd819c"
+    },
+    "foreign_acceptance": {
+      "local_reference": "<recovery-operations>/evidence/foreign-old-timeout-20261123/delivery.json",
+      "sha256": "369b0f0f59d38ab0b9a951883e7437ef13cc22eef98b8f0ba618f27a76d75fb4"
+    },
+    "foreign_browser_dom": {
+      "local_reference": "<recovery-operations>/evidence/foreign-old-timeout-20261123/browser-public-proof.json",
+      "sha256": "0921426472e5ee89328417e7901549bd090fd307fc0be684de00c56ee4153f1f"
+    },
+    "foreign_cc_review": {
+      "local_reference": "<recovery-operations>/cc-review-foreign-old-timeout-20261123.md",
+      "sha256": "9e1b27005f3e0ba26d9208c009c0051063b55484c1b4e52f9f279cedec8344f8"
+    }
+  }
+}

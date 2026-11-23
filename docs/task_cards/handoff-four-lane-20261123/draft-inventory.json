@@ -1,0 +1,114 @@
+{
+  "at": "2026-11-23T19:11:02.373243+08:00",
+  "purpose": "換手封存原始未驗收草稿，不套用至正式版",
+  "base_commit": "6aa7eb0764f2d845ba0a3ece90cb3af18a17c653",
+  "branch": "codex/fix-article-resource-fanout-20261118",
+  "file_count": 17,
+  "total_bytes": 1990525,
+  "files": [
+    {
+      "path": "app/web/static/article-content-loader.js",
+      "status": "untracked",
+      "bytes": 902,
+      "sha256": "2bd1d7393bb0c289a3587a1a80617106258c5a1e2ed7d81f5d4b0153cb563b95"
+    },
+    {
+      "path": "app/web/static/article.js",
+      "status": "modified",
+      "bytes": 17211,
+      "sha256": "1a36958289ccd7e820486f391e9c6dacf503ab9cb1833fa6147c962606b7fa65"
+    },
+    {
+      "path": "scripts/agy_content_publisher.py",
+      "status": "modified",
+      "bytes": 316875,
+      "sha256": "107a6746b7eac3a4f54666df5fb0cdde8f61d93352db82457844c51c73a3d70b"
+    },
+    {
+      "path": "scripts/agy_seo_copy_pipeline.py",
+      "status": "modified",
+      "bytes": 330216,
+      "sha256": "01e333d47691dedc20e4873dc175202f26cf25d1aeabd851581c6af9c8f7bafb"
+    },
+    {
+      "path": "scripts/install_pantheon_content_capacity_guard_launchd.sh",
+      "status": "modified",
+      "bytes": 15263,
+      "sha256": "41df1d6e623337e8661984e46a360824146dac3f160f09a60432b9280304fddc"
+    },
+    {
+      "path": "scripts/pantheon_content_runtime_promotion.py",
+      "status": "modified",
+      "bytes": 155380,
+      "sha256": "384bdb4b3a7c2239e89f5399f1384fd8eaf8e24d3a542dfc0e5caa375202db17"
+    },
+    {
+      "path": "scripts/pantheon_runtime_activation.py",
+      "status": "modified",
+      "bytes": 85846,
+      "sha256": "688a7413b60f21c0517084885a47e32fcf35c71d75c7c2b229b6fcb988c62f9e"
+    },
+    {
+      "path": "scripts/prerender_article_shells.py",
+      "status": "modified",
+      "bytes": 38727,
+      "sha256": "755018ad2aa6799c86a6a2503b1b03f15ba4a2e394c56ad21588949f1f57f1ff"
+    },
+    {
+      "path": "tests/fixtures/article_resource_fanout.mjs",
+      "status": "untracked",
+      "bytes": 4739,
+      "sha256": "244084123c0bb49ad1c5d29bbd8ce765a24edec5aca1db3d4000807c2269444a"
+    },
+    {
+      "path": "tests/test_agy_content_publisher.py",
+      "status": "modified",
+      "bytes": 388389,
+      "sha256": "a65e6f90d647669beca6b5039d401620b5996338ded898c9bc46f2a430bc8946"
+    },
+    {
+      "path": "tests/test_article_resource_fanout.py",
+      "status": "untracked",
+      "bytes": 11675,
+      "sha256": "912c9502c84b0431304e370715642d220421acd068722527572e3cf24984ea58"
+    },
+    {
+      "path": "tests/test_continuous_publisher.py",
+      "status": "modified",
+      "bytes": 28979,
+      "sha256": "c4926de19f100b9653006b46a5698d3c34352be91e9a97f4e060dca37550b6d6"
+    },
+    {
+      "path": "tests/test_p1_07_pubguard_controller.py",
+      "status": "modified",
+      "bytes": 79901,
+      "sha256": "4f02b58d182ebd53d0d09b398d5e1a018fa33126efe73d5ce14ab8a671eb3384"
+    },
+    {
+      "path": "tests/test_p1_07_pubguard_real_git.py",
+      "status": "modified",
+      "bytes": 26020,
+      "sha256": "3e227d8fc8e9810491f57ae17711468e8ff862b322a37919a68a496f813e69ca"
+    },
+    {
+      "path": "tests/test_pantheon_content_capacity_guard.py",
+      "status": "modified",
+      "bytes": 233238,
+      "sha256": "b42650e16f90b83e9a23b21e66ca5c676ffecea8b48232ad9ac24eb646258fbf"
+    },
+    {
+      "path": "tests/test_pantheon_runtime_activation.py",
+      "status": "modified",
+      "bytes": 77094,
+      "sha256": "e050145144fa6b3ae79d9b4f5ff5764a2e59884e70c95ce10267784112e152ee"
+    },
+    {
+      "path": "tests/test_web.py",
+      "status": "modified",
+      "bytes": 180070,
+      "sha256": "a08d4008263f3bd86656cf0660e79bc03b1d3602167b4ca9039050fa1d6c5098"
+    }
+  ],
+  "checkpoint_commit": "a248538ad108388c5629a06fbf1c1527530abbc2",
+  "validation": "WIP封存；未新增測試、不宣稱可部署"
+}
