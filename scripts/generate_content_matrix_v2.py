@@ -90,6 +90,70 @@ PAIR_SCENARIOS = (
     ("LONG-TERM", "長期相處", "想評估長期互動需要協調的地方"),
 )
 
+# Matrix scenario 是內部分類，不是可直接複製到公開文案的 SEO 詞。
+# 下列 wording 只是一版人工審過的前期自然表達，不宣稱是 GSC 驗證後的
+# 最佳關鍵字；後續仍由四語系實際 query data 覆寫。
+MONEY_PUBLIC_COPY = {
+    "zodiac": (
+        "{name}財運",
+        "{name}財運怎麼看？從消費、收入與風險選擇理解傾向與限制",
+        "正在整理消費、收入、分配或風險選擇，想了解{name}常見傾向與限制，不把星座當成財務預測",
+    ),
+    "mbti": (
+        "{name}理財方式",
+        "{name}理財方式有哪些傾向？從消費、分配與風險選擇來看",
+        "面對消費、儲蓄、分配或風險選擇，想了解{name}可能偏好的理財方式與限制，不把人格類型當成財務能力結論",
+    ),
+    "tarot": (
+        "塔羅{name}財運",
+        "塔羅{name}財運怎麼看？從牌義、取捨與風險選擇理解限制",
+        "問財運時抽到{name}，想理解這張牌對取捨、收入變動與風險選擇提供什麼提醒，以及不能據此斷定什麼",
+    ),
+    "ziwei": (
+        "{name}星財運",
+        "{name}星和財運怎麼看？從資源分配與風險選擇理解限制",
+        "想從{name}星理解資源分配、消費選擇與風險承受的可能傾向，不把單一主星當成財富結果",
+    ),
+    "bazi": (
+        "八字{name}與財運",
+        "八字{name}與財運怎麼看？從資源分配與風險選擇理解限制",
+        "想理解八字{name}與資源取得、分配和風險選擇的關聯與限制，不以單一十神判定財富結果",
+    ),
+}
+
+
+def _single_public_copy(
+    family: str,
+    name: str,
+    scenario_code: str,
+    scenario: str,
+    situation: str,
+) -> tuple[str, str, str]:
+    if scenario_code == "MONEY":
+        keyword_template, title_template, intent_template = MONEY_PUBLIC_COPY[family]
+        return (
+            keyword_template.format(name=name),
+            title_template.format(name=name),
+            intent_template.format(name=name),
+        )
+    if family == "tarot":
+        keyword = f"塔羅{name}在{scenario}中代表什麼"
+        title = f"{keyword}？先看牌義、處境與不能直接斷定的事"
+    elif family == "ziwei":
+        keyword = f"紫微斗數{name}在{scenario}中的表現"
+        title = f"{keyword}怎麼看？從生活線索理解優勢與限制"
+    elif family == "bazi":
+        keyword = f"八字十神{name}在{scenario}中的表現"
+        title = f"{keyword}怎麼看？從生活線索理解傾向與限制"
+    else:
+        keyword = f"{name}在{scenario}中的表現"
+        title = f"{keyword}怎麼看？從生活情境理解傾向與限制"
+    return (
+        keyword,
+        title,
+        f"{situation}，想知道{name}能提供哪些觀察角度、反例與使用限制",
+    )
+
 
 def _single_row(
     family: str,
@@ -104,24 +168,19 @@ def _single_row(
     product: str,
     category: str,
 ) -> dict[str, str]:
-    if family == "tarot":
-        keyword = f"塔羅{name}在{scenario}中代表什麼"
-        title = f"{keyword}？先看牌義、處境與不能直接斷定的事"
-    elif family == "ziwei":
-        keyword = f"紫微斗數{name}在{scenario}中的表現"
-        title = f"{keyword}怎麼看？從生活線索理解優勢與限制"
-    elif family == "bazi":
-        keyword = f"八字十神{name}在{scenario}中的表現"
-        title = f"{keyword}怎麼看？從生活線索理解傾向與限制"
-    else:
-        keyword = f"{name}在{scenario}中的表現"
-        title = f"{keyword}怎麼看？從生活情境理解傾向與限制"
+    keyword, title, intent = _single_public_copy(
+        family,
+        name,
+        scenario_code,
+        scenario,
+        situation,
+    )
     return {
         "priority": "V2-SINGLE",
         "id": f"V2-{family.upper()}-{code}-{scenario_code}",
         "primaryKeyword": keyword,
         "title": title,
-        "intent": f"{situation}，想知道{name}能提供哪些觀察角度、反例與使用限制",
+        "intent": intent,
         "family": family,
         "entityType": entity_type,
         "entity": name,
