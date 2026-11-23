@@ -2,6 +2,38 @@
 
 每次正式文章發布都必須同步更新 `pyproject.toml`、`package.json` 與本檔，並以同版本 annotated tag 指向 release commit。
 
+## [0.3.1234] - 2026-11-23
+
+- Release tag：`v0.3.1234`
+- 公開文章總數：1109（新增多語版本，不新增繁中 registry 條目）
+- 發布範圍：發布通過母語品質、Reviewer 與 deterministic gate 的多語文章 1 個 run；語系：en；run_id：auto-i18n-en-94b36af7ed76de9a5843。
+- 驗證：publisher clean-origin gate、來源漂移 gate、多語 deterministic gate、focused multilingual pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/translation-0.3.1234`
+
+## [0.3.1233] - 2026-11-23
+
+- Release tag：`v0.3.1233`
+- 公開文章總數：1109
+- 發布範圍：自動發布 Gemini Reviewer APPROVE 且 deterministic gate 通過的新文章 1 個 run；run_id：auto-new-v1-20261123-001-01。
+- 驗證：publisher clean-origin gate、Reviewer hash gate、deterministic quality gate、batch uniqueness gate、focused article pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/publish-0.3.1233`
+
+## [0.3.1232] - 2026-11-23
+
+- Release tag：`v0.3.1232`
+- 公開文章總數：1108（舊文重寫，不新增 registry 條目）
+- 發布範圍：套用 Gemini Reviewer APPROVE 且 deterministic gate 通過的舊文 body override 1 篇；run_id：legacy-auto-sweep-v1-interpersonal-0007-theme-interpersonal-07。
+- 驗證：publisher clean-origin gate、Reviewer hash gate、rewrite deterministic gate、source body drift gate、focused article pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/rewrite-0.3.1232`
+
+## [0.3.1231] - 2026-11-23
+
+- Release tag：`v0.3.1231`
+- 公開文章總數：1108（新增多語版本，不新增繁中 registry 條目）
+- 發布範圍：發布通過母語品質、Reviewer 與 deterministic gate 的多語文章 1 個 run；語系：ja；run_id：auto-i18n-ja-9de78177c654266d22a0-replacement-01。
+- 驗證：publisher clean-origin gate、來源漂移 gate、多語 deterministic gate、focused multilingual pipeline tests 與 release record gate。
+- 證據：`/Users/mattkuo/Documents/Pantheon-canary-runtime-v8/state/evidence/translation-0.3.1231`
+
 ## [0.3.1230] - 2026-11-20
 
 - Release tag：`v0.3.1230`
