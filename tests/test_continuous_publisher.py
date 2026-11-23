@@ -98,6 +98,8 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
                         "run_ids": [run_id], "commit_sha": commit}}
 
     monkeypatch.setattr(publisher, "publish_ready_all", publish)
+    # 輪轉測試不建立網站來源；真實交接由發文器整合測試覆蓋。
+    monkeypatch.setattr(publisher, "_seed_pending_translations", lambda *a, **k: [])
     monkeypatch.setattr(publisher, "_assert_no_unresolved_push", lambda *_: None)
     monkeypatch.setattr(publisher, "_repo_lock_path", lambda *_: repo / "publisher.lock")
     monkeypatch.setattr(publisher, "CONTINUOUS_TIMEZONE", publisher.ZoneInfo("Asia/Taipei"))

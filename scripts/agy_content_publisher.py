@@ -6181,6 +6181,9 @@ def _select_continuous_run(
             except (OSError, ValueError, TypeError) as error:
                 raise PublishBlocked("continuous publisher attempt state is invalid") from error
             start = (CONTINUOUS_LANES.index(cursor["last_attempted_lane"]) + 1) % len(CONTINUOUS_LANES)
+        if record_attempt:
+            # 單篇 exact 發布略過翻譯交接，由正常週期沿同一鎖補交既有來源。
+            _seed_pending_translations(repo_root, queue_root, state_root, atomic_ledger=True)
         for offset in range(len(CONTINUOUS_LANES)):
             lane = CONTINUOUS_LANES[(start + offset) % len(CONTINUOUS_LANES)]
             if record_attempt:

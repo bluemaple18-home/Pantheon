@@ -8986,3 +8986,54 @@ def test_g1_collector_rejection_records_existing_side_effects_without_apply(tmp_
     assert _tree_bytes(root / "app") == before
     assert not any(c[0] in {"commit", "push"} for c in calls)
     _write_json(run.parent / "g1-rejected-receipt.json", {"operations": [], "collector_side_effect": ledger[key]})
+
+
+@pytest.mark.parametrize("phase", ["create", "rewrite"])
+def test_continuous_single_source_reaches_translation_queue(tmp_path_factory, monkeypatch, phase):
+    """單篇發布留下的交接，下一個正常週期須建立三語任務。"""
+    from tests.test_agy_multilingual_pipeline import source_article_with_policy
+
+    tmp_path = tmp_path_factory.mktemp("translation-handoff-" + phase, numbered=False)
+
+    seed = publisher._seed_pending_translations
+    enqueue = publisher.multilingual.enqueue_article_translations
+    fixture = _g1_fixture(tmp_path, monkeypatch, phase, observe_apply=False)
+    root, queue, state, run, git, *_ = fixture
+    if phase == "create":
+        monkeypatch.setattr(publisher, "legacy_article_records", lambda *_: [])
+    for state_path in publisher._run_files(queue):
+        registered = publisher._read_json(state_path)
+        if registered["run_id"] == run.name:
+            registered["lane"] = "new" if phase == "create" else "rewrite"
+            publisher._write_json(state_path, registered)
+    monkeypatch.setattr(publisher, "_seed_pending_translations", seed)
+    monkeypatch.setattr(publisher, "_run_checked", lambda *a, **k: None)
+    loaded = []
+
+    def enqueue_source(repo, target_queue, **kwargs):
+        assert kwargs["source_run_id"] == run.name
+        source = source_article_with_policy()
+        source["article_id"] = kwargs["article_id"]
+        loaded.append((repo, source["article_id"]))
+        return enqueue(repo, target_queue, **kwargs, source_loader=lambda *_: source)
+
+    monkeypatch.setattr(publisher.multilingual, "enqueue_article_translations", enqueue_source)
+    published = _g1_publish(fixture, phase, push=True)
+    assert published["status"] == ("PUBLISHED" if phase == "create" else "PUBLISHED_REWRITE")
+    result = publisher.publish_continuous_tick(
+        root, queue, state, max_runs=1, push=True, git=git,
+        run_tests=False, release_gate=False,
+    )
+    assert result["status"] == "idle"
+    ledger = publisher._load_ledger(state)
+    bucket = "published_runs" if phase == "create" else "rewrite_released_runs"
+    entry = next(item for item in ledger[bucket] if item["run_id"] == run.name)
+    assert entry["translation_seed_status"] == "seeded"
+    assert len(entry["translation_run_ids"]) == 3
+    expected_lane = "i18n-new" if phase == "create" else "i18n-rewrite"
+    states = [json.loads(path.read_text()) for path in (queue / "runs").glob("*.json")]
+    translations = [item for item in states if item.get("lane") == expected_lane]
+    assert {item["run_id"] for item in translations} == set(entry["translation_run_ids"])
+    briefs = [publisher._read_json(Path(item["run_dir"]) / "brief.json") for item in translations]
+    assert {brief["articles"][0]["locale"] for brief in briefs} == {"en", "ja", "ko"}
+    assert loaded and all(repo == root for repo, _ in loaded)
