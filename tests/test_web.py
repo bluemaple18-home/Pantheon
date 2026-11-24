@@ -2251,7 +2251,7 @@ const data = paths.map((path) => {{
     relatedHasEntrance: content.relatedLinks.some((item) => item.label.includes("入口") || item.kind.includes("入口")),
     relatedAllArticles: content.relatedLinks.every((item) => item.kind === "相關文章"),
     ctaCount: content.cta?.links?.length || 0,
-    hasLimit: /不能|不適合|不代表|不是/.test(bodyText),
+    hasLimit: /不能|不適合|不代表|不是|無法/.test(bodyText),
     minBodyLength: 240,
     hasForbidden: forbidden.some((word) => positivePromiseText.includes(word)),
     hasReaderHostilePhrase: forbiddenReaderPhrases.some((word) => articleText.includes(word) || content.faq.some((item) => item.question.includes(word) || item.answer.includes(word))),
